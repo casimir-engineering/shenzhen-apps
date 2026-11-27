@@ -53,7 +53,9 @@ handshake range 0 to 4). The handshake's capability bits (field 26, u32be, none 
 - bit 2 `compressed parts` (§ 9.4): this side reads zstd PARTs (Codec 1);
 - bit 3 `pieces`: Pieces (field 47) in WANT and HAVE (§ 3). Sent only to a peer that sets it, so development builds
   from before pieces keep working with whole blocks: to such a peer a partly received block is wanted whole;
-- bit 4 `LZ4 parts` (§ 9.4): this side reads LZ4 PARTs (Codec 2).
+- bit 4 `LZ4 parts` (§ 9.4): this side reads LZ4 PARTs (Codec 2);
+- bit 7 `AES session` (§ 9.2 (c)): this side has hardware AES and runs a session's transport on AES-256-GCM after
+  its first message. (Bit 5 is ADR 0019's.)
 
 A session uses anything below only when its negotiated minor is 4 or more **and** both sides set bit 0. Otherwise
 everything stays exactly as ADR 0001 has it: OFFER with the BLAKE2b digest, CHUNK in order, PROGRESS, DONE, ACK, one
@@ -141,9 +143,13 @@ that goes past it is closed. That bounds what a peer can make a receiver hold wh
 ### 4. Resume: a block map that survives restarts, sleep and route changes
 
 The receiver keeps, beside `received/.partial/<id>`, a sidecar `<id>.map`: magic and version, shift, block count,
-TreeRoot, the checked leaves and a bitmap of durable blocks. A durability batch (every 8 MiB or 1 s of received
-blocks) writes the blocks (`pwrite`), orders them before the map (`F_BARRIERFSYNC` on macOS and iOS, `fsync` elsewhere),
-writes the changed bitmap bytes, then makes both durable with one `F_FULLFSYNC` (`fsync` elsewhere). The row's
+TreeRoot, the checked leaves and a bitmap of durable blocks. A durability batch (every 64 MiB or 1 s of received
+blocks, whichever comes first; 8 MiB until 2026-11-27) writes the blocks (`pwrite`), orders them before the map
+(`F_BARRIERFSYNC` on macOS and iOS, `fsync` elsewhere), writes the changed bitmap bytes, then makes both durable with
+one `F_FULLFSYNC` (`fsync` elsewhere). The flushes run on a thread of their own, on duplicates of both descriptors,
+against a bitmap that claims only that batch's blocks, while parts keep arriving; its blocks count once it settles,
+and the last batch and the publish check wait for it and flush in place (measured 2026-11-27: on the receive path
+the flushes took a sixth of a 2 GiB loopback transfer's time). The row's
 `verified_bytes` keeps meaning the contiguous durable prefix and is committed as today, so an older helper that meets
 the same partial file after a downgrade resumes from that prefix and loses only the blocks beyond it. After an unclean
 exit the receiver re-checks every block the map claims before trusting it (2 GiB re-hashes in well under a second on
@@ -178,8 +184,12 @@ that side's word for the leaves, the BLAKE2b content check at publish (§ 5) rem
 ### 5. Publishing
 
 When every block is durable the receiver reads the file back through the descriptor that wrote it (as the security
-review required) and computes the tree on all cores and the BLAKE2b content digest on one more, in the same pass, then
-publishes only if the root and the offered Digest both match. Checking the Digest too means a sender cannot make a
+review required) and computes the tree on all cores, then publishes only if the root and the offered Digest both
+match. The BLAKE2b content digest is computed while the blocks arrive, on a thread of its own: blocks go in in order,
+each as it completes when it is the next one, later blocks that completed earlier read back from the staging file. It
+covers the bytes as they arrived and were checked against their leaves, and the tree read back covers the disk, so
+the two together prove the file on disk has the offered digest (both helpers since 2026-11-27; after a restart, or
+when streaming stopped, the read-back hashes the digest too, in the same pass). Checking the Digest too means a sender cannot make a
 file's recorded identity differ from its bytes. It costs about 1.4 s per 2 GiB, in parallel with the tree, and the
 person sees "Finishing…" for files whose check takes longer than a second (PROTOCOL.md § Fast transfers).
 
@@ -317,7 +327,14 @@ Each with its cost and benefit; the journal keeps the full list, including those
    `fixtures/vectors/transfer-more/aes_lane.json`. With either cipher a session seals the bulk frames it may send and
    opens the complete messages a read delivered in batches, on up to four cores (§ 6's "lanes on several cores" within
    one lane), with the nonces one at a time would use; a batch stops at a REKEY. AEGIS-128L (21 GB/s) is not a Noise
-   cipher and is not adopted.
+   cipher and is not adopted. (c) Adopted 2026-11-27 (capability bit 7): first sessions too, without changing their
+   handshake. When both sides of a fast session set bit 7 (which a side sets only with hardware AES, as bit 1), each
+   direction's first transport message (the initiator's HELLO) stays ChaChaPoly under the Split() key and every later
+   one is AES-256-GCM with Noise's AESGCM nonces under `BLAKE2b-256(key: k, "SZFriends AES session v1")`, k being that
+   direction's key just before its message 1 (after a REKEY sent as message 0, the new one); the nonce counter goes
+   on, and REKEY afterwards rekeys the AES key as Noise's REKEY does. A side that sets bit 7 but cannot switch closes
+   the session. Released helpers set no bit 7 and keep ChaChaPoly throughout; `SZFRIENDS_TEST_AES_SESSION=0` plays
+   them. Measured on loopback (2 GiB): CPU per GB down by about one second on each side of a Mac pair.
 3. **Batching (adopted).** Files sent together are staged together: one transaction, fsync per file and one
    F_FULLFSYNC for the batch (on Apple storage it flushes the whole drive cache, 3.6 ms each here), and the receiver
    publishes a batch the same way. Their OFFERs go back to back and a receiver accepting them answers them back to back,
