@@ -1,6 +1,7 @@
 // Secure channels: starting links, which link carries a conversation, and what happens when one ends (ADR 0001
 // § Session race, ADR 0004 § Hidden listeners, § Public visibility). Who may connect at all is +KeyPolicy.
 
+#import "service/discovery/SZFriendsDiscoveryInternal.h"
 #import "service/helper/nearby/SZFriendsNearbyDevices.h"
 #import "service/sync/SZFriendsAgain.h"
 #import "service/helper/nearby/SZFriendsNearbyJoin.h"
@@ -127,6 +128,17 @@
                            @"network, or a phone on mobile data)",
                            link.lane ? @"lane" : @"session", (unsigned long long)link.traceID,
                            [self traceWhoOfLink:link]);
+        // Not a failure (the person's backoff stays); the dialer leaves that endpoint off direct Wi-Fi for a while
+        // rather than dialing, handshaking and closing again on every pass (the racer, as in direct_wifi.rs).
+        link.ruleClosed = YES;
+        NSString *name = [self raceNameOfLink:link];
+        if (link.channel.isInitiator && link.laneHead == nil && link.endpointID != nil && name != nil) {
+            [self.coordinator.racer notePeerToPeerRefusedAtEndpoint:link.endpointID
+                                                             method:(SZFriendsDiscoveryMethod)link.discoveryMethod
+                                                     conversationID:name];
+            NSDate *end = self.coordinator.racer.nextBackoffEnd;
+            if (end != nil) [self scheduleReconsiderAfter:MAX(0, end.timeIntervalSinceNow)];
+        }
         [link.channel closeWithReason:SZFriendsCloseReasonNormal]; // a lane leaves its group as it closes
         return;
     }
@@ -441,7 +453,7 @@ static BOOL SZFriendsEndWasSupersededByPeer(NSError *error) {
         [self noteDialToEndpoint:link.endpointID method:link.discoveryMethod conversation:[self raceNameOfLink:link]
                        succeeded:NO];
     }
-    if (conversationID != nil && !link.probe && !link.superseded && SZFriendsEndCounts(error)) {
+    if (conversationID != nil && !link.probe && !link.superseded && !link.ruleClosed && SZFriendsEndCounts(error)) {
         if (link.live) [self noteEndOfLink:link];
         else if (link.channel.isInitiator) [self noteFailureForConversation:conversationID];
     }

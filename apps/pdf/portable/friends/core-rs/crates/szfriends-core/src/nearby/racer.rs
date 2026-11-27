@@ -1,7 +1,8 @@
 //! Route racing (`SZFriendsRouteRacer.m`, ADR 0004 § Route racing): every sighted endpoint of a friend dialed at once
 //! with IK, staggered toward the better routes, and a backoff per person, method and tag after a failed handshake, so
 //! a device re-advertising someone's captured tag draws each friend's dial rarely. Pure; the clock is an argument.
-//! Peer-to-peer Wi-Fi is dialed only while this device allows direct Wi-Fi under the owner's rule ([`super::p2p_wifi`]).
+//! Peer-to-peer Wi-Fi is dialed only while this device allows direct Wi-Fi under the owner's rule ([`super::p2p_wifi`]),
+//! and not to a friend's endpoint there whose device said it does not ([`Racer::note_p2p_refused`]).
 
 use std::collections::HashMap;
 
@@ -20,6 +21,11 @@ pub const ENDPOINT_BACKOFF_FIRST_SECONDS: f64 = 2.0;
 /// One window, after which tags have rotated.
 pub const ENDPOINT_BACKOFF_MAX_SECONDS: f64 = 900.0;
 const BACKOFF_ENTRIES_MAX: usize = 1024;
+/// A friend's endpoint whose session on peer-to-peer Wi-Fi was closed under the owner's rule waits this long before
+/// it is dialed there again, twice as long each time (up to [`ENDPOINT_BACKOFF_MAX_SECONDS`]).
+pub const P2P_REFUSED_FIRST_SECONDS: f64 = 30.0;
+/// The suffix of such a backoff's key: kept beside the endpoint's own, which its other routes go by.
+const P2P_REFUSED: &str = "|p2p";
 
 /// The stagger an attempt on `route` waits; None and unknown routes wait like the relay.
 pub fn dial_delay(route: RouteMethod) -> f64 {
@@ -138,6 +144,11 @@ impl Racer {
                 if self.backing_off(&key, now) {
                     continue;
                 }
+                if sighting.route == RouteMethod::PeerToPeerWifi
+                    && self.backing_off(&format!("{key}{P2P_REFUSED}"), now)
+                {
+                    continue;
+                }
                 if self.endpoint_tags.len() >= BACKOFF_ENTRIES_MAX && !self.endpoint_tags.contains_key(&endpoint) {
                     self.endpoint_tags.clear();
                 }
@@ -159,13 +170,24 @@ impl Racer {
     /// A handshake for a person failed at an endpoint: its tag's backoff starts or doubles.
     pub fn note_failed(&mut self, endpoint: &str, method: Method, conversation: &str, now: f64) {
         let key = self.key_for(endpoint, method, conversation);
+        self.back_off(key, ENDPOINT_BACKOFF_FIRST_SECONDS, now);
+    }
+
+    /// A session for a person on peer-to-peer Wi-Fi went live at an endpoint and was closed under the owner's rule
+    /// (their device does not allow direct Wi-Fi): that endpoint is not dialed there for a while, longer each time.
+    /// Not a failure: its other routes and the person's own backoff are left as they are.
+    pub fn note_p2p_refused(&mut self, endpoint: &str, method: Method, conversation: &str, now: f64) {
+        let key = self.key_for(endpoint, method, conversation) + P2P_REFUSED;
+        self.back_off(key, P2P_REFUSED_FIRST_SECONDS, now);
+    }
+
+    fn back_off(&mut self, key: String, first: f64, now: f64) {
         let mut backoff = match self.backoffs.get(&key) {
             Some(b) if !b.stale(now) => *b,
             _ => Backoff { failures: 0, until: now },
         };
         backoff.failures += 1;
-        let delay = (ENDPOINT_BACKOFF_FIRST_SECONDS * 2f64.powi((backoff.failures - 1).min(20) as i32))
-            .min(ENDPOINT_BACKOFF_MAX_SECONDS);
+        let delay = (first * 2f64.powi((backoff.failures - 1).min(20) as i32)).min(ENDPOINT_BACKOFF_MAX_SECONDS);
         backoff.until = now + delay;
         self.backoffs.insert(key, backoff);
         if self.backoffs.len() > BACKOFF_ENTRIES_MAX {
@@ -178,7 +200,8 @@ impl Racer {
     pub fn end_backoffs(&mut self, conversation: &str, now: f64) {
         let prefix = format!("{conversation}|");
         for (key, backoff) in self.backoffs.iter_mut() {
-            if key.starts_with(&prefix) {
+            // A refusal under the owner's rule stands: the relay changes nothing about the friend's Wi-Fi.
+            if key.starts_with(&prefix) && !key.ends_with(P2P_REFUSED) {
                 backoff.until = backoff.until.min(now);
             }
         }

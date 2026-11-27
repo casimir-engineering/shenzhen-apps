@@ -14,6 +14,11 @@ const NSTimeInterval SZFriendsEndpointBackoffMax = 900;
 // A bound on remembered backoffs and endpoint tags, so endpoints and tags that come and go (both rotate per window)
 // cannot grow the tables without end; the oldest-ending backoffs go first.
 static const NSUInteger kBackoffEntriesMax = 1024;
+// A friend's endpoint whose session on peer-to-peer Wi-Fi was closed under the owner's rule waits this long before it
+// is dialed there again, twice as long each time (up to the endpoint maximum); its key carries this suffix, beside
+// the endpoint's own, which its other routes go by. The Rust core's P2P_REFUSED_FIRST_SECONDS.
+static const NSTimeInterval kPeerToPeerRefusedFirst = 30;
+static NSString *const kPeerToPeerRefused = @"|p2p";
 
 BOOL SZFriendsStartAdapterAtLaunch(SZFriendsPermission permission, BOOL nearbyPermissionsRequested) {
     switch (permission) {
@@ -154,13 +159,24 @@ static BOOL BackoffIsStale(SZFriendsEndpointBackoff *backoff, NSDate *now) {
                        conversationID:(NSString *)conversationID {
     NSDate *now = self.clock();
     NSString *key = [self backoffKeyForEndpoint:endpointID method:method conversationID:conversationID];
+    [self backOff:key first:SZFriendsEndpointBackoffFirst at:now];
+}
+
+// Not a failure: the endpoint's other routes and the person's own backoff are left as they are.
+- (void)notePeerToPeerRefusedAtEndpoint:(NSString *)endpointID
+                                 method:(SZFriendsDiscoveryMethod)method
+                         conversationID:(NSString *)conversationID {
+    NSString *key = [self backoffKeyForEndpoint:endpointID method:method conversationID:conversationID];
+    [self backOff:[key stringByAppendingString:kPeerToPeerRefused] first:kPeerToPeerRefusedFirst at:self.clock()];
+}
+
+- (void)backOff:(NSString *)key first:(NSTimeInterval)first at:(NSDate *)now {
     // A failure counts on from an entry still remembered, so a relayed tag dialed again right after its backoff
     // ended waits twice as long next time.
     SZFriendsEndpointBackoff *backoff = _backoffs[key];
     if (backoff == nil || BackoffIsStale(backoff, now)) backoff = [SZFriendsEndpointBackoff new];
     backoff.failures++;
-    NSTimeInterval delay = MIN(SZFriendsEndpointBackoffMax,
-                               SZFriendsEndpointBackoffFirst * pow(2, (double)MIN(backoff.failures - 1, 20u)));
+    NSTimeInterval delay = MIN(SZFriendsEndpointBackoffMax, first * pow(2, (double)MIN(backoff.failures - 1, 20u)));
     backoff.until = [now dateByAddingTimeInterval:delay];
     _backoffs[key] = backoff;
     if (_backoffs.count > kBackoffEntriesMax) [self pruneBackoffsAt:now];
@@ -177,6 +193,8 @@ static BOOL BackoffIsStale(SZFriendsEndpointBackoff *backoff, NSDate *now) {
     NSString *prefix = [conversationID stringByAppendingString:@"|"];
     for (NSString *key in _backoffs) {
         SZFriendsEndpointBackoff *backoff = _backoffs[key];
+        // A refusal under the owner's rule stands: the relay changes nothing about the friend's Wi-Fi.
+        if ([key hasSuffix:kPeerToPeerRefused]) continue;
         if ([key hasPrefix:prefix] && [backoff.until compare:now] == NSOrderedDescending) backoff.until = now;
     }
 }
@@ -220,6 +238,10 @@ static BOOL BackoffIsStale(SZFriendsEndpointBackoff *backoff, NSDate *now) {
                                                     tag:tag
                                          conversationID:conversationID];
             if ([self isBackingOff:key at:now]) continue;
+            if (sighting.route == SZFriendsRouteMethodPeerToPeerWiFi &&
+                [self isBackingOff:[key stringByAppendingString:kPeerToPeerRefused] at:now]) {
+                continue;
+            }
             // Remembered for the failure report, which names only the endpoint.
             if (_endpointTags.count >= kBackoffEntriesMax && !_endpointTags[endpoint]) [_endpointTags removeAllObjects];
             if (tag) _endpointTags[endpoint] = tag;

@@ -55,6 +55,7 @@ NSData *_Nullable SZFriendsLinkBytesFromHex(NSString *_Nullable hex); // nil unl
 @property(nonatomic) BOOL live;                              // established (responder: HELLO received)
 @property(nonatomic) BOOL adopted;                           // carries this conversation's traffic
 @property(nonatomic) BOOL superseded;                        // lost the race; closing after its in-flight ACKs
+@property(nonatomic) BOOL ruleClosed; // closed under the owner's direct Wi-Fi rule: no failure of the person's
 @property(nonatomic) BOOL closed;
 @property(nonatomic) BOOL profileSent;
 @property(nonatomic) BOOL createsFriendship;                 // runs the comparison-code exchange

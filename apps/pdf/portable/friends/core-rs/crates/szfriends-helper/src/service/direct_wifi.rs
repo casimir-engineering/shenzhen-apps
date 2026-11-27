@@ -11,6 +11,7 @@
 //!   stops allowing it (it joined a Wi-Fi network, lost its mobile data), what runs on that route closes.
 
 use szfriends_core::nearby::WifiStanding;
+use szfriends_core::store::unix_now;
 use szfriends_core::wire::consts::CAPABILITY_DIRECT_WIFI_ALLOWED;
 use szfriends_core::wire::{CloseReason, RouteMethod};
 
@@ -52,6 +53,24 @@ impl State {
             log!("direct Wi-Fi: session {id} closed: both devices must allow direct Wi-Fi (on no Wi-Fi network, or a phone on mobile data)");
         }
         refused
+    }
+
+    /// Closes a session the owner's rule refuses. Not a failure: the person's backoff stays as it is on both sides,
+    /// and the dialer leaves that endpoint off peer-to-peer Wi-Fi for a while (the racer), instead of dialing it,
+    /// handshaking and closing again on every pass.
+    pub(crate) fn close_under_rule(&mut self, id: u64) {
+        let Some(session) = self.sessions.map.get_mut(&id) else { return };
+        session.meta.rule_closed = true;
+        let name = session.conversation.clone().or_else(|| session.meta.race_name.clone());
+        if let (true, Some((method, endpoint)), Some(name)) =
+            (session.channel.is_initiator(), session.meta.endpoint.clone(), name)
+        {
+            self.nearby.racer.note_p2p_refused(&endpoint, method, &name, unix_now());
+            if let Some(end) = self.nearby.racer.next_backoff_end(unix_now()) {
+                self.schedule_reconsider_after(end - unix_now());
+            }
+        }
+        self.close(id, CloseReason::Normal);
     }
 
     /// Follows this side's answer: the racer, each group's scheduler, and what runs on the route once it is no.
