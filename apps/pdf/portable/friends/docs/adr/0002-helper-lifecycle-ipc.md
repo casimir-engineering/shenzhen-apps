@@ -35,6 +35,13 @@ lives in `~/Library/Application Support/Shenzhen Friends/` (override `SZFRIENDS_
 - Connect-or-spawn lives in the C client library (libc only), so the GTK host reuses it; the host adapter
   passes only the helper's path. Readers do no other Friends work before first paint; the badge appears
   with the first snapshot.
+- Amended 2026-11-27, ShenzhenPDF only: the helper no longer starts beside the reader's first frame. Starting up
+  on the other cores while the window was built cost the reader's main thread 2 to 5 % more CPU time before its
+  first frame on a busy Mac (the launch performance gate's Friends-on launches), whatever the helper's build. At
+  launch the block now only prepares the signing policy. As the reader attaches after first paint, a second
+  dispatch calls `szfriends_replace_refused_helper()`, which spawns only in place of a listener the signing policy
+  refuses (the once per launch above), and the link's first connection attempt spawns the helper when nothing
+  listens, so exactly one starts. The helper answers about 150 ms later than before, after the window is up.
 
 **Single instance by `flock`.** The helper's first act is to open `<state>/helper.lock` (`O_CLOEXEC`, 0600)
 and `flock(LOCK_EX | LOCK_NB)`; on `EWOULDBLOCK` it exits 0 before touching anything else. The kernel

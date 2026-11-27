@@ -145,8 +145,10 @@ the client then starts its own helper. `szfriends-contract::pipe` and `szfriends
 
 - **Spawn.** While Friends is enabled in an app, the app calls `szfriends_spawn_helper()` once from a background
   queue at launch, never waiting for it: it tries the socket and spawns the embedded helper only when nothing
-  answers (ADR 0002's connect-or-spawn). The app then connects from its main loop. If that connection fails
-  because nothing listens, the client library spawns again and retries with jittered backoff (first retry 50 ms,
+  answers (ADR 0002's connect-or-spawn). ShenzhenPDF instead waits for its first frame and, as it attaches, calls
+  `szfriends_replace_refused_helper()`, which spawns only in place of a listener the signing policy refuses and
+  otherwise leaves the spawn to the connection. The app then connects from its main loop. If that connection fails
+  because nothing listens, the client library spawns (again) and retries with jittered backoff (first retry 50 ms,
   doubling, capped at 2 s). Any number of windows and apps may spawn at once; the lock makes it safe.
 - **Prompts.** Starting Nearby can show the Local Network and Bluetooth permission prompts, which must never
   appear at launch for someone who has not opened Friends. The helper starts Nearby only after a client sends

@@ -369,7 +369,7 @@ Still open:
 - Prove launch timings unchanged with Friends on and off (ADR 0002, the M1 launch gate), on a copy of the app.
 - Developer ID signing, notarization and the Team ID check on the helper, with the release identity; and the app
   side of the same check: the views' transport (or the host adapter) calls `szfriends_set_signing_policy()` with
-  the app's own Team ID and a Security.framework verifier before the launch spawn.
+  the app's own Team ID and a Security.framework verifier before it spawns or connects.
 - When committing, stage `ext/libsodium/`, `ext/cjson/`, `ext/versions.txt` and `portable/friends/`
   explicitly.
 

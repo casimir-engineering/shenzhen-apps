@@ -1,6 +1,7 @@
 // Launch laziness, instrumented (ADR 0002 § Verification): disabled makes no queue hop, spawn, attach or socket;
-// enabled makes exactly one background hop, spawns off the main thread, never blocks the caller, and attaches only
-// after first paint. A signed app's signing policy is prepared before the first spawn and before every attach.
+// enabled makes exactly one background hop before first paint, which spawns nothing, then spawns off the main thread
+// as it attaches after first paint, never blocking the caller. A signed app's signing policy is prepared before the
+// spawn and before every attach.
 
 #import <Foundation/Foundation.h>
 #import <pthread.h>
@@ -93,17 +94,26 @@ static void TestEnabledLaunchSpawnsOffMainWithoutBlocking(void) {
     Expect(probe.dispatches == 1, @"enabled launch must hop to the background exactly once, made %ld",
            (long)probe.dispatches);
     Expect(probe.attaches == 0, @"attached before first paint: Friends work ran before the first frame");
+    Expect(SPDFMacFriendsTestRunUntil(5, ^BOOL { return probe.signings == 1; }), @"the launch hop never ran");
+    usleep(50 * 1000);
+    Expect(probe.spawns == 0 && probe.helperPathCalls == 0,
+           @"the helper was looked for or spawned before first paint, beside the first frame");
+    start = NSDate.date;
+    [lifecycle firstPaintDidHappen];
+    [lifecycle firstPaintDidHappen];
+    elapsed = -start.timeIntervalSinceNow;
+    Expect(elapsed < 0.05, @"the attach waited %.0f ms for the spawn", elapsed * 1000);
+    Expect(probe.attaches == 1 && lifecycle.attached, @"first paint must attach exactly once, attached %ld",
+           (long)probe.attaches);
+    Expect(probe.dispatches == 2, @"first paint must hop to the background once to spawn, made %ld in all",
+           (long)probe.dispatches);
     Expect(dispatch_semaphore_wait(probe.spawned, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)) == 0,
            @"the background spawn never ran");
     Expect(probe.spawns == 1 && !probe.spawnOnMain, @"spawn ran on the main thread or more than once");
     Expect(probe.signedBeforeSpawn, @"the helper was spawned before the signing policy was set");
     Expect(probe.helperPathCalls == 1 && !probe.helperPathOnMain, @"bundle lookup ran on the main thread");
     Expect([probe.spawnedPath isEqual:@"/Applications/ShenzhenPDF.app/helper"], @"spawned %@", probe.spawnedPath);
-    [lifecycle firstPaintDidHappen];
-    [lifecycle firstPaintDidHappen];
-    Expect(probe.attaches == 1 && lifecycle.attached, @"first paint must attach exactly once, attached %ld",
-           (long)probe.attaches);
-    Expect(probe.signedBeforeAttach && probe.signings == 2,
+    Expect(probe.signedBeforeAttach && probe.signings == 3,
            @"the link must not connect before the signing policy is set (prepared %ld times)", (long)probe.signings);
 }
 
@@ -165,6 +175,7 @@ static void TestMissingHelperSpawnsNothing(void) {
     Probe* probe = [Probe new];
     SPDFMacFriendsLifecycle* lifecycle = Lifecycle(probe, [SPDFMacFriendsSettingsState new], nil);
     [lifecycle launchWithSettings:nil];
+    [lifecycle firstPaintDidHappen];
     SPDFMacFriendsTestRunUntil(1.0, ^BOOL { return probe.helperPathCalls == 1; });
     usleep(50 * 1000);
     Expect(probe.helperPathCalls == 1 && probe.spawns == 0, @"a build without an embedded helper tried to spawn");
