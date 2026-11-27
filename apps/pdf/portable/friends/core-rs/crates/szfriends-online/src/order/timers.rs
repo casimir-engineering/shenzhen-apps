@@ -59,7 +59,8 @@ impl Order {
     pub(super) fn budget_spent(&mut self, now: f64, random: f64) -> u32 {
         let mut actions = self.stop_probing();
         self.phase_deadline = f64::INFINITY;
-        if self.other_route_works() {
+        // A test build that measures the direct route alone never relays (TEST_INTERNET_ONLY).
+        if self.other_route_works() || super::TEST_INTERNET_ONLY {
             self.phase = Phase::Standby;
             if !self.retry_running {
                 self.schedule_periodic_retry(RETRY_FIRST, now, random);

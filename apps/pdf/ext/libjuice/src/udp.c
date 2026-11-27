@@ -13,6 +13,9 @@
 #include "thread.h" // for mutexes
 
 #include <assert.h>
+#ifdef __APPLE__
+#include <net/if.h>
+#endif
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -44,6 +47,18 @@ static uint16_t get_next_port_in_range(uint16_t begin, uint16_t end) {
 	return next;
 }
 
+// Shenzhen Friends (local change, VENDORED.md): a bind address "%<interface>" binds the unspecified address and keeps
+// every packet on that interface (IP_BOUND_IF, IPV6_BOUND_IF), whatever the routing table says: the helper's way
+// around a VPN or TUN proxy for its peer-to-peer sockets. Apple systems only; elsewhere it binds the unspecified
+// address and follows the routes.
+#ifdef __APPLE__
+static unsigned int bound_interface(const udp_socket_config_t *config) {
+	if (!config->bind_address || config->bind_address[0] != '%')
+		return 0;
+	return if_nametoindex(config->bind_address + 1);
+}
+#endif
+
 static socket_t create_socket_for_addrinfo(const udp_socket_config_t *config,
                                            const struct addrinfo *ai) {
 	// Create socket
@@ -52,6 +67,29 @@ static socket_t create_socket_for_addrinfo(const udp_socket_config_t *config,
 		JLOG_WARN("UDP socket creation failed, errno=%d", sockerrno);
 		return INVALID_SOCKET;
 	}
+
+#ifdef __APPLE__
+	unsigned int interface_index = bound_interface(config);
+	if (config->bind_address && config->bind_address[0] == '%') {
+		// An interface that is gone, or a socket that cannot be kept on it, opens nothing: no packet may take
+		// another route instead
+		int bound = -1;
+		if (interface_index != 0) {
+			if (ai->ai_family == AF_INET6)
+				bound = setsockopt(sock, IPPROTO_IPV6, IPV6_BOUND_IF, &interface_index,
+				                   sizeof(interface_index));
+			else
+				bound = setsockopt(sock, IPPROTO_IP, IP_BOUND_IF, &interface_index,
+				                   sizeof(interface_index));
+		}
+		if (bound != 0) {
+			JLOG_WARN("UDP socket cannot be kept on interface %s, errno=%d", config->bind_address + 1,
+			          sockerrno);
+			closesocket(sock);
+			return INVALID_SOCKET;
+		}
+	}
+#endif
 
 	// Listen on both IPv6 and IPv4
 	const sockopt_t disabled = 0;
@@ -151,7 +189,10 @@ socket_t udp_create_socket(const udp_socket_config_t *config) {
 	hints.ai_socktype = SOCK_DGRAM;
 	hints.ai_protocol = IPPROTO_UDP;
 	hints.ai_flags = AI_PASSIVE | AI_NUMERICSERV;
-	if (getaddrinfo(config->bind_address, "0", &hints, &ai_list) != 0) {
+	const char *bind_address = config->bind_address;
+	if (bind_address && bind_address[0] == '%')
+		bind_address = NULL; // the unspecified address, on that interface (bound_interface)
+	if (getaddrinfo(bind_address, "0", &hints, &ai_list) != 0) {
 		JLOG_ERROR("getaddrinfo for binding address failed, errno=%d", sockerrno);
 		return INVALID_SOCKET;
 	}

@@ -25,6 +25,8 @@ void conn_poll_cleanup(juice_agent_t *agent);
 void conn_poll_lock(juice_agent_t *agent);
 void conn_poll_unlock(juice_agent_t *agent);
 int conn_poll_interrupt(juice_agent_t *agent);
+int conn_poll_send_ttl(juice_agent_t *agent, const addr_record_t *dst, const char *data, size_t size,
+                       int ttl);
 int conn_poll_send(juice_agent_t *agent, const addr_record_t *dst, const char *data, size_t size,
                         int ds);
 void conn_poll_tcp_connect(juice_agent_t *agent, const addr_record_t *dst);

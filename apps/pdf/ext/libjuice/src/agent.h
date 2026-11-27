@@ -33,6 +33,18 @@
 // characteristics of the associated data.
 #define STUN_PACING_TIME 50 // msecs
 
+// Shenzhen Friends (local change, VENDORED.md): openers before the first check to a peer address. Many NATs are
+// Linux conntrack (WireGuard and VPN exits, OpenWrt): a check that reaches such a NAT before the peer behind it has
+// sent anything toward us leaves an unreplied entry there, and the peer's own packet to us is then given another
+// public port (a clash with that entry), so the address the peer learnt from STUN never works and both sides fail.
+// An opener is a Binding indication with a small TTL: it opens this side's own NATs toward the peer and expires
+// before it reaches the peer's. The controlled agent (the answerer) sends only openers until it hears from the peer
+// or AGENT_OPENER_HOLD passes, so the controlling agent's checks find every NAT on both sides already open.
+#define AGENT_OPENER_HOLD 1500   // msecs
+#define AGENT_OPENER_REPEAT 500  // msecs, while held
+#define AGENT_OPENER_TTL_FIRST 2 // the first hop past this host still forwards it
+#define AGENT_OPENER_TTL_LAST 4  // and it dies well before a peer on the other side of the Internet
+
 // RFC 8445: Agents SHOULD use a Tr value of 15 seconds. Agents MAY use a bigger value but MUST NOT
 // use a value smaller than 15 seconds.
 #define STUN_KEEPALIVE_PERIOD 15000 // msecs
@@ -118,6 +130,11 @@ typedef struct agent_stun_entry {
 	bool transaction_id_expired;
 	tcp_state_t tcp_state;
 
+	// Openers (AGENT_OPENER_HOLD): sent once before the first check, and again while held
+	bool opened;
+	timestamp_t opened_at;
+	timestamp_t reopen_at;
+
 	// TURN
 	agent_turn_state_t *turn;
 	unsigned int turn_redirections;
@@ -147,6 +164,7 @@ struct juice_agent {
 	timestamp_t pac_timestamp; // Patiently Awaiting Connectivity timer
 	timestamp_t nomination_timestamp;
 	bool gathering_done;
+	bool peer_heard; // a connectivity check or its response came from the peer (AGENT_OPENER_HOLD)
 
 	conn_registry_t *registry;
 	int conn_index;

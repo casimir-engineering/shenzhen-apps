@@ -8,6 +8,7 @@
 
 #import "service/identity/SZFriendsIdentity.h"
 #import "service/online/driver/SZFriendsOnlineDriver.h"
+#import "service/online/transport/SZFriendsOnlineDataChannelTransport.h"
 
 // The technique log (ADR 0011 § Technique log): numbers only, beside the store.
 static NSString *const SZFriendsOnlineTechniqueLogName = @"online-techniques.json";
@@ -18,12 +19,17 @@ static const NSTimeInterval SZFriendsOnlineJustOpened = 45;
 
 @implementation SZFriendsNearbyService (Online)
 
+static void SZFriendsOnlineTransportLine(NSString *line) {
+    SZFriendsHelperLog(@"%@", line);
+}
+
 - (void)attachOnlineHost:(SZFriendsHostOnline *)online {
     SZFriendsIdentity *identity = self.services.identity;
     if (identity == nil || self.shutDown || self.resetting) return;
     if (self.onlineDriver == nil) {
         SZFriendsOnlineDriver *driver = [[SZFriendsOnlineDriver alloc] initWithIdentity:identity queue:self.queue];
         driver.delegate = self;
+        SZFriendsOnlineTransportLog = SZFriendsOnlineTransportLine;
         __weak SZFriendsNearbyService *weakSelf = self;
         driver.ownPresenceSecret = ^NSData * { return weakSelf.services.store.ownPresenceSecret; };
         driver.hostList = ^SZFriendsHostList * { return weakSelf.services.hostListCache.currentList; };

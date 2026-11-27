@@ -99,6 +99,26 @@ fn number(text: &str, max: u64) -> Option<u64> {
 }
 
 impl Candidate {
+    /// The candidate as a log line names it: "srflx IPv4 public", "host IPv4 private".
+    pub fn summary(&self) -> String {
+        let kind = match self.kind {
+            CandidateType::Host => "host",
+            CandidateType::ServerReflexive => "srflx",
+            CandidateType::PeerReflexive => "prflx",
+            CandidateType::Relay => "relay",
+        };
+        let class = match self.class {
+            AddressClass::Private => "private",
+            AddressClass::Loopback => "loopback",
+            AddressClass::Unusable => "unusable",
+            AddressClass::PublicIpv4 | AddressClass::GlobalIpv6 => "public",
+        };
+        let family = if self.address.is_ipv6() { "IPv6" } else { "IPv4" };
+        format!("{}{kind} {family} {class}", if self.tcp { "TCP " } else { "" })
+    }
+}
+
+impl Candidate {
     /// "candidate:..." or "a=candidate:...".
     pub fn parse(line: &str) -> Option<Self> {
         if line.is_empty() || line.len() > LINE_MAX {

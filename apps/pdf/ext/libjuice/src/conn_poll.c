@@ -656,6 +656,45 @@ int conn_poll_send(juice_agent_t *agent, const addr_record_t *dst, const char *d
 	return ret;
 }
 
+// Shenzhen Friends (AGENT_OPENER_HOLD): one UDP datagram with a small TTL, under the send mutex so no other
+// datagram leaves with it. A dual-stack socket's IPv6 hop limit is also its IPv4-mapped TTL on Apple systems;
+// Linux uses IP_TTL for IPv4-mapped traffic on such a socket, so both are set where they apply.
+int conn_poll_send_ttl(juice_agent_t *agent, const addr_record_t *dst, const char *data, size_t size,
+                       int ttl) {
+	conn_impl_t *conn_impl = agent->conn_impl;
+	if (dst->socktype == SOCK_STREAM)
+		return -1;
+
+	mutex_lock(&conn_impl->send_mutex);
+	socket_t sock = conn_impl->udp_sock;
+	int old_v4 = -1, old_v6 = -1;
+	socklen_t len = sizeof(int);
+	bool has_v4 = getsockopt(sock, IPPROTO_IP, IP_TTL, (char *)&old_v4, &len) == 0;
+	len = sizeof(int);
+	bool has_v6 = getsockopt(sock, IPPROTO_IPV6, IPV6_UNICAST_HOPS, (char *)&old_v6, &len) == 0;
+	bool set_v4 = has_v4 && setsockopt(sock, IPPROTO_IP, IP_TTL, (const char *)&ttl, sizeof(ttl)) == 0;
+	bool set_v6 =
+	    has_v6 && setsockopt(sock, IPPROTO_IPV6, IPV6_UNICAST_HOPS, (const char *)&ttl, sizeof(ttl)) == 0;
+	int ret = -1;
+	// Sent only when the TTL really applies: an opener at full TTL is exactly the early packet it must not be
+#ifdef __APPLE__
+	bool applies = dst->addr.ss_family == AF_INET6 ? set_v6 : (set_v4 || set_v6);
+#else
+	bool applies = dst->addr.ss_family == AF_INET6 ? set_v6 : set_v4;
+#endif
+	if (applies) {
+		ret = udp_sendto(sock, data, size, dst);
+		if (ret < 0)
+			ret = -sockerrno;
+	}
+	if (set_v4)
+		setsockopt(sock, IPPROTO_IP, IP_TTL, (const char *)&old_v4, sizeof(old_v4));
+	if (set_v6)
+		setsockopt(sock, IPPROTO_IPV6, IPV6_UNICAST_HOPS, (const char *)&old_v6, sizeof(old_v6));
+	mutex_unlock(&conn_impl->send_mutex);
+	return ret;
+}
+
 void conn_poll_tcp_connect(juice_agent_t *agent, const addr_record_t *dst) {
 	conn_impl_t *conn_impl = agent->conn_impl;
 

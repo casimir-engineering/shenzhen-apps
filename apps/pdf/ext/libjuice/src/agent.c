@@ -906,6 +906,34 @@ int agent_conn_tcp_state(juice_agent_t *agent, const addr_record_t *dst, tcp_sta
 	return -1;
 }
 
+// Shenzhen Friends (AGENT_OPENER_HOLD): which entries get openers, and whether one is held.
+static bool agent_opener_applies(juice_agent_t *agent, agent_stun_entry_t *entry) {
+	return entry->type == AGENT_STUN_ENTRY_TYPE_CHECK && !entry->relay_entry && !entry_is_tcp(entry) &&
+	       agent->config.concurrency_mode == JUICE_CONCURRENCY_MODE_POLL;
+}
+
+static bool agent_opener_holds(juice_agent_t *agent, const agent_stun_entry_t *entry, timestamp_t now) {
+	return agent->mode == AGENT_MODE_CONTROLLED && !agent->peer_heard &&
+	       now < entry->opened_at + AGENT_OPENER_HOLD;
+}
+
+static void agent_send_openers(juice_agent_t *agent, agent_stun_entry_t *entry) {
+	// A Binding indication: a peer it ever reaches ignores it (RFC 8445 11, keepalives)
+	stun_message_t msg;
+	memset(&msg, 0, sizeof(msg));
+	msg.msg_class = STUN_CLASS_INDICATION;
+	msg.msg_method = STUN_METHOD_BINDING;
+	juice_random(msg.transaction_id, STUN_TRANSACTION_ID_SIZE);
+	char buffer[BUFFER_SIZE];
+	int size = stun_write(buffer, BUFFER_SIZE, &msg, NULL);
+	if (size <= 0)
+		return;
+	for (int ttl = AGENT_OPENER_TTL_FIRST; ttl <= AGENT_OPENER_TTL_LAST; ++ttl)
+		if (conn_send_ttl(agent, &entry->record, buffer, size, ttl) < 0)
+			break;
+	JLOG_DEBUG("Sent openers (TTL %d to %d)", AGENT_OPENER_TTL_FIRST, AGENT_OPENER_TTL_LAST);
+}
+
 int agent_bookkeeping(juice_agent_t *agent, timestamp_t *next_timestamp) {
 	JLOG_VERBOSE("Bookkeeping...");
 
@@ -921,6 +949,25 @@ int agent_bookkeeping(juice_agent_t *agent, timestamp_t *next_timestamp) {
 		if (entry->state == AGENT_STUN_ENTRY_STATE_PENDING) { // STUN transmission or retransmission
 			if (entry->next_transmission > now)
 				continue;
+
+			// Shenzhen Friends: openers first, and the controlled agent holds its checks (AGENT_OPENER_HOLD)
+			if (agent_opener_applies(agent, entry)) {
+				bool first = !entry->opened;
+				if (first) {
+					entry->opened = true;
+					entry->opened_at = now;
+				}
+				bool held = agent_opener_holds(agent, entry, now);
+				if (first || (held && now >= entry->reopen_at)) {
+					agent_send_openers(agent, entry);
+					entry->reopen_at = now + AGENT_OPENER_REPEAT;
+				}
+				if (held) {
+					timestamp_t until = entry->opened_at + AGENT_OPENER_HOLD;
+					entry->next_transmission = entry->reopen_at < until ? entry->reopen_at : until;
+					continue;
+				}
+			}
 
 			if (entry_is_tcp(entry)) {
 			    if (entry->tcp_state == TCP_STATE_DISCONNECTED)
@@ -1436,6 +1483,8 @@ int agent_process_stun_binding(juice_agent_t *agent, const stun_message_t *msg,
 		if (entry->type != AGENT_STUN_ENTRY_TYPE_CHECK)
 			return -1;
 
+		agent->peer_heard = true; // Shenzhen Friends: the held checks may go (AGENT_OPENER_HOLD)
+
 		ice_candidate_pair_t *pair = entry->pair;
 		if (msg->ice_controlling == msg->ice_controlled) {
 			JLOG_WARN("Controlling and controlled attributes mismatch in request");
@@ -1563,6 +1612,7 @@ int agent_process_stun_binding(juice_agent_t *agent, const stun_message_t *msg,
 				JLOG_ERROR("STUN entry for candidate pair checking has no candidate pair");
 				return -1;
 			}
+			agent->peer_heard = true; // Shenzhen Friends (AGENT_OPENER_HOLD)
 
 			if (pair->state != ICE_CANDIDATE_PAIR_STATE_SUCCEEDED) {
 				// 7.2.5.2.1. Non-Symmetric Transport Addresses:

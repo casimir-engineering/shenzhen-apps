@@ -80,7 +80,14 @@ SZFriendsOnlineAddressClass SZFriendsOnlineClassifyAddress(NSString *address) {
 
 // The interface the kernel would send a packet to `destination` through, as `route -n get` asks it: RTM_GET on a
 // routing socket needs no privilege, sends nothing on the network and answers within the call. NO without a route.
+static BOOL RouteInterfaceScoped(const char *destination, unsigned scope, char name[IFNAMSIZ]);
 static BOOL RouteInterface(const char *destination, char name[IFNAMSIZ]) {
+    return RouteInterfaceScoped(destination, 0, name);
+}
+
+// `scope` non-zero: the route the kernel would use for a socket kept on that interface (RTF_IFSCOPE), as
+// `route -n get -ifscope <interface>` asks it.
+static BOOL RouteInterfaceScoped(const char *destination, unsigned scope, char name[IFNAMSIZ]) {
     struct sockaddr_storage target;
     memset(&target, 0, sizeof target);
     struct sockaddr_in *in = (struct sockaddr_in *)&target;
@@ -108,7 +115,8 @@ static BOOL RouteInterface(const char *destination, char name[IFNAMSIZ]) {
     const pid_t pid = getpid();
     message.header.rtm_version = RTM_VERSION;
     message.header.rtm_type = RTM_GET;
-    message.header.rtm_flags = RTF_UP | RTF_HOST;
+    message.header.rtm_flags = RTF_UP | RTF_HOST | (scope != 0 ? RTF_IFSCOPE : 0);
+    message.header.rtm_index = (u_short)scope;
     message.header.rtm_addrs = RTA_DST | RTA_IFP;
     message.header.rtm_seq = seq;
     message.header.rtm_pid = pid;
@@ -190,6 +198,66 @@ NSString *SZFriendsOnlineOfferingInterfaceForAddress(NSString *address, const st
     }
     if (name == nil || SZFriendsOnlineClassifyAddress(address) == SZFriendsOnlineAddressLoopback) return name;
     return SZFriendsOnlineDefaultRouteAllowsHostCandidates(routes, isIPv6) ? name : nil;
+}
+
+void (*SZFriendsOnlineTransportLog)(NSString *line);
+
+NSString *SZFriendsOnlineCandidateSummary(SZFriendsOnlineCandidate *candidate) {
+    NSString *type = candidate.type == SZFriendsOnlineCandidateHost              ? @"host"
+                     : candidate.type == SZFriendsOnlineCandidateServerReflexive ? @"srflx"
+                     : candidate.type == SZFriendsOnlineCandidatePeerReflexive   ? @"prflx"
+                                                                                 : @"relay";
+    SZFriendsOnlineAddressClass class = candidate.addressClass;
+    NSString *where = class == SZFriendsOnlineAddressPrivate      ? @"private"
+                      : class == SZFriendsOnlineAddressLoopback   ? @"loopback"
+                      : class == SZFriendsOnlineAddressUnusable   ? @"unusable"
+                                                                  : @"public";
+    return [NSString stringWithFormat:@"%@%@ %@ %@", candidate.tcp ? @"TCP " : @"", type,
+                                      candidate.ipv6 ? @"IPv6" : @"IPv4", where];
+}
+
+// Around a tunnel (ADR 0011 § VPN and tunnels, 2026-11-27): the interface the Mac reaches the Internet through
+// beneath the VPN or TUN proxy holding its IPv4 route, or nil when no tunnel holds it (nothing to go around) or no
+// such interface has a route of its own (a VPN that leaves none, a network without one).
+NSString *SZFriendsOnlineInterfaceAroundTunnel(void) {
+    SZFriendsOnlineDefaultRoutes routes = SZFriendsOnlineReadDefaultRoutes();
+    if (routes.ipv4[0] == '\0' || SZFriendsOnlineInterfaceMayOfferHostCandidates(routes.ipv4)) return nil;
+    struct ifaddrs *list = NULL;
+    if (getifaddrs(&list) != 0) return nil;
+    NSMutableArray<NSString *> *names = [NSMutableArray array];
+    for (const struct ifaddrs *entry = list; entry != NULL; entry = entry->ifa_next) {
+        if (entry->ifa_addr == NULL || entry->ifa_addr->sa_family != AF_INET || entry->ifa_name == NULL) continue;
+        if ((entry->ifa_flags & (IFF_UP | IFF_RUNNING)) != (IFF_UP | IFF_RUNNING)) continue;
+        if (!SZFriendsOnlineInterfaceMayOfferHostCandidates(entry->ifa_name)) continue;
+        NSString *name = @(entry->ifa_name);
+        if (![names containsObject:name]) [names addObject:name];
+    }
+    freeifaddrs(list);
+    // en0 before en1 before en10: the order the Mac numbers its built-in and added interfaces in.
+    [names sortUsingComparator:^NSComparisonResult(NSString *a, NSString *b) {
+        return [a compare:b options:NSNumericSearch];
+    }];
+    for (NSString *name in names) {
+        unsigned index = if_nametoindex(name.UTF8String);
+        BOOL everyHalf = index != 0;
+        for (unsigned i = 0; everyHalf && i < SZFriendsOnlineInternetRouteProbeCount; i++) {
+            char found[IFNAMSIZ];
+            everyHalf = RouteInterfaceScoped(SZFriendsOnlineInternetRouteProbe(AF_INET, i), index, found) &&
+                        strcmp(found, name.UTF8String) == 0;
+        }
+        if (everyHalf) return name;
+    }
+    return nil;
+}
+
+NSString *SZFriendsOnlineInterfaceForAddressOn(NSString *address, NSString *interface) {
+    struct ifaddrs *list = NULL;
+    if (getifaddrs(&list) != 0) return nil;
+    // Every family of that interface: the socket is kept on it, so its addresses are where packets come from.
+    SZFriendsOnlineDefaultRoutes routes = SZFriendsOnlineDefaultRoutesMake(interface.UTF8String, interface.UTF8String);
+    NSString *name = SZFriendsOnlineOfferingInterfaceForAddress(address, list, &routes);
+    freeifaddrs(list);
+    return [name isEqualToString:interface] ? name : nil;
 }
 
 NSString *SZFriendsOnlineInterfaceForAddress(NSString *address) {

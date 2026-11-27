@@ -156,6 +156,7 @@ impl OnlineRoutes {
             .query_row("SELECT friends_id FROM profile WHERE id = 1", [], |r| r.get(0))
             .ok()
             .flatten();
+        szfriends_online::transport::set_log(|line| crate::log!("{line}"));
         let config = OnlineConfig {
             identity: Arc::new(Identity::from_secret_item(&identity.secret_item()).ok()?),
             app_version: crate::stamp::own().version,

@@ -18,12 +18,24 @@ UDP Interactive Connectivity Establishment (ICE), used by `ext/libdatachannel` f
 
 ## What is here
 
-- `include/juice/juice.h` and `src/`: the archive's directories, unmodified.
+- `include/juice/juice.h` and `src/`: the archive's directories, unmodified apart from the local changes below.
 - `LICENSE`.
 
 Left out: `test/`, `fuzzer/`, `cmake/`, `CMakeLists.txt`, `Makefile`, `README.md` and `CONTRIBUTING.md`.
 
-Local changes: none.
+Local changes (Shenzhen Friends, 2026-11-27; ADR 0011 § VPN and tunnels, Revised), each marked "Shenzhen Friends" in
+the source:
+
+- **Openers** (`src/agent.c`, `src/agent.h`, `src/conn.c`, `src/conn.h`, `src/conn_poll.c`, `src/conn_poll.h`): before
+  its first check to a peer address the agent sends Binding indications with TTL 2, 3 and 4 (`AGENT_OPENER_*`), and a
+  controlled agent sends only those, every 500 ms, until a check or a check's response comes from the peer or 1.5 s
+  pass. A check that reaches a Linux NAT before the peer behind it has sent anything leaves an unreplied conntrack
+  entry, and the peer's own packets then leave from another public port; the openers open this side's NATs without
+  reaching the peer's. Poll mode only (the one libdatachannel uses without its UDP mux), where each agent owns its
+  socket and one datagram can change the TTL under the send mutex.
+- **Bind address `%<interface>`** (`src/udp.c`): binds the unspecified address with `IP_BOUND_IF` or `IPV6_BOUND_IF`
+  on that interface, on Apple systems; a socket that cannot be kept there is not opened. Elsewhere it binds the
+  unspecified address.
 
 ## How it is built
 
@@ -41,7 +53,8 @@ curl -fsSL -o juice.tar.gz \
 echo "713b22174e8cb2e06538fa9bac2650bda21b83c86f5128813ab4dcf8f5bea9ed  juice.tar.gz" | shasum -a 256 -c
 mkdir x && tar -xzf juice.tar.gz -C x --strip-components 1
 E=<repository>/ext/libjuice
-diff -r x/include "$E/include" && diff -r x/src "$E/src" && cmp x/LICENSE "$E/LICENSE" && echo identical
+diff -r x/include "$E/include" && cmp x/LICENSE "$E/LICENSE" && echo include identical
+diff -r x/src "$E/src" # only the local changes above
 ```
 
 ## Upgrading

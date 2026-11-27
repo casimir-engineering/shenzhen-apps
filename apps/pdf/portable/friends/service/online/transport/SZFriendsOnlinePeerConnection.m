@@ -87,7 +87,30 @@ static const char kChannelLabel[] = "szfriends";
     const char *servers[1] = {serverURL.UTF8String};
     config.iceServers = serverURL ? servers : NULL;
     config.iceServersCount = serverURL ? 1 : 0;
-    config.bindAddress = _bindAddress.UTF8String;
+    // Around a VPN or TUN proxy for a friend's direct connection (ADR 0011 § VPN and tunnels, 2026-11-27): the
+    // socket stays on the physical interface, so STUN and every check leave there and the peer learns this
+    // network's own public address. The relay, probe handover and link connections still follow the default route.
+    self.startedAt = CFAbsoluteTimeGetCurrent();
+    NSString *stackBind = _bindAddress;
+    if (_bindAddress == nil && _kind == SZFriendsOnlineConnectionDirect && _purpose == SZFriendsOnlinePurposeFriend) {
+        self.aroundInterface = SZFriendsOnlineInterfaceAroundTunnel();
+        if (self.aroundInterface != nil) stackBind = [@"%" stringByAppendingString:self.aroundInterface];
+    }
+    const char *kindName = _kind == SZFriendsOnlineConnectionDirect           ? "direct"
+                           : _kind == SZFriendsOnlineConnectionProbeHandover ? "probe handover"
+                                                                             : "relay";
+    if (_kind != SZFriendsOnlineConnectionRelay) {
+        SZFriendsOnlineDefaultRoutes routes = SZFriendsOnlineReadDefaultRoutes();
+        [self logLine:[NSString stringWithFormat:@"%s connection (%s) starts: %@", kindName,
+                                                 _role == SZFriendsOnlineRoleOfferer ? "offerer" : "answerer",
+                                                 self.aroundInterface != nil
+                                                     ? [NSString stringWithFormat:@"socket kept on %@, around %s",
+                                                                                  self.aroundInterface, routes.ipv4]
+                                                     : [NSString stringWithFormat:@"follows the default route (%s)",
+                                                                                  routes.ipv4[0] ? routes.ipv4
+                                                                                                 : "none"]]];
+    }
+    config.bindAddress = stackBind.UTF8String;
     // A relay connection gathers and sends relay candidates only (ADR 0009 step 4).
     config.iceTransportPolicy =
         _kind == SZFriendsOnlineConnectionRelay ? RTC_TRANSPORT_POLICY_RELAY : RTC_TRANSPORT_POLICY_ALL;
@@ -97,6 +120,7 @@ static const char kChannelLabel[] = "szfriends";
     // What this side accepts per message: ADR 0001 records are at most 64 KiB on the wire (ADR 0009).
     config.maxMessageSize = (int)SZFriendsOnlineMessageMax;
     int pc = rtcCreatePeerConnection(&config);
+    (void)stackBind.length; // config.bindAddress points into it until the stack has copied it
     if (pc < 0) {
         if (error) *error = SZFriendsOnlineMakeError(SZFriendsOnlineErrorUnavailable, @"no peer connection");
         return NO;
@@ -220,6 +244,7 @@ static const char kChannelLabel[] = "szfriends";
         return NO;
     }
     if (!candidate.tcp) self.stackCandidates++;
+    [self logLine:[NSString stringWithFormat:@"trying their %@", SZFriendsOnlineCandidateSummary(candidate)]];
     self.remoteCandidates[candidate.endpoint] = candidate;
     self.remoteTechniques[candidate.endpoint] = @(technique);
     return YES;
@@ -239,9 +264,8 @@ static const char kChannelLabel[] = "szfriends";
         technique > SZFriendsOnlineTechniqueRelay) {
         return;
     }
-    NSString *interface = candidate.type == SZFriendsOnlineCandidateHost
-                              ? SZFriendsOnlineInterfaceForAddress(candidate.address)
-                              : nil;
+    NSString *interface =
+        candidate.type == SZFriendsOnlineCandidateHost ? [self offeringInterfaceForAddress:candidate.address] : nil;
     // The same rules as gathered candidates: a mapping is a reflexive address the purpose may be offered.
     if (SZFriendsOnlineLocalCandidateTechnique(candidate, _purpose, _kind, interface.UTF8String,
                                                self.allowsLoopback) == SZFriendsOnlineTechniqueNone) {
@@ -250,7 +274,27 @@ static const char kChannelLabel[] = "szfriends";
     [self offerLocalCandidate:candidate technique:technique];
 }
 
+- (nullable NSString *)offeringInterfaceForAddress:(NSString *)address {
+    NSString *around = self.aroundInterface;
+    return around != nil ? SZFriendsOnlineInterfaceForAddressOn(address, around)
+                         : SZFriendsOnlineInterfaceForAddress(address);
+}
+
+- (void)logLine:(NSString *)line {
+    void (*log)(NSString *) = SZFriendsOnlineTransportLog;
+    if (log == NULL) return;
+    log([NSString stringWithFormat:@"online %@ +%.2f s: %@",
+                                   self.kind == SZFriendsOnlineConnectionRelay ? @"relay" : @"direct",
+                                   CFAbsoluteTimeGetCurrent() - self.startedAt, line]);
+}
+
 - (void)offerLocalCandidate:(SZFriendsOnlineCandidate *)candidate technique:(SZFriendsOnlineTechnique)technique {
+    if (!candidate.tcp || self.kind != SZFriendsOnlineConnectionRelay) {
+        [self logLine:[NSString stringWithFormat:@"offering our %@%@", SZFriendsOnlineCandidateSummary(candidate),
+                                                 self.aroundInterface != nil && !candidate.tcp
+                                                     ? [@" via " stringByAppendingString:self.aroundInterface]
+                                                     : @""]];
+    }
     self.localCandidates[candidate.endpoint] = candidate;
     self.localTechniques[candidate.endpoint] = @(technique);
     if (!self.descriptionSent) {

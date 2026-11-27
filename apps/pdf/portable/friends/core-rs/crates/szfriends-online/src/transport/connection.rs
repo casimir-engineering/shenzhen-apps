@@ -74,6 +74,7 @@ pub struct Connection {
     stream_ended: bool,
     closed: bool,
     on_stream_close: Arc<dyn Fn() + Send + Sync>,
+    started: std::time::Instant,
 }
 
 impl std::fmt::Debug for Connection {
@@ -175,7 +176,17 @@ impl Connection {
             stream_ended: false,
             closed: false,
             on_stream_close,
+            started: std::time::Instant::now(),
         };
+        connection.log(&format!(
+            "{} connection ({}) starts: follows the default route",
+            match request.kind {
+                Kind::Direct => "direct",
+                Kind::ProbeHandover => "probe handover",
+                Kind::Relay => "relay",
+            },
+            if answerer { "answerer" } else { "offerer" }
+        ));
         let pc = connection.pc.as_ref().expect("just made");
         match offer {
             None => {
@@ -247,6 +258,7 @@ impl Connection {
         pc.add_remote_candidate(&candidate.line(), self.remote_mid.as_deref())
             .map_err(|_| OnlineError::CandidateRefused)?;
         self.stack_candidates += 1;
+        self.log(&format!("trying their {}", candidate.summary()));
         self.remote.insert(endpoint, (candidate, technique));
         Ok(())
     }
@@ -262,7 +274,31 @@ impl Connection {
         self.offer_local(candidate, technique)
     }
 
+    /// A line for the helper's log (super::set_log): which connection, how long since it started, what.
+    fn log(&self, what: &str) {
+        let kind = if self.kind == Kind::Relay { "relay" } else { "direct" };
+        super::log_line(&format!("online {kind} +{:.2} s: {what}", self.started.elapsed().as_secs_f64()));
+    }
+
+    fn log_selected_pair(&self, what: &str) {
+        let pair = self.pc.as_ref().and_then(PeerConnection::selected_pair);
+        let Some((local, remote)) = pair.and_then(|(l, r)| Candidate::parse(&l).zip(Candidate::parse(&r))) else {
+            self.log(&format!("{what} (no selected pair to read)"));
+            return;
+        };
+        // The signalled candidate where one matches: the stack reports a pair learnt from checks as peer-reflexive.
+        let local = self.local.get(&local.endpoint()).map_or(local, |(c, _)| c.clone());
+        let remote = self.remote.get(&remote.endpoint()).map_or(remote, |(c, _)| c.clone());
+        self.log(&format!(
+            "{what} on our {} with their {} (technique {})",
+            local.summary(),
+            remote.summary(),
+            self.selected_route().technique as u8
+        ));
+    }
+
     fn offer_local(&mut self, candidate: Candidate, technique: Technique) -> Vec<ConnEvent> {
+        self.log(&format!("offering our {}", candidate.summary()));
         let line = candidate.line();
         self.local.insert(candidate.endpoint(), (candidate, technique));
         if !self.description_sent {
@@ -293,6 +329,7 @@ impl Connection {
             }
             Event::StateChanged(State::Connected) => {
                 self.ice_connected = true;
+                self.log_selected_pair("ICE connected");
                 self.refresh_route()
             }
             Event::StateChanged(State::Failed | State::Closed) => self.path_ended(),
@@ -369,6 +406,7 @@ impl Connection {
         Sinks::attach(&self.sinks, channel.id(), sender);
         self.stream_channel = Some(channel.clone());
         self.route = self.selected_route();
+        self.log_selected_pair("stream open");
         self.stream_ever_opened = true;
         let writer = StreamWriter::new(channel, self.on_stream_close.clone());
         vec![ConnEvent::Stream { stream: ChannelStream { incoming, writer }, route: self.route }]
@@ -394,6 +432,7 @@ impl Connection {
         } else {
             OnlineError::ConnectivityFailed
         };
+        self.log(&format!("ended: {error:?}"));
         let mut events = Vec::new();
         if let Some(channel) = self.stream_channel.clone() {
             events.extend(self.channel_closed(channel.id()));
@@ -437,6 +476,7 @@ impl Connection {
             return Vec::new();
         }
         self.route = route;
+        self.log_selected_pair("route changed");
         vec![ConnEvent::RouteChanged(route)]
     }
 

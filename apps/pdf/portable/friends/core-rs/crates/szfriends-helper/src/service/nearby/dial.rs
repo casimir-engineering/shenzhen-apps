@@ -21,6 +21,9 @@ use szfriends_core::store::{unix_now, OutboxEvent, OutboxState, Person, Relation
 use szfriends_core::wire::{Fields, Pattern, RouteMethod};
 
 use super::{DialPlan, Purpose};
+
+/// Test builds only (SZFRIENDS_TEST_INTERNET_ONLY when the core is compiled; szfriends_online::order says more).
+const TEST_INTERNET_ONLY: bool = option_env!("SZFRIENDS_TEST_INTERNET_ONLY").is_some();
 use crate::service::sessions::deliverable;
 use crate::service::State;
 
@@ -326,6 +329,11 @@ impl State {
 
     /// Stages a dial after `delay`; `false` when one for that purpose and endpoint already runs.
     pub(crate) fn dial(&mut self, plan: DialPlan, delay: f64) -> bool {
+        // A test build that measures the Internet's direct route to our own devices dials them on nothing nearby
+        // (SZFRIENDS_TEST_INTERNET_ONLY set when the core is compiled; never in a release).
+        if TEST_INTERNET_ONLY && plan.purpose == Purpose::OwnDevice {
+            return false;
+        }
         if self.nearby.dialing.contains(&plan.dial_key) || !self.nearby.has_adapter(plan.method) {
             return false;
         }

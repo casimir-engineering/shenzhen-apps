@@ -176,6 +176,35 @@ The rules are `SZFriendsOnlineMayOfferHostCandidate` and the helpers beside it i
 proxy, STUN and checks leave through it, so the server-reflexive address is the proxy's exit; when the proxy drops
 UDP, the attempt falls to the relay, which is UDP too. Revisited with M0 data.
 
+**Revised 2026-11-27 (owner: "p2p should work even when in vpn"): a friend's direct connection goes around a VPN on
+a Mac.** Measured on the owner's devices: the Mac behind Hiddify (sing-box TUN, utun6) and the phone behind a
+non-bypassable AmneziaWG tunnel exiting at a Linux server never formed a direct pair, though both NATs classified
+EndpointIndependent. Two causes, both fixed:
+
+- *The conntrack clash.* A WireGuard exit (like OpenWrt and most Linux routers) maps with MASQUERADE: port-preserving
+  while nothing clashes. The Mac's checks reached the exit before the phone had sent anything to the Mac, left an
+  unreplied conntrack entry there, and the phone's own packets to the Mac then left from another public port (a
+  clash with that entry; seen on the exit's interface: STUN mapping :52939, packets to the Mac from :6338). The
+  address the phone had learnt from STUN never worked, the Mac's router filters by address and port, and both sides
+  timed out. libjuice now sends *openers* (ADR 0009 § local changes, `ext/libjuice/VENDORED.md`): before its first
+  check to a peer address, Binding indications with TTL 2 to 4, which open this side's own NATs toward the peer and
+  expire before the peer's; and the controlled agent (the answerer) sends only openers until it hears from the peer
+  or 1.5 s pass. The controlling agent's checks then find every NAT on both sides already open. Measured: the
+  direct pair formed in 4.0 s from the answerer's start, the phone running the old stack.
+- *The tunnel itself.* While a tunnel holds the Mac's IPv4 route toward the Internet, a friend's direct connection
+  (`SZFriendsOnlinePurposeFriend`, kind Direct: friends and one's own devices) keeps its socket on the physical
+  interface beneath it (`IP_BOUND_IF`/`IPV6_BOUND_IF` through libjuice's `%<interface>` bind address), the one with
+  a scoped default route of its own (`SZFriendsOnlineInterfaceAroundTunnel`), and offers that interface's host
+  addresses. STUN then learns the network's own public address, and the path avoids the proxy's extra hop and UDP
+  handling. A VPN that forbids it (includeAllNetworks) leaves no scoped route, so nothing changes there.
+
+*The privacy trade-off, accepted by the owner for this purpose only:* the friend (or the person's own device) on the
+other end learns the network's public address and the Mac's addresses on that interface, which the tunnel would
+have hidden; nobody else does, since the candidates travel only in the Noise-authenticated signalling. First
+contacts, download links, the relay, the probe handover connection, port mapping and the TCP path still follow the
+default route as above. Phones cannot go around their VPN (Android's non-bypassable tunnels), and need not: the
+openers alone let the other side's checks in.
+
 **Keepalive.** No extra UDP keepalive: while a connection is up, libjuice's consent checks every 4 to 6 s on the
 selected pair keep its NAT mappings alive (median NAT UDP timeouts are 35 to 65 s), beside its STUN keepalive
 every 15 s. The TCP path sets TCP keepalive after 60 s idle, probes every 10 s, 3 probes (provisional). Port
@@ -203,8 +232,11 @@ or name.
 - **Probing inside libjuice:** one socket per agent and 30 remote candidates cannot hold hundreds of ports.
 - **Probing when both sides are hard:** about 0.0003 at 1,024 probes each, 0.06 at 16,384 each.
 - **Binding to the physical interface to bypass a VPN** (`IP_BOUND_IF` picked en0's addresses in the spike): would
-  send traffic around a tunnel the person chose, and in the mainland the tunnel may be the only working path. Not
-  now; the M0 numbers may reopen it with the owner.
+  send traffic around a tunnel the person chose, and in the mainland the tunnel may be the only working path.
+  Reopened by the owner on 2026-11-27 and adopted for friends' direct connections only (§ VPN and tunnels, Revised).
+  Gathering on both paths at once was tried first: libjuice has one socket per agent, and macOS ignores
+  `IP_PKTINFO`'s interface on a socket a TUN proxy's routes hold (the proxy saw every packet), so one connection takes
+  one path.
 - **Public STUN servers beside the host's:** often unreachable from mainland China, and a second party learning
   who connects.
 

@@ -25,6 +25,10 @@ use crate::transport::{Kind, Purpose, Role, Route, Technique};
 pub const PLAIN_CHECKS_BUDGET: f64 = 5.0;
 pub const HARD_NAT_BUDGET: f64 = 12.0;
 pub const RETRY_FIRST: f64 = 30.0;
+/// Test builds only, never a release: set SZFRIENDS_TEST_INTERNET_ONLY when compiling the core and own devices are
+/// reached over the Internet's direct routes alone (no nearby dial to them, no relay), so a test measures the
+/// peer-to-peer route by itself. The Mac helper's FRIENDS_TEST_BUILD_FLAGS does the same.
+pub const TEST_INTERNET_ONLY: bool = option_env!("SZFRIENDS_TEST_INTERNET_ONLY").is_some();
 pub const RETRY_MAX: f64 = 300.0;
 pub const RETRY_JITTER: f64 = 0.2;
 pub const RETRY_SIGNALLING_LIMIT: f64 = 10.0;

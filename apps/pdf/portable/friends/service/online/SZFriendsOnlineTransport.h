@@ -59,6 +59,7 @@
 //
 // Threading: every method is called, and every delegate callback arrives, on the queue given to -openConnection:.
 // All addresses, candidates and descriptions stay in memory; none is logged or stored (ADR 0011 § Technique log).
+// helper.log names only a candidate's type, family and address class.
 
 #import <Foundation/Foundation.h>
 
@@ -153,8 +154,10 @@ static inline SZFriendsOnlineRoute SZFriendsOnlineRouteMake(SZFriendsOnlineTechn
 
 #pragma mark - Local candidates (ADR 0011 § VPN and tunnels)
 
-// Online routes follow the system's default route, whichever interface holds it (no bypass of a VPN or TUN proxy;
-// lead decision 9), and no address that would reach the peer around it is offered. Host candidates are never
+// Online routes follow the system's default route, whichever interface holds it (lead decision 9), and no address
+// that would reach the peer around it is offered, with one exception: a friend's direct connection keeps its socket
+// on the physical interface beneath a VPN or TUN proxy and offers that interface's addresses (ADR 0011 § VPN and
+// tunnels, revised 2026-11-27; SZFriendsOnlineInterfaceAroundTunnel in the transport). Host candidates are never
 // gathered from loopback; peer-to-peer Wi-Fi (awdl, llw: nearby's); tunnels (utun: every Network Extension VPN and
 // TUN proxy; ipsec; ppp; gif and stf; tun and tap; wg); or virtual and overlay networks (feth: ZeroTier and other
 // fake-Ethernet pairs; bridge: Internet Sharing and virtual machines; vmenet: Virtualization framework machines;
@@ -228,7 +231,8 @@ static inline BOOL SZFriendsOnlineDefaultRouteAllowsHostCandidates(const SZFrien
 // The rule for one host address of this Mac, by its interface (getifaddrs) and family. The transport applies it to
 // every host candidate before the delegate hears of it, and the TCP path to its own; both read the routing table
 // again for each gathering, so a VPN that comes up or goes down between attempts is followed. Neither binds a socket
-// to an interface or a specific address: every packet takes the route the system picks.
+// to a specific address, and only a friend's direct connection around a tunnel binds one to an interface (whose
+// addresses it then offers instead); every other packet takes the route the system picks.
 static inline BOOL SZFriendsOnlineMayOfferHostCandidate(const char *_Nullable name, BOOL ipv6,
                                                         const SZFriendsOnlineDefaultRoutes *routes) {
     return SZFriendsOnlineInterfaceMayOfferHostCandidates(name) &&

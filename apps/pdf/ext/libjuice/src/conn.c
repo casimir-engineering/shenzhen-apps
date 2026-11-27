@@ -250,6 +250,15 @@ int conn_send(juice_agent_t *agent, const addr_record_t *dst, const char *data, 
 	return get_agent_mode_entry(agent)->send_func(agent, dst, data, size, ds);
 }
 
+int conn_send_ttl(juice_agent_t *agent, const addr_record_t *dst, const char *data, size_t size,
+                  int ttl) {
+	// Shenzhen Friends: only the poll mode owns a socket per agent, so only there may one datagram change its TTL
+	if (!agent->conn_impl || agent->config.concurrency_mode != JUICE_CONCURRENCY_MODE_POLL)
+		return -1;
+
+	return conn_poll_send_ttl(agent, dst, data, size, ttl);
+}
+
 void conn_tcp_connect(juice_agent_t *agent, const addr_record_t *dst) {
 	if (!agent->conn_impl)
 		return;

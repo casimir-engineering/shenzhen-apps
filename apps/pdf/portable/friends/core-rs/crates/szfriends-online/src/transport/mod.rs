@@ -12,6 +12,20 @@ pub mod stream;
 use szfriends_wire::route::RouteMethod;
 
 pub use connection::{ConnEvent, Connection};
+
+/// Where the transport's lines for the helper's log go (the helper sets it once; unset: nowhere). They name candidate
+/// types, families, address classes and timings, never an address, a port or a key (ADR 0011 § Technique log).
+static LOG: std::sync::OnceLock<fn(&str)> = std::sync::OnceLock::new();
+
+pub fn set_log(log: fn(&str)) {
+    let _ = LOG.set(log);
+}
+
+pub(crate) fn log_line(line: &str) {
+    if let Some(log) = LOG.get() {
+        log(line);
+    }
+}
 pub use stream::{ChannelStream, StreamInput, StreamWriter};
 
 /// Largest data-channel message (every browser accepts 64 KiB).

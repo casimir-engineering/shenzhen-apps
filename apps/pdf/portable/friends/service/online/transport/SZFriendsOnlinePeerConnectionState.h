@@ -10,6 +10,12 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, readonly) dispatch_queue_t queue;
 @property(nonatomic, readonly) BOOL allowsLoopback;
 @property(nonatomic, readonly, copy, nullable) NSString *bindAddress; // tests only
+// A friend's direct connection while a VPN or TUN proxy holds the IPv4 route: the physical interface its socket is
+// kept on (SZFriendsOnlineInterfaceAroundTunnel), whose addresses are then its only host candidates. Nil otherwise.
+@property(nonatomic, copy, nullable) NSString *aroundInterface;
+@property(nonatomic) CFAbsoluteTime startedAt; // for the log lines
+- (nullable NSString *)offeringInterfaceForAddress:(NSString *)address;
+- (void)logLine:(NSString *)line;
 @property(nonatomic, strong, nullable) id<SZFriendsOnlineConnectionDelegate> delegate; // nil once closed
 // A failure found inside one of the owner's calls, told on the next turn of the queue unless the owner closes first.
 @property(nonatomic, strong, nullable) id<SZFriendsOnlineConnectionDelegate> pendingFailureDelegate;

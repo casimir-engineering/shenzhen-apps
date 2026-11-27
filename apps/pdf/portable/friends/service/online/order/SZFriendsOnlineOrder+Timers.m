@@ -2,6 +2,10 @@
 
 #import "service/online/order/SZFriendsOnlineOrderInternal.h"
 
+#ifndef SZFRIENDS_TEST_INTERNET_ONLY
+#define SZFRIENDS_TEST_INTERNET_ONLY 0
+#endif
+
 const NSTimeInterval SZFriendsOnlinePlainChecksBudget = 5;
 const NSTimeInterval SZFriendsOnlineHardNATBudget = 12;
 const NSTimeInterval SZFriendsOnlineRetryFirst = 30;
@@ -73,7 +77,8 @@ static NSInteger NATPair(SZFriendsNATClass local, SZFriendsNATClass remote) {
 - (SZFriendsOnlineOrderActions)budgetSpent {
     SZFriendsOnlineOrderActions actions = [self stopProbing];
     _phaseDeadline = INFINITY;
-    if ([self otherRouteWorks]) {
+    // A test build that measures the direct route alone never relays (FRIENDS_TEST_BUILD_FLAGS in friends.mk).
+    if ([self otherRouteWorks] || SZFRIENDS_TEST_INTERNET_ONLY) {
         // "Only in last resort": another route carries the session, so no relay; keep trying direct now and then.
         _phase = SZFriendsOnlinePhaseStandby;
         if (!_retryRunning) [self schedulePeriodicRetryAfter:SZFriendsOnlineRetryFirst];

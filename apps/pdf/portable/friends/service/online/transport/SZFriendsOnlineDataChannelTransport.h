@@ -20,6 +20,11 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+// Where the transport's lines for helper.log go (the helper sets it when it starts its online driver; NULL:
+// nowhere). They name candidate types, families, address classes and interfaces, and never an address, a port or a
+// key (ADR 0011 § Technique log).
+extern void (*_Nullable SZFriendsOnlineTransportLog)(NSString *line);
+
 #pragma mark - Direct-phase timer (ADR 0011, provisional values, lead decision 8)
 
 extern const NSTimeInterval SZFriendsOnlineDirectPlainBudget;   // 5 s of plain checks

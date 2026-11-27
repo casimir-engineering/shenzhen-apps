@@ -50,9 +50,8 @@ enum { kPairBufferSize = 256 };
     SZFriendsOnlineCandidate *candidate = [SZFriendsOnlineCandidate candidateWithLine:line];
     if (candidate == nil) return;
     // The interface is looked up off the queue: getifaddrs walks every address.
-    NSString *interface = candidate.type == SZFriendsOnlineCandidateHost
-                              ? SZFriendsOnlineInterfaceForAddress(candidate.address)
-                              : nil;
+    NSString *interface =
+        candidate.type == SZFriendsOnlineCandidateHost ? [self offeringInterfaceForAddress:candidate.address] : nil;
     SZFriendsOnlineTechnique technique = SZFriendsOnlineLocalCandidateTechnique(
         candidate, self.purpose, self.kind, interface.UTF8String, self.allowsLoopback);
     uint16_t base = candidate.type == SZFriendsOnlineCandidateHost              ? candidate.port
@@ -91,6 +90,7 @@ enum { kPairBufferSize = 256 };
     dispatch_async(self.queue, ^{
         if (self.closed) return;
         self.iceConnected = YES;
+        [self logSelectedPair:@"ICE connected"];
         [self refreshRoute];
     });
 }
@@ -113,6 +113,7 @@ enum { kPairBufferSize = 256 };
             error = SZFriendsOnlineMakeError(SZFriendsOnlineErrorConnectivityFailed, @"every candidate pair failed");
         }
         self.channelError = error;
+        [self logLine:[NSString stringWithFormat:@"ended: %@", error.localizedDescription]];
         if (self.channelStream != nil && !self.channelStream.ended) [self.channelStream endWithError:error];
         [self stopRouteTimer];
         [self failIfNoPathLeft];
@@ -150,6 +151,7 @@ enum { kPairBufferSize = 256 };
         };
         self.channelStream = stream;
         self.channelRoute = [self selectedPairRoute];
+        [self logSelectedPair:@"stream open"];
         self.streamEverOpened = YES;
         [self.directPhase stop];
         [self startRouteTimer];
@@ -199,6 +201,26 @@ enum { kPairBufferSize = 256 };
 
 #pragma mark - Routes
 
+- (void)logSelectedPair:(NSString *)what {
+    char local[kPairBufferSize] = "", remote[kPairBufferSize] = "";
+    SZFriendsOnlineCandidate *localCandidate = nil, *remoteCandidate = nil;
+    if (rtcGetSelectedCandidatePair(self.peerConnection, local, sizeof local, remote, sizeof remote) >= 0) {
+        localCandidate = [SZFriendsOnlineCandidate candidateWithLine:@(local)];
+        remoteCandidate = [SZFriendsOnlineCandidate candidateWithLine:@(remote)];
+    }
+    if (localCandidate == nil || remoteCandidate == nil) {
+        [self logLine:[what stringByAppendingString:@" (no selected pair to read)"]];
+        return;
+    }
+    // The signalled candidate where one matches: libjuice reports a pair learnt from checks as peer-reflexive.
+    localCandidate = self.localCandidates[localCandidate.endpoint] ?: localCandidate;
+    remoteCandidate = self.remoteCandidates[remoteCandidate.endpoint] ?: remoteCandidate;
+    [self logLine:[NSString stringWithFormat:@"%@ on our %@ with their %@ (technique %ld)", what,
+                                             SZFriendsOnlineCandidateSummary(localCandidate),
+                                             SZFriendsOnlineCandidateSummary(remoteCandidate),
+                                             (long)[self selectedPairRoute].technique]];
+}
+
 - (SZFriendsOnlineRoute)selectedPairRoute {
     char local[kPairBufferSize] = "", remote[kPairBufferSize] = "";
     SZFriendsOnlineCandidate *localCandidate = nil, *remoteCandidate = nil;
@@ -231,6 +253,7 @@ enum { kPairBufferSize = 256 };
     SZFriendsOnlineRoute current = self.channelRoute;
     if (route.technique == current.technique && route.ipv6 == current.ipv6) return;
     self.channelRoute = route;
+    [self logSelectedPair:@"route changed"];
     [self.delegate onlineConnection:self stream:stream didChangeRoute:route];
 }
 

@@ -70,6 +70,16 @@ BOOL SZFriendsOnlineMayDialRemoteCandidate(SZFriendsOnlineCandidate *candidate, 
 // SZFriendsOnlineDefaultRouteAllowsHostCandidates). The routing table is read on every call. Loopback addresses keep
 // their interface: only the testing configuration offers them, whatever the routes.
 NSString *_Nullable SZFriendsOnlineInterfaceForAddress(NSString *address);
+// A candidate as such a line names it: "srflx IPv4 public", "host IPv4 private".
+NSString *SZFriendsOnlineCandidateSummary(SZFriendsOnlineCandidate *candidate);
+
+// Around a tunnel (ADR 0011 § VPN and tunnels, 2026-11-27): while a VPN or TUN proxy holds this Mac's IPv4 route
+// toward the Internet, the physical interface beneath it that has a route of its own (en0, say), which a friend's
+// direct connection keeps its socket on; nil when no tunnel holds the route or no interface has one.
+NSString *_Nullable SZFriendsOnlineInterfaceAroundTunnel(void);
+// For a connection kept on `interface`: the interface a host candidate on `address` is offered from, which is that
+// interface when the address is one of its own, of either family, and nil otherwise.
+NSString *_Nullable SZFriendsOnlineInterfaceForAddressOn(NSString *address, NSString *interface);
 // The same over injected tables: `list` as getifaddrs builds it, `routes` as the routing table would answer.
 struct ifaddrs;
 NSString *_Nullable SZFriendsOnlineOfferingInterfaceForAddress(NSString *address, const struct ifaddrs *_Nullable list,

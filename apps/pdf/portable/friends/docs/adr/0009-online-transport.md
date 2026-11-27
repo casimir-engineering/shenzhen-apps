@@ -208,7 +208,8 @@ its README) but read its code. Corrections made in the text above on acceptance:
 - **Route rank:** explicit at all four comparing sites, and Internet gets its own dial delay (lead decision 5).
 - **Who may reach the stack:** mandatory, with its interface in `SZFriendsOnlineTransport.h` (lead decision 6).
 - **Port mapping:** our own PCP and NAT-PMP client, and miniupnpc 2.3.3 vendored and fuzzed (lead decision 7).
-- **VPN:** traffic follows the default route; tunnel host candidates are never sent (lead decision 9).
+- **VPN:** traffic follows the default route; tunnel host candidates are never sent (lead decision 9). Revised
+  2026-11-27 for friends' direct connections, which go around a tunnel on a Mac (ADR 0011 § VPN and tunnels).
 - **Links:** the plan's amendments are in `friends-links.md` (lead decision 10).
 - The spike's own `SOURCES.md` said the relay statistics read coturn's Prometheus metrics; ADR 0010 measured that
   those totals arrive only when an allocation ends, so they are a cross-check only.

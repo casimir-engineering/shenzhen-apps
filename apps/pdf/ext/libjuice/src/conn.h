@@ -61,6 +61,8 @@ void conn_unlock(juice_agent_t *agent);
 int conn_interrupt(juice_agent_t *agent);
 int conn_send(juice_agent_t *agent, const addr_record_t *dst, const char *data, size_t size,
               int ds);
+// Shenzhen Friends: one datagram with this TTL (hop limit), poll mode only; -1 where unsupported (AGENT_OPENER_HOLD)
+int conn_send_ttl(juice_agent_t *agent, const addr_record_t *dst, const char *data, size_t size, int ttl);
 void conn_tcp_connect(juice_agent_t *agent, const addr_record_t *dst);
 int conn_get_addrs(juice_agent_t *agent, addr_record_t *records, size_t size);
 
