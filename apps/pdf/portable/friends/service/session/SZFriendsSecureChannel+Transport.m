@@ -170,8 +170,18 @@ static BOOL SZFriendsTypeAllowed(SZFriendsFrameType type, SZFriendsHandshakePatt
     return YES;
 }
 
+// A buffer the cipher fills whole, so not zeroed first (dataWithLength: clears 64 KiB per message).
+static NSMutableData *_Nullable SZFriendsCipherBuffer(NSUInteger length) {
+    void *bytes = malloc(MAX(length, (NSUInteger)1));
+    return bytes ? [NSMutableData dataWithBytesNoCopy:bytes length:length freeWhenDone:YES] : nil;
+}
+
 - (BOOL)encryptAndWrite:(NSData *)plaintext {
-    NSMutableData *message = [NSMutableData dataWithLength:2 + plaintext.length + SZFRIENDS_NOISE_TAGLEN];
+    NSMutableData *message = SZFriendsCipherBuffer(2 + plaintext.length + SZFRIENDS_NOISE_TAGLEN);
+    if (message == nil) {
+        [self failWithCode:SZFriendsSessionErrorExpired reason:@"no memory to send"];
+        return NO;
+    }
     uint8_t *bytes = message.mutableBytes;
     size_t written = 0;
     int result = szfriends_cipher_encrypt(&_sendCipher, NULL, 0, plaintext.bytes, plaintext.length, bytes + 2,
@@ -274,7 +284,11 @@ static BOOL SZFriendsTypeAllowed(SZFriendsFrameType type, SZFriendsHandshakePatt
         [self failWithCode:SZFriendsSessionErrorDecryptFailed reason:@"transport message shorter than its tag"];
         return;
     }
-    NSMutableData *plaintext = [NSMutableData dataWithLength:length - SZFRIENDS_NOISE_TAGLEN];
+    NSMutableData *plaintext = SZFriendsCipherBuffer(length - SZFRIENDS_NOISE_TAGLEN);
+    if (plaintext == nil) {
+        [self failWithCode:SZFriendsSessionErrorDecryptFailed reason:@"no memory to receive"];
+        return;
+    }
     size_t plaintextLength = 0;
     int result = szfriends_cipher_decrypt(&_receiveCipher, NULL, 0, message, length, plaintext.mutableBytes,
                                           plaintext.length, &plaintextLength);
