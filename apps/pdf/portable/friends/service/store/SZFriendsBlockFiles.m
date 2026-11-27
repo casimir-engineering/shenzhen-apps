@@ -32,8 +32,12 @@ NS_ASSUME_NONNULL_BEGIN
 }
 @end
 
+// Blocks queued for the digest at most: a receiver faster than BLAKE2b waits rather than holding the whole file.
+static const long SZFriendsDigestBacklog = 32;
+
 @implementation SZFriendsStreamedDigest {
     dispatch_queue_t _queue;
+    dispatch_semaphore_t _room;
     crypto_generichash_state *_state; // on the queue only; aligned as libsodium declares it
     uint32_t _next;
     BOOL _stopped;
@@ -41,6 +45,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)init {
     if ((self = [super init])) {
         _queue = dispatch_queue_create("szfriends.blocks.digest", DISPATCH_QUEUE_SERIAL);
+        _room = dispatch_semaphore_create(SZFriendsDigestBacklog);
         if (posix_memalign((void **)&_state, 64, sizeof *_state) != 0) {
             _state = NULL;
             _stopped = YES;
@@ -74,8 +79,10 @@ NS_ASSUME_NONNULL_BEGIN
             _stopped = YES;
             return;
         }
+        dispatch_semaphore_wait(_room, DISPATCH_TIME_FOREVER);
         dispatch_async(_queue, ^{
             crypto_generichash_update(self->_state, data.bytes, (unsigned long long)data.length);
+            dispatch_semaphore_signal(self->_room);
         });
         _next++;
     }

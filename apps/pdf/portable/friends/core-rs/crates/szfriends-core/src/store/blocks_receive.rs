@@ -130,7 +130,7 @@ impl Store {
     /// A batch running in the background is looked at every few milliseconds until it settles.
     pub fn block_flush_due(&self) -> Option<Instant> {
         let due = |d: &BlockDownload| {
-            [d.first_unsynced.map(|at| at + BATCH_INTERVAL), d.flush.as_ref().map(|f| f.started + BATCH_POLL)]
+            [d.first_unsynced.map(|at| at + BATCH_INTERVAL), d.flush.as_ref().map(|_| Instant::now() + BATCH_POLL)]
         };
         self.receiving.blocks.values().flat_map(due).flatten().min()
     }
@@ -190,7 +190,6 @@ impl Store {
         download.flush = Some(BackgroundFlush {
             blocks: std::mem::take(&mut download.unsynced),
             bytes: std::mem::take(&mut download.unsynced_bytes),
-            started: Instant::now(),
             handle,
         });
         download.first_unsynced = None;

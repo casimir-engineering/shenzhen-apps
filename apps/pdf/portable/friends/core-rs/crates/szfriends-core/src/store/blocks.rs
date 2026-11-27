@@ -21,6 +21,8 @@ use crate::transfer::{AssemblyError, BlockAssembly, BlockSet, Geometry, PartOutc
 /// A durability batch (ADR 0018 § 4): every 64 MiB or every second of received blocks, whichever comes first. WHY 64:
 /// each batch's flushes waited on the disk while parts queued behind it; the second still bounds what a crash loses.
 const BATCH_BYTES: u64 = 64 << 20;
+/// Blocks queued for the streamed digest at most.
+const DIGEST_BACKLOG: usize = 32;
 /// How often a batch running in the background is looked at while nothing else settles it.
 const BATCH_POLL: Duration = Duration::from_millis(10);
 const BATCH_INTERVAL: Duration = Duration::from_secs(1);
@@ -47,14 +49,15 @@ pub enum BlockPart {
 /// covers the disk, so the two together prove the file on disk has the offered digest.
 #[derive(Debug)]
 struct StreamedDigest {
-    sender: Option<std::sync::mpsc::Sender<Vec<u8>>>,
+    sender: Option<std::sync::mpsc::SyncSender<Vec<u8>>>,
     handle: Option<std::thread::JoinHandle<[u8; 32]>>,
     next: u32,
 }
 
 impl StreamedDigest {
     fn new() -> Self {
-        let (sender, receiver) = std::sync::mpsc::channel::<Vec<u8>>();
+        // At most this many blocks wait for the digest: a receiver faster than BLAKE2b waits rather than holding the file.
+        let (sender, receiver) = std::sync::mpsc::sync_channel::<Vec<u8>>(DIGEST_BACKLOG);
         let handle = std::thread::Builder::new()
             .name("szfriends-digest".into())
             .spawn(move || {
@@ -194,7 +197,6 @@ pub(crate) struct BlockDownload {
 struct BackgroundFlush {
     blocks: Vec<u32>,
     bytes: u64,
-    started: Instant,
     handle: std::thread::JoinHandle<std::io::Result<()>>,
 }
 
