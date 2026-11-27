@@ -95,7 +95,7 @@ static SZFriendsRouteMethod SZFRouteNamed(NSString *name) {
     scenario.name = json[@"name"];
     scenario.size = (uint64_t)([json[@"mib"] doubleValue] * (1 << 20));
     scenario.phone = [json[@"phone"] boolValue];
-    scenario.directWiFiKeepsInternet = [json[@"direct_wifi_keeps_internet"] boolValue];
+    scenario.directWiFi = [json[@"direct_wifi"] boolValue];
     NSMutableArray *lanes = [NSMutableArray array];
     for (NSDictionary *lane in json[@"lanes"]) {
         SZFSimLaneProfile *profile = [SZFSimLaneProfile profileWithJSON:lane];
@@ -113,7 +113,7 @@ static SZFriendsRouteMethod SZFRouteNamed(NSString *name) {
 - (instancetype)copyWithLanes:(NSArray<SZFSimLaneProfile *> *)lanes {
     SZFSimScenario *scenario = [[SZFSimScenario alloc] init];
     scenario.name = _name, scenario.size = _size, scenario.phone = _phone;
-    scenario.directWiFiKeepsInternet = _directWiFiKeepsInternet, scenario.lanes = lanes, scenario.seed = _seed;
+    scenario.directWiFi = _directWiFi, scenario.lanes = lanes, scenario.seed = _seed;
     scenario.limit = _limit, scenario.unitShift = _unitShift;
     return scenario;
 }
@@ -425,7 +425,7 @@ SZFSimOutcome *SZFSimRun(SZFSimScenario *scenario) {
                                                   initiator:YES
                                                       route:scenario.lanes[0].route];
     sim->_scheduler = [[SZFriendsScheduler alloc] initWithPhone:scenario.phone
-                                        directWiFiKeepsInternet:scenario.directWiFiKeepsInternet];
+                                        directWiFi:scenario.directWiFi];
     NSUInteger words = (((1ull << sim->_geometry.shift) + SZFGranule - 1) / SZFGranule + 63) / 64;
     sim->_covered = [NSMutableArray array];
     for (uint32_t b = 0; b < sim->_geometry.blocks; b++) [sim->_covered addObject:[NSMutableData dataWithLength:words * 8]];

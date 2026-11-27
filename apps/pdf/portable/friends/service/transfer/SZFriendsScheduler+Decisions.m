@@ -282,28 +282,29 @@ NS_ASSUME_NONNULL_BEGIN
     }
 }
 
-// Bluetooth beside slow lanes; direct Wi-Fi beside a LAN below 25 MB/s, where it keeps the device online.
+// Bluetooth beside slow lanes; direct Wi-Fi where the group has no LAN lane and the owner's rule allows it (ADR 0022).
+// Never beside a LAN for speed: direct Wi-Fi beside a Wi-Fi network takes airtime from it (ADR 0021).
 - (void)askForLanes:(NSArray<NSNumber *> *)eligible now:(double)now {
     uint64_t left = [self unassignedBytes];
     if (left == 0) return;
-    double direct = 0, lan = 0;
+    double direct = 0;
     for (NSNumber *laneID in eligible) {
         SZFLane *lane = _lanes[laneID];
         if (lane->route != SZFriendsRouteMethodBluetooth && lane->route != SZFriendsRouteMethodRelay) {
             direct += lane->rate;
         }
-        if (lane->route == SZFriendsRouteMethodLAN) lan += lane->rate;
     }
-    BOOL hasBluetooth = NO, hasDirectWiFi = NO;
+    BOOL hasBluetooth = NO, hasDirectWiFi = NO, hasLAN = NO;
     for (SZFLane *lane in _lanes.allValues) {
         hasBluetooth |= lane->route == SZFriendsRouteMethodBluetooth;
         hasDirectWiFi |= lane->route == SZFriendsRouteMethodPeerToPeerWiFi;
+        hasLAN |= lane->route == SZFriendsRouteMethodLAN;
     }
     BOOL worth = (double)left > SZFWorthALane * direct;
     if (!hasBluetooth && direct < SZFriendsBluetoothHelpsBelow && worth) {
         [self request:SZFriendsRouteMethodBluetooth now:now];
     }
-    if (_keepsInternet && !hasDirectWiFi && lan < SZFriendsDirectWiFiHelpsBelow && worth) {
+    if (_directWiFi && !hasDirectWiFi && !hasLAN && worth) {
         [self request:SZFriendsRouteMethodPeerToPeerWiFi now:now];
     }
 }

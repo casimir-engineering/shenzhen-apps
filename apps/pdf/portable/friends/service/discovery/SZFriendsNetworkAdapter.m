@@ -78,6 +78,7 @@ static NSString *AdmissionKey(nw_connection_t connection) {
         _peerToPeerInterfaces = [NSMutableDictionary dictionary];
         _seenOnLAN = [NSMutableSet set];
         _hasNetwork = YES; // until the path monitor says otherwise
+        _onWiFi = YES;      // likewise: no direct Wi-Fi before it has spoken
         _connecting = [NSMutableSet set];
         _retiringListeners = [NSMutableArray array];
         _admission = [[SZFriendsAdmissionController alloc] initWithClock:nil];

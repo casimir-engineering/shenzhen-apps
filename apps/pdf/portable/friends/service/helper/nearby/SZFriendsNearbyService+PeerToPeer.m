@@ -1,17 +1,20 @@
-// Peer-to-peer Wi-Fi (AWDL) on demand (ADR 0021).
+// Peer-to-peer Wi-Fi (AWDL) under the owner's rule (ADR 0022; ADR 0021 for how it is turned on and off).
 //
-// A Bonjour browser, listener or connection that includes peer-to-peer Wi-Fi keeps AWDL awake, and awake AWDL takes
-// the Wi-Fi radio off the network's channel for about a fifth of the time (measured: 72 ms in every 524 ms, every
-// packet of the Mac's own Wi-Fi traffic waiting behind it). Friends used to keep it awake all the time. Now the
-// network adapters leave AWDL out unless one of these holds:
-//   - this Mac is on no network (Wi-Fi not joined, no Ethernet): AWDL is then the only Wi-Fi route, as before;
-//   - a transfer's group wants a direct Wi-Fi lane: the sender's scheduler asked for one (its LAN is missing or below
-//     25 MB/s), or the receiver gets the file below 25 MB/s, so both ends turn it on and the sender can dial;
-//   - a direct Wi-Fi lane is up.
+// The owner: "use wifi direct only if the conditions are matched, which means both devices are not on a wifi". A
+// Bonjour browser, listener or connection that includes peer-to-peer Wi-Fi keeps AWDL awake, and awake AWDL takes the
+// Wi-Fi radio off the network's channel for about a fifth of the time (measured: 72 ms in every 524 ms, every packet
+// of the Mac's own Wi-Fi traffic waiting behind it). So:
+//   - AWDL is on exactly while this Mac is on no Wi-Fi network (Ethernet only, or no network at all): then it costs
+//     no network anything. Joining a Wi-Fi network turns it off at once, and sessions or lanes still on it close.
+//   - New sessions say so in their handshake (capability bit 6, SZFriendsSetDirectWiFiAllowedHere), and a session or
+//     lane on peer-to-peer Wi-Fi stays open only when the friend's handshake said the same (+Sessions); a friend
+//     whose helper predates the rule never says it.
+//   - A group's scheduler may ask for a direct Wi-Fi lane only while both allow it and the group has no LAN lane; it is
+//     dialed once the friend is sighted there. Never beside a LAN for speed: the old "LAN below 25 MB/s" triggers,
+//     which turned AWDL on mid-transfer on a Mac on Wi-Fi, are gone.
 // A group gives up on direct Wi-Fi for the rest of its transfer when no lane came within 20 s, when its lane ended,
-// or when, 8 s after the lane came up, the group's rate is not 10 % better than before it (the sender closes the
-// lane then). AWDL goes off 30 s after the last reason ended, and sessions or lanes still on it are closed then, since
-// any socket on awdl keeps it awake.
+// or when, 8 s after the lane came up, the group's rate is not 10 % better than before it (the sender closes the lane
+// then). A boost's lane (ADR 0019) is the boost's and is left alone here.
 
 #import "service/discovery/SZFriendsDiscoveryInternal.h"
 #import "service/helper/nearby/SZFriendsNearbyInternal.h"
@@ -23,8 +26,6 @@ static const double SZFP2PJudgeAfter = 8;      // the lane's worth is measured t
 static const double SZFP2PJudgeSettle = 3;     // ...from this long after (its start-up is not held against it)
 static const double SZFP2PBeforeSpan = 5;      // against the group's rate over this long before it
 static const double SZFP2PHelpsBy = 1.1;       // ...and kept only when the group's rate rose by this much
-static const double SZFP2POffAfter = 30;       // AWDL off this long after nothing needs it any more
-static const double SZFP2PReceiveWindow = 3;   // the receiver measures its rate over this long
 static const double SZFP2PTick = 1;
 // A friend whose transfer got no direct Wi-Fi lane (an Android phone or a PC never shows up on AWDL, an older Mac
 // never dials one) is not asked again for this long.
@@ -34,8 +35,6 @@ static const double SZFP2PNotAgainFor = 3600;
 @property(nonatomic) double wantedAt;     // when this group first wanted direct Wi-Fi; 0 for not
 @property(nonatomic) BOOL sightedThere;   // the friend was sighted on direct Wi-Fi when last looked (sender)
 @property(nonatomic) BOOL hadLane, givenUp;
-@property(nonatomic) uint64_t received;   // bytes received since receivedSince (receiver)
-@property(nonatomic) double receivedSince;
 @property(nonatomic) uint64_t judgedLane; // the sender's direct Wi-Fi lane being measured, and from when
 @property(nonatomic) double judgeFrom, rateBefore;
 @property(nonatomic) BOOL judged;
@@ -48,7 +47,6 @@ static const double SZFP2PNotAgainFor = 3600;
 
 @interface SZFP2PState : NSObject
 @property(nonatomic) BOOL on, started, tickScheduled;
-@property(nonatomic) double unneededSince; // when the last reason ended; 0 while one holds
 @property(nonatomic, strong) NSMutableDictionary<NSNumber *, SZFP2PGroup *> *groups; // by head trace id
 @property(nonatomic, strong) NSMutableDictionary<NSString *, NSString *> *sighted;   // conversation -> last log text
 @property(nonatomic, strong) NSMutableDictionary<NSString *, NSNumber *> *notAgainUntil; // conversation -> time
@@ -94,8 +92,9 @@ static NSString *SZFP2PShort(NSString *hex) {
             SZFriendsNearbyService *strongSelf = weakSelf;
             if (strongSelf == nil) return;
             dispatch_async(strongSelf.queue, ^{
-                SZFriendsHelperLog(@"direct Wi-Fi: this Mac is %@", hasNetwork ? @"on a network again"
-                                                                                : @"on no network now");
+                SZFriendsHelperLog(@"direct Wi-Fi: this Mac is %@ (%@)",
+                                   [strongSelf p2pOnWiFi] ? @"on a Wi-Fi network" : @"on no Wi-Fi network",
+                                   hasNetwork ? @"has a network" : @"no network at all");
                 [strongSelf peerToPeerEvaluate];
             });
         });
@@ -103,14 +102,28 @@ static NSString *SZFP2PShort(NSString *hex) {
     [self peerToPeerEvaluate];
 }
 
-- (BOOL)p2pHasNetwork {
+- (BOOL)p2pOnWiFi {
     for (id<SZFriendsDiscoveryAdapter> adapter in self.adapters) {
-        if (!SZFriendsNetworkAdapterHasNetwork(adapter)) return NO;
+        if (SZFriendsNetworkAdapterOnWiFi(adapter)) return YES;
     }
-    return YES;
+    return NO;
+}
+
+// This Mac's side of the owner's rule: on no Wi-Fi network (a Mac is never a phone on mobile data).
+- (BOOL)p2pAllowedHere {
+    return ![self p2pOnWiFi];
+}
+
+- (BOOL)peerToPeerAllowedWith:(SZFriendsPeerLink *)link {
+    SZFriendsPeerLink *head = link.laneHead ?: link;
+    return [self p2pAllowedHere] && head.channel.directWiFiAllowed;
 }
 
 - (BOOL)p2pBoosting:(SZFriendsPeerLink *)head {
+    return [self boostingGroup:head];
+}
+
+- (BOOL)boostingGroup:(SZFriendsPeerLink *)head {
     return [self.directWiFi hasBoostForGroup:[NSValue valueWithNonretainedObject:head]];
 }
 
@@ -156,6 +169,10 @@ static NSString *SZFP2PShort(NSString *hex) {
 
 - (nullable NSString *)peerToPeerLaneRefusalBeside:(SZFriendsPeerLink *)head {
     SZFP2PGroup *group = [self p2pState].groups[@(head.traceID)];
+    if (![self peerToPeerAllowedWith:head]) {
+        return [self p2pAllowedHere] ? @"the friend's device does not allow direct Wi-Fi (on a Wi-Fi network)"
+                                     : @"this Mac is on a Wi-Fi network";
+    }
     if (group.givenUp) return @"direct Wi-Fi did not help this transfer, which goes on without it";
     if ([self p2pNotAgain:head]) return @"no direct Wi-Fi lane with this friend's device in the last hour";
     return nil;
@@ -172,26 +189,16 @@ static NSString *SZFP2PShort(NSString *hex) {
 
 - (BOOL)peerToPeerLaneWantedBeside:(SZFriendsPeerLink *)head {
     SZFP2PGroup *group = [self p2pGroupOfHead:head];
-    if (group.givenUp) return NO;
+    if (group.givenUp || ![self peerToPeerAllowedWith:head]) return NO;
     if (group.wantedAt == 0) {
         group.wantedAt = CFAbsoluteTimeGetCurrent();
-        SZFriendsHelperLog(@"direct Wi-Fi wanted for %@: the scheduler asks for a lane there (LAN below %@)",
-                           [self p2pWhoOfHead:head], SZFriendsTraceRate(SZFriendsDirectWiFiHelpsBelow));
+        SZFriendsHelperLog(@"direct Wi-Fi wanted for %@: no LAN lane, and neither device is on a Wi-Fi network",
+                           [self p2pWhoOfHead:head]);
+        [self p2pScheduleTick];
     }
-    BOOL wasOn = [self p2pState].on;
-    [self peerToPeerEvaluate];
-    // Just turned on, nobody is sighted there yet: the lane is dialed when the friend shows up
-    // (-peerToPeerSightingsChanged).
-    group.sightedThere = wasOn && [self p2pSightedOnPeerToPeer:head.conversationID];
-    return wasOn;
-}
-
-- (void)peerToPeerNoteReceived:(NSUInteger)bytes onGroup:(SZFriendsPeerLink *)head {
-    if (head.closed || head.lane) return;
-    SZFP2PGroup *group = [self p2pGroupOfHead:head];
-    if (group.receivedSince == 0) group.receivedSince = CFAbsoluteTimeGetCurrent();
-    group.received += bytes;
-    [self p2pScheduleTick];
+    // Not sighted there yet: the lane is dialed when the friend shows up (-peerToPeerSightingsChanged).
+    group.sightedThere = [self p2pState].on && [self p2pSightedOnPeerToPeer:head.conversationID];
+    return [self p2pState].on;
 }
 
 // A sender whose group wants a direct Wi-Fi lane dials it the moment the friend shows up there, rather than at the
@@ -239,13 +246,14 @@ static NSString *SZFP2PShort(NSString *hex) {
     SZFP2PState *state = [self p2pState];
     if (self.shutDown) return;
     double now = CFAbsoluteTimeGetCurrent();
-    NSMutableArray<NSString *> *reasons = [NSMutableArray array];
-    if (![self p2pHasNetwork]) [reasons addObject:@"this Mac is on no network"];
+    BOOL allowedHere = [self p2pAllowedHere];
+    SZFriendsSetDirectWiFiAllowedHere(allowedHere);
     NSMutableSet<NSNumber *> *heads = [NSMutableSet set];
     for (SZFriendsPeerLink *head in self.links.allObjects) {
-        if (head.lane || head.closed || head.blocks == nil || [self p2pBoosting:head]) continue;
-        // Between transfers nothing here needs AWDL: a direct Wi-Fi lane left over closes when it goes off, and the
-        // next transfer starts afresh.
+        if (head.lane || head.closed || head.blocks == nil) continue;
+        head.blocks.directWiFi = [self peerToPeerAllowedWith:head];
+        if ([self p2pBoosting:head]) continue;
+        // Between transfers nothing here needs watching: the next transfer starts afresh.
         if (!head.blocks.carriesTransfers) {
             [state.groups removeObjectForKey:@(head.traceID)];
             continue;
@@ -255,7 +263,6 @@ static NSString *SZFP2PShort(NSString *hex) {
         if (group == nil && lanes.count == 0) continue;
         if (group == nil) group = [self p2pGroupOfHead:head]; // the friend opened a direct Wi-Fi lane to us
         [heads addObject:@(head.traceID)];
-        [self p2pMeasureReceiving:head group:group now:now];
         [self p2pSampleAcked:head group:group now:now];
         if (lanes.count > 0) {
             group.hadLane = YES;
@@ -276,47 +283,15 @@ static NSString *SZFP2PShort(NSString *hex) {
             SZFriendsHelperLog(@"direct Wi-Fi: not asked again for friend %@ for %.0f minutes",
                                SZFP2PShort(head.conversationID), SZFP2PNotAgainFor / 60);
         }
-        if ([self p2pLanesOfHead:head].count > 0) {
-            [reasons addObject:[NSString stringWithFormat:@"a direct Wi-Fi lane of %@", [self p2pWhoOfHead:head]]];
-        } else if (group.wantedAt > 0 && !group.givenUp) {
-            [reasons addObject:[NSString stringWithFormat:@"a transfer with %@ wants a direct Wi-Fi lane",
-                                                          [self p2pWhoOfHead:head]]];
-        }
     }
     for (NSNumber *key in state.groups.allKeys) {
         if (![heads containsObject:key]) [state.groups removeObjectForKey:key];
     }
-    if (reasons.count > 0) {
-        state.unneededSince = 0;
-        if (!state.on) [self p2pTurn:YES why:[reasons componentsJoinedByString:@"; "]];
-    } else if (state.on) {
-        if (state.unneededSince == 0) state.unneededSince = now;
-        if (now - state.unneededSince >= SZFP2POffAfter) {
-            [self p2pTurn:NO why:[NSString stringWithFormat:@"nothing has needed it for %.0f s", SZFP2POffAfter]];
-        }
+    if (allowedHere != state.on) {
+        [self p2pTurn:allowedHere why:allowedHere ? @"this Mac is on no Wi-Fi network"
+                                                  : @"this Mac is on a Wi-Fi network"];
     }
-    if (state.on || state.groups.count > 0) [self p2pScheduleTick];
-}
-
-// Receiver: the file arrives below 25 MB/s, with enough of it left to matter: direct Wi-Fi on, so the sender sees
-// us there and can open a lane.
-- (void)p2pMeasureReceiving:(SZFriendsPeerLink *)head group:(SZFP2PGroup *)group now:(double)now {
-    if (group.receivedSince == 0 || now - group.receivedSince < SZFP2PReceiveWindow) return;
-    double rate = group.received / (now - group.receivedSince);
-    group.received = 0;
-    group.receivedSince = now;
-    if (group.wantedAt > 0 || group.givenUp || head.blocks.receiving.count == 0 || [self p2pNotAgain:head]) return;
-    if (rate <= 0 || rate >= SZFriendsDirectWiFiHelpsBelow) return;
-    uint64_t left = 0;
-    for (NSString *transferID in head.blocks.receiving) {
-        SZFriendsTransferRecord *record = [self.services.transfers transferWithID:transferID];
-        if (record.size > record.verifiedBytes) left += record.size - record.verifiedBytes;
-    }
-    if ((double)left < 4 * rate) return; // done in a few seconds anyway
-    group.wantedAt = now;
-    SZFriendsHelperLog(@"direct Wi-Fi wanted for %@: receiving at %@ (below %@), %@ left", [self p2pWhoOfHead:head],
-                       SZFriendsTraceRate(rate), SZFriendsTraceRate(SZFriendsDirectWiFiHelpsBelow),
-                       SZFriendsTraceBytes(left));
+    if (state.groups.count > 0) [self p2pScheduleTick];
 }
 
 // Sender: from 3 to 8 s after our direct Wi-Fi lane came up, the group must move at least 10 % more than in the 5 s
@@ -375,7 +350,6 @@ static NSString *SZFP2PShort(NSString *hex) {
 - (void)p2pTurn:(BOOL)on why:(NSString *)why {
     SZFP2PState *state = [self p2pState];
     state.on = on;
-    state.unneededSince = 0;
     for (id<SZFriendsDiscoveryAdapter> adapter in self.adapters) SZFriendsNetworkAdapterSetPeerToPeer(adapter, on);
     SZFriendsHelperLog(@"direct Wi-Fi (AWDL) %@: %@", on ? @"on" : @"off", why);
     if (on) return;

@@ -28,6 +28,9 @@ NS_ASSUME_NONNULL_BEGIN
     BOOL _peerToPeer;
     // The path monitor's last word: some interface other than awdl/llw (Wi-Fi joined, Ethernet) is usable.
     BOOL _hasNetwork;
+    // ... and one of those is a Wi-Fi network (ADR 0022: then this Mac never allows direct Wi-Fi). YES until the
+    // monitor first answers.
+    BOOL _onWiFi;
     void (^_Nullable _onNetworkChange)(BOOL hasNetwork);
 }
 - (instancetype)initWithQueue:(dispatch_queue_t)queue options:(SZFriendsNetworkAdapterOptions *)options;

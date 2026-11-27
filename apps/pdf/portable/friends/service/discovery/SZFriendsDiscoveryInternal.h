@@ -62,6 +62,10 @@ BOOL SZFriendsNetworkAdapterPeerToPeer(id<SZFriendsDiscoveryAdapter> adapter);
 // said; YES for anything that is not a network adapter, and in loopback mode. `changed` runs on the adapter's queue
 // whenever that changes.
 BOOL SZFriendsNetworkAdapterHasNetwork(id<SZFriendsDiscoveryAdapter> adapter);
+// Whether one of those networks is a Wi-Fi network (ADR 0022: then this Mac does not allow direct Wi-Fi), as the path
+// monitor last said; NO for anything that is not a network adapter, YES in loopback mode (test helpers never use
+// AWDL). `changed` below runs when this changes too.
+BOOL SZFriendsNetworkAdapterOnWiFi(id<SZFriendsDiscoveryAdapter> adapter);
 void SZFriendsNetworkAdapterOnNetworkChange(id<SZFriendsDiscoveryAdapter> adapter,
                                             void (^_Nullable changed)(BOOL hasNetwork));
 

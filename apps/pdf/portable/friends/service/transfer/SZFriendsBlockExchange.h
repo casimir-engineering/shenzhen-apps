@@ -67,8 +67,11 @@ extern const SZFriendsLaneID SZFriendsHeadLane; // 0
 // Both sides set capability bit 3 (SZFriendsSecureChannel.pieces, ADR 0018 § 3): WANT and HAVE carry Pieces, and
 // our files go out in 256 KiB slices whose acknowledged pieces are never sent again. Set before the first transfer.
 @property(nonatomic) BOOL pieces;
-// Whether a direct Wi-Fi lane leaves this device on its Wi-Fi network (AWDL on Macs): YES by default here.
-@property(nonatomic) BOOL directWiFiKeepsInternet;
+// The owner's rule for this group (ADR 0022: both devices allow direct Wi-Fi now): NO by default; the nearby service
+// keeps it up to date, and the scheduler follows. A test peer that plays two such devices sets it.
+@property(nonatomic) BOOL directWiFi;
+// ADR 0019's boost: its direct Wi-Fi lane is kept while YES.
+@property(nonatomic) BOOL boostDirectWiFi;
 // The queue the exchange is driven on. When set, the check before a received file is saved runs on a queue of its
 // own and its result comes back here; nil runs it in place (tests, the interop peer).
 @property(nonatomic, strong, nullable) dispatch_queue_t queue;

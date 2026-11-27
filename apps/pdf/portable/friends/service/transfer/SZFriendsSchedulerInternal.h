@@ -96,7 +96,7 @@ static inline void SZFTypical(SZFriendsRouteMethod route, double *rate, double *
 @end
 
 @interface SZFriendsScheduler () {
-    BOOL _phone, _keepsInternet;
+    BOOL _phone, _directWiFi, _boostDirectWiFi;
     NSMutableDictionary<NSNumber *, SZFLane *> *_lanes;
     NSMutableArray<SZFTransfer *> *_transfers; // in the order they were added: earlier transfers' blocks go first
     NSMutableArray<SZFriendsScheduleAction *> *_actions;

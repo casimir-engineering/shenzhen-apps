@@ -193,20 +193,20 @@ NSString *SZFriendsTraceShort(NSString *_Nullable hex); // a conversation or tra
 - (void)traceGroupEnded:(SZFriendsPeerLink *)head;
 @end
 
-// Peer-to-peer Wi-Fi (AWDL) on demand (ADR 0021): off while the Mac is on a network and nothing asks for it, since
-// AWDL takes the Wi-Fi radio off the network's channel for about a fifth of the time; on without a network, and for
-// a transfer whose LAN is missing or slow, for as long as a direct Wi-Fi lane measurably helps it.
+// Peer-to-peer Wi-Fi (AWDL) under the owner's rule (ADR 0022): on exactly while this Mac is on no Wi-Fi network, and
+// used with a friend only when the friend's handshake says its device allows it too.
 @interface SZFriendsNearbyService (PeerToPeer)
 // At start: the network adapters' setting follows the policy, and a change of network is heard.
 - (void)startPeerToPeerPolicy;
-// The scheduler asked for a direct Wi-Fi lane beside `head` (sender): YES when one may be dialed now (on, and this
-// group has not given up on it); otherwise peer-to-peer Wi-Fi is turned on when it may help and the lane is dialed
-// once the friend is sighted there (-peerToPeerSightingsChanged).
+// The scheduler asked for a direct Wi-Fi lane beside `head` (sender): YES when one may be dialed now (on, both allow
+// it, not given up); otherwise it is dialed once the friend is sighted there (-peerToPeerSightingsChanged), or never.
 - (BOOL)peerToPeerLaneWantedBeside:(SZFriendsPeerLink *)head;
 // Why a direct Wi-Fi lane beside `head` is not dialled now, for the lane line of helper.log; nil when it may be.
 - (nullable NSString *)peerToPeerLaneRefusalBeside:(SZFriendsPeerLink *)head;
-// Parts arrived in `head`'s group (receiver): a slow LAN asks for peer-to-peer Wi-Fi so the sender can open a lane.
-- (void)peerToPeerNoteReceived:(NSUInteger)bytes onGroup:(SZFriendsPeerLink *)head;
+// The owner's rule for `link`'s group: this Mac is on no Wi-Fi network and both handshakes set bit 6.
+- (BOOL)peerToPeerAllowedWith:(SZFriendsPeerLink *)link;
+// A Wi-Fi Direct boost runs for this group (ADR 0019): its lane on peer-to-peer Wi-Fi is the boost's.
+- (BOOL)boostingGroup:(SZFriendsPeerLink *)head;
 // The merger's candidates changed: a lane waiting for a friend to show up on peer-to-peer Wi-Fi is dialed now.
 - (void)peerToPeerSightingsChanged;
 // helper.log: the routes and interfaces a friend is sighted on, when they change.

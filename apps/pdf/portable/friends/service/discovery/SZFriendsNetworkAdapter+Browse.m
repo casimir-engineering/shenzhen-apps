@@ -184,9 +184,21 @@ NSDictionary<NSString *, NSData *> *SZFriendsNetworkTXTRecordFields(nw_txt_recor
         BOOL usable = nw_path_get_status(path) == nw_path_status_satisfied;
         strongSelf->_radioOff = !usable && !PeerToPeerInterfaceUp();
         [strongSelf updateState];
+        // A Wi-Fi network of the Mac's own among the path's interfaces (awdl and llw are AWDL itself), joined or not
+        // reaching the Internet: the owner's rule is about sharing the radio (ADR 0022).
+        __block BOOL onWiFi = NO;
+        nw_path_enumerate_interfaces(path, ^bool(nw_interface_t interface) {
+            NSString *name = @(nw_interface_get_name(interface) ?: "");
+            if (nw_interface_get_type(interface) == nw_interface_type_wifi &&
+                SZFriendsRouteForInterfaceName(name) != SZFriendsRouteMethodPeerToPeerWiFi) {
+                onWiFi = YES;
+            }
+            return !onWiFi;
+        });
         // The default path never runs over awdl or llw, so satisfied means a network of the Mac's own.
-        if (usable != strongSelf->_hasNetwork) {
+        if (usable != strongSelf->_hasNetwork || onWiFi != strongSelf->_onWiFi) {
             strongSelf->_hasNetwork = usable;
+            strongSelf->_onWiFi = onWiFi;
             if (strongSelf->_onNetworkChange) strongSelf->_onNetworkChange(usable);
         }
     });
@@ -209,6 +221,12 @@ BOOL SZFriendsNetworkAdapterHasNetwork(id<SZFriendsDiscoveryAdapter> adapter) {
     if (![adapter isKindOfClass:[SZFriendsNetworkAdapter class]]) return YES;
     SZFriendsNetworkAdapter *network = (SZFriendsNetworkAdapter *)adapter;
     return network->_options.loopbackOnly || network->_hasNetwork;
+}
+
+BOOL SZFriendsNetworkAdapterOnWiFi(id<SZFriendsDiscoveryAdapter> adapter) {
+    if (![adapter isKindOfClass:[SZFriendsNetworkAdapter class]]) return NO;
+    SZFriendsNetworkAdapter *network = (SZFriendsNetworkAdapter *)adapter;
+    return network->_options.loopbackOnly || network->_onWiFi;
 }
 
 void SZFriendsNetworkAdapterOnNetworkChange(id<SZFriendsDiscoveryAdapter> adapter, void (^changed)(BOOL hasNetwork)) {

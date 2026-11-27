@@ -3,7 +3,6 @@
 #import "service/transfer/SZFriendsSchedulerInternal.h"
 
 const double SZFriendsBluetoothHelpsBelow = 4e6;
-const double SZFriendsDirectWiFiHelpsBelow = 25e6;
 
 @implementation SZFriendsScheduleAction
 + (instancetype)kind:(SZFriendsScheduleKind)kind lane:(SZFriendsLaneID)lane transfer:(SZFriendsTransferKey)transfer
@@ -83,16 +82,37 @@ static void SZFPrune(NSMutableArray<NSArray<NSNumber *> *> *samples, double now)
 
 @implementation SZFriendsScheduler
 
-- (instancetype)initWithPhone:(BOOL)phone directWiFiKeepsInternet:(BOOL)keepsInternet {
+- (instancetype)initWithPhone:(BOOL)phone directWiFi:(BOOL)directWiFi {
     if ((self = [super init])) {
         _phone = phone;
-        _keepsInternet = keepsInternet;
+        _directWiFi = directWiFi;
         _lanes = [NSMutableDictionary dictionary];
         _transfers = [NSMutableArray array];
         _actions = [NSMutableArray array];
         _requested = [NSMutableDictionary dictionary];
     }
     return self;
+}
+
+- (void)setDirectWiFi:(BOOL)directWiFi {
+    _directWiFi = directWiFi;
+    [self closeDirectWiFiUnlessAllowed];
+}
+
+- (void)allowDirectWiFi:(BOOL)allowed {
+    _boostDirectWiFi = allowed;
+    [self closeDirectWiFiUnlessAllowed];
+}
+
+- (void)closeDirectWiFiUnlessAllowed {
+    if (_directWiFi || _boostDirectWiFi) return;
+    for (NSNumber *laneID in [self laneIDs]) {
+        SZFLane *lane = _lanes[laneID];
+        if (lane->route != SZFriendsRouteMethodPeerToPeerWiFi || lane->index == 0 || lane->closing) continue;
+        lane->closing = YES;
+        [_actions addObject:[SZFriendsScheduleAction kind:SZFriendsScheduleCloseLane lane:laneID.unsignedLongLongValue
+                                                transfer:0 block:0 route:SZFriendsRouteMethodNone]];
+    }
 }
 
 - (NSArray<SZFriendsScheduleAction *> *)takeActions {
@@ -131,7 +151,8 @@ static void SZFPrune(NSMutableArray<NSArray<NSNumber *> *> *samples, double now)
         lane->deliveredAt = lane->progressAt = lane->heardAt = now;
         lane->holds = [NSMutableDictionary dictionary];
         // The first session is wherever the route racer put it; only a lane can be refused.
-        lane->unused = event.route == SZFriendsRouteMethodPeerToPeerWiFi && !_keepsInternet && event.index != 0;
+        lane->unused = event.route == SZFriendsRouteMethodPeerToPeerWiFi && !_directWiFi && !_boostDirectWiFi &&
+                       event.index != 0;
         lane->closing = lane->unused;
         if (lane->unused) {
             [_actions addObject:[SZFriendsScheduleAction kind:SZFriendsScheduleCloseLane lane:event.lane transfer:0

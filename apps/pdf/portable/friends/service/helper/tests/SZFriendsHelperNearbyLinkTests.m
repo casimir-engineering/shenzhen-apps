@@ -21,6 +21,9 @@ static char SZFNHashKey, SZFNSentKey, SZFNAttestationKey;
 - (NSData *)presentedLane {
     return nil;
 }
+- (BOOL)directWiFiAllowed {
+    return YES;
+}
 - (NSData *)remoteAttestation {
     return objc_getAssociatedObject(self, &SZFNAttestationKey);
 }
