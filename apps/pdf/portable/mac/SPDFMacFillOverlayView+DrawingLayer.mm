@@ -169,7 +169,8 @@ static CGPathRef SPDFFillCreateCGPath(NSBezierPath* path) {
 - (BOOL)holdIsDone:(SPDFFillHold*)hold now:(NSTimeInterval)now {
     if (now >= hold.deadline) return YES;
     SPDFRenderedPage* current = [self renderedPage:hold.item.page];
-    BOOL newer = !hold.hadBefore || !hold.before || current != hold.before;
+    BOOL newer = !hold.hadBefore || !hold.before || current != hold.before || current.image != hold.beforeImage ||
+                 current.viewportImage != hold.beforeViewportImage;  // a redraw of the changed part only
     return newer && (current.image || current.viewportImage);
 }
 
@@ -199,6 +200,7 @@ static CGPathRef SPDFFillCreateCGPath(NSBezierPath* path) {
             SPDFRenderedPage* page = [self renderedPage:item.page];
             hold.before = page;
             hold.hadBefore = page != nil;
+            hold.beforeImage = page.image, hold.beforeViewportImage = page.viewportImage;
             hold.deadline = now + kSPDFFillHoldLimit;
             [state.holds addObject:hold];
         }

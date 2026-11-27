@@ -51,6 +51,19 @@ void spdf_brush_capsule(spdf_brush_mask* m, fz_point a, float ra, fz_point b, fl
 void spdf_brush_convex(spdf_brush_mask* m, const fz_point* p, int n, int hard, float alpha, spdf_brush_shade shade,
                        void* user);
 
+/* How a stroke's coverage is laid into a layer: colour, transparency (the Eraser), or Color 1 made Color 2. */
+typedef enum spdf_brush_lay_mode { SPDF_BRUSH_PAINT, SPDF_BRUSH_ERASE, SPDF_BRUSH_REPLACE_COLOR } spdf_brush_lay_mode;
+/* The mode and colour a stroke lays with on `layer` (the Eraser paints Color 2 on a layer without alpha). */
+spdf_brush_lay_mode spdf_brush_lay_mode_for(const spdf_paint_doc* doc, const spdf_paint_layer* layer,
+                                            const spdf_paint_stroke_args* args, spdf_paint_color* color);
+/* Lays the mask's coverage over `box` of dest at the stroke's opacity, inside the selection mask when there is one. */
+void spdf_brush_lay(fz_pixmap* dest, const spdf_brush_mask* m, fz_irect box, spdf_brush_lay_mode mode,
+                    spdf_paint_color color, spdf_paint_color replacement, float opacity, const fz_pixmap* sel);
+/* The stroke's coverage, built already (a live stroke's), laid into the layer as spdf_paint_brush_stroke lays it. */
+spdf_paint_status spdf_paint_brush_lay_mask(spdf_paint_doc* doc, spdf_paint_layer* layer,
+                                            const spdf_paint_stroke_args* args, const spdf_brush_mask* mask,
+                                            fz_irect box, spdf_rect* damage);
+
 /* ---- spdf_paint_brush_tex.c ---- */
 
 uint32_t spdf_brush_hash(int32_t x, int32_t y, uint32_t seed);
@@ -59,6 +72,22 @@ float spdf_brush_noise(float x, float y, uint32_t seed);              /* smooth 
 float spdf_brush_fbm(float x, float y, uint32_t seed, int octaves);   /* 0-1 */
 /* The seed an operation gets when it names none: a hash of its points, so replay is the same without one. */
 uint32_t spdf_brush_default_seed(const spdf_paint_point* points, int count);
+
+/* ---- spdf_paint_brush_live.c ---- */
+
+/* A stroke drawn point by point, so a stroke being drawn costs only its new part per point; spdf_brush_render is the
+ * same run fed every point, so both paint the same pixels. spdf_brush_run_add draws into `committed` what no later
+ * point changes; spdf_brush_run_show makes `shown` the stroke as it would end at the last point: `committed`, plus the
+ * last bit of a stroke walked in steps (Oil, Crayon, Natural pencil, Watercolor), Watercolor's wet look, a plain
+ * nib's dot while there is one point. *changed (may be NULL): the box of `shown` that changed since the last show.
+ * Both masks cover the run's box; they may be one mask when nothing is shown before the last point (a whole stroke). */
+typedef struct spdf_brush_run spdf_brush_run;
+spdf_brush_run* spdf_brush_run_new(fz_context* ctx, const spdf_brush_job* job, fz_irect box); /* job's points unused */
+int spdf_brush_run_add(fz_context* ctx, spdf_brush_run* run, const spdf_paint_point* points, int count,
+                       spdf_brush_mask* committed);
+int spdf_brush_run_show(fz_context* ctx, spdf_brush_run* run, const spdf_brush_mask* committed, spdf_brush_mask* shown,
+                        fz_irect* changed);
+void spdf_brush_run_drop(fz_context* ctx, spdf_brush_run* run);
 
 void spdf_brush_render_airbrush(fz_context* ctx, const spdf_brush_job* job, spdf_brush_mask* mask);
 void spdf_brush_render_oil(fz_context* ctx, const spdf_brush_job* job, spdf_brush_mask* mask);
@@ -69,6 +98,11 @@ void spdf_brush_render_watercolor(fz_context* ctx, const spdf_brush_job* job, sp
  * middle, a little granulation. `radius` is the stroke's half width in device pixels (sets the rim's width);
  * from_device maps device pixels back to stroke space for the noise. */
 void spdf_brush_wet(fz_context* ctx, spdf_brush_mask* mask, float radius, fz_matrix from_device, uint32_t seed);
+
+/* The same over `part` of the mask only (device pixels): what lies within the blurs' reach of it is read, the rest
+ * of the mask left as it is. */
+void spdf_brush_wet_part(fz_context* ctx, spdf_brush_mask* mask, float radius, fz_matrix from_device, uint32_t seed,
+                         fz_irect part);
 
 /* A textured fill (§ 2 Shapes Fill: crayon, marker, oil, natural pencil): back-and-forth strokes of that brush over
  * rect (stroke space), drawn through to_device into mask. The caller multiplies the result by the shape's area. */

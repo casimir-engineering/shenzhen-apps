@@ -226,8 +226,10 @@ void spdf_paint_composite_into(spdf_paint_doc* doc, fz_pixmap* dest, fz_irect cl
                                          (flags & SPDF_PAINT_RENDER_DARK_PAGE) != 0);
             continue;
         }
-        if (layer->object) spdf_paint_object_draw(doc, layer->object, fz_scale(scale, scale), dest, clip, opacity);
-        else if (layer->pixels) spdf_paint_draw_raster(doc, layer->pixels, dest, clip, scale, opacity, nearest);
+        if (layer->object) {
+            if (!spdf_paint_live_draw_object(doc, layer, fz_scale(scale, scale), dest, clip, opacity))
+                spdf_paint_object_draw(doc, layer->object, fz_scale(scale, scale), dest, clip, opacity);
+        } else if (layer->pixels) spdf_paint_draw_raster(doc, layer->pixels, dest, clip, scale, opacity, nearest);
     }
 }
 

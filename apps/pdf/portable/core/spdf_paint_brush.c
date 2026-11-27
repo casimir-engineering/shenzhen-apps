@@ -232,7 +232,7 @@ fz_irect spdf_brush_job_reach(const spdf_brush_job* job) {
     case SPDF_PAINT_BRUSH_WATERCOLOR: k = 1.25f; break;
     default: break;
     }
-    r = job->size * k * ex + 3;
+    r = job->size * k * ex + (job->tool == SPDF_PAINT_BRUSH_WATERCOLOR ? 8 : 3); /* the wet edge's blur, a small nib's too */
     for (i = 0; i < job->count; ++i) {
         fz_point p = dev_point(job, i);
         x0 = fminf(x0, p.x), y0 = fminf(y0, p.y), x1 = fmaxf(x1, p.x), y1 = fmaxf(y1, p.y);
@@ -265,8 +265,6 @@ void spdf_brush_render(fz_context* ctx, const spdf_brush_job* job, spdf_brush_ma
 
 /* ---- Laying a stroke into a layer ---- */
 
-typedef enum lay_mode { LAY_PAINT, LAY_ERASE, LAY_REPLACE_COLOR } lay_mode;
-
 static int channel(spdf_paint_color c, int shift) { return (int)((c >> shift) & 0xFF); }
 
 /* The selection mask's value at a raster pixel: 255 inside, 0 outside or where it has no pixels. */
@@ -277,8 +275,8 @@ static int selection_at(const fz_pixmap* sel, int x, int y) {
     return sel->samples[(size_t)y * (size_t)sel->stride + (size_t)x * sel->n + (sel->n - 1)];
 }
 
-static void lay(fz_pixmap* dest, const spdf_brush_mask* m, fz_irect box, lay_mode mode, spdf_paint_color color,
-                spdf_paint_color replacement, float opacity, const fz_pixmap* sel) {
+void spdf_brush_lay(fz_pixmap* dest, const spdf_brush_mask* m, fz_irect box, spdf_brush_lay_mode mode,
+                    spdf_paint_color color, spdf_paint_color replacement, float opacity, const fz_pixmap* sel) {
     float cr = channel(color, 24), cg = channel(color, 16), cb = channel(color, 8), ca = channel(color, 0) / 255.0f;
     float rr = channel(replacement, 24), rg = channel(replacement, 16), rb = channel(replacement, 8);
     int x, y;
@@ -289,11 +287,11 @@ static void lay(fz_pixmap* dest, const spdf_brush_mask* m, fz_irect box, lay_mod
             unsigned char* p = d + (size_t)(x - dest->x) * 4;
             float a = mrow[x - m->box.x0] / 255.0f * opacity * selection_at(sel, x, y) / 255.0f, k;
             if (a <= 0) continue;
-            if (mode == LAY_ERASE) {
+            if (mode == SPDF_BRUSH_ERASE) {
                 k = 1 - a;
                 p[0] = (unsigned char)(p[0] * k + 0.5f), p[1] = (unsigned char)(p[1] * k + 0.5f);
                 p[2] = (unsigned char)(p[2] * k + 0.5f), p[3] = (unsigned char)(p[3] * k + 0.5f);
-            } else if (mode == LAY_PAINT) {
+            } else if (mode == SPDF_BRUSH_PAINT) {
                 a *= ca, k = 1 - a;
                 p[0] = (unsigned char)(cr * a + p[0] * k + 0.5f), p[1] = (unsigned char)(cg * a + p[1] * k + 0.5f);
                 p[2] = (unsigned char)(cb * a + p[2] * k + 0.5f), p[3] = (unsigned char)(255 * a + p[3] * k + 0.5f);
@@ -330,15 +328,41 @@ static fz_irect used_box(const spdf_brush_mask* m, fz_irect within) {
     return u;
 }
 
+spdf_brush_lay_mode spdf_brush_lay_mode_for(const spdf_paint_doc* doc, const spdf_paint_layer* layer,
+                                            const spdf_paint_stroke_args* args, spdf_paint_color* color) {
+    *color = args->color;
+    if (args->tool == SPDF_PAINT_BRUSH_COLOR_ERASER) return SPDF_BRUSH_REPLACE_COLOR;
+    if (args->tool != SPDF_PAINT_BRUSH_ERASER) return SPDF_BRUSH_PAINT;
+    if (layer->kind == SPDF_PAINT_LAYER_BACKGROUND && !doc->has_alpha) {
+        *color = args->color2 | 0xFF;
+        return SPDF_BRUSH_PAINT;
+    }
+    return SPDF_BRUSH_ERASE;
+}
+
+spdf_paint_status spdf_paint_brush_lay_mask(spdf_paint_doc* doc, spdf_paint_layer* layer,
+                                            const spdf_paint_stroke_args* args, const spdf_brush_mask* mask,
+                                            fz_irect box, spdf_rect* damage) {
+    float scale = doc->raster_scale > 0 ? (float)doc->raster_scale : 1.0f;
+    fz_irect used = used_box(mask, box);
+    spdf_paint_color color;
+    if (damage) *damage = (spdf_rect){0, 0, 0, 0};
+    if (fz_is_empty_irect(used)) return SPDF_PAINT_OK;
+    spdf_brush_lay_mode mode = spdf_brush_lay_mode_for(doc, layer, args, &color);
+    spdf_paint_history_save_pixels(doc, layer, used);
+    spdf_brush_lay(layer->pixels, mask, used, mode, color, args->color2, clampf(args->opacity, 0, 1), args->mask);
+    if (damage) *damage = (spdf_rect){used.x0 / scale, used.y0 / scale, used.x1 / scale, used.y1 / scale};
+    return SPDF_PAINT_OK;
+}
+
 spdf_paint_status spdf_paint_brush_stroke(spdf_paint_doc* doc, spdf_paint_layer* layer,
                                           const spdf_paint_stroke_args* args, spdf_rect* damage) {
     fz_context* ctx;
     fz_pixmap* pix;
     spdf_brush_job job;
     spdf_brush_mask mask;
-    fz_irect box, used;
-    lay_mode mode = LAY_PAINT;
-    spdf_paint_color color;
+    fz_irect box;
+    spdf_paint_status st;
     float scale;
     if (damage) *damage = (spdf_rect){0, 0, 0, 0};
     if (!doc || !layer || !args || !args->points || args->point_count < 1 || args->tool >= SPDF_PAINT_BRUSH_COUNT)
@@ -355,19 +379,7 @@ spdf_paint_status spdf_paint_brush_stroke(spdf_paint_doc* doc, spdf_paint_layer*
     if (fz_is_empty_irect(box)) return SPDF_PAINT_OK;
     if (!spdf_brush_mask_init(ctx, &mask, box)) return SPDF_PAINT_ERR_NO_MEMORY;
     spdf_brush_render(ctx, &job, &mask);
-    used = used_box(&mask, box);
-    if (!fz_is_empty_irect(used)) {
-        color = args->color;
-        if (args->tool == SPDF_PAINT_BRUSH_ERASER) {
-            if (layer->kind == SPDF_PAINT_LAYER_BACKGROUND && !doc->has_alpha) color = args->color2 | 0xFF;
-            else mode = LAY_ERASE;
-        } else if (args->tool == SPDF_PAINT_BRUSH_COLOR_ERASER) {
-            mode = LAY_REPLACE_COLOR;
-        }
-        spdf_paint_history_save_pixels(doc, layer, used);
-        lay(pix, &mask, used, mode, color, args->color2, clampf(args->opacity, 0, 1), args->mask);
-        if (damage) *damage = (spdf_rect){used.x0 / scale, used.y0 / scale, used.x1 / scale, used.y1 / scale};
-    }
+    st = spdf_paint_brush_lay_mask(doc, layer, args, &mask, box, damage);
     spdf_brush_mask_drop(ctx, &mask);
-    return SPDF_PAINT_OK;
+    return st;
 }

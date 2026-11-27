@@ -298,6 +298,7 @@ struct spdf_paint_doc {
     spdf_rect written_damage; /* union since the last spdf_paint_take_written_damage (a PDF page's write back) */
     int has_written_damage;
     uint64_t generation;
+    struct spdf_paint_live* live; /* a stroke being drawn (spdf_paint_live.c), shown in every drawing, or NULL */
 
     /* PDF page canvases (spdf_paint_pdf.c). */
     spdf_document* pdf;       /* borrowed */
@@ -438,6 +439,22 @@ void spdf_paint_text_cache_drop(spdf_paint_doc* doc);
 fz_pixmap* spdf_paint_scale_pixmap(fz_context* ctx, const fz_pixmap* src, int w, int h);
 /* Rotates by any angle about its centre into a pixmap big enough for the result; transparent corners. */
 fz_pixmap* spdf_paint_rotate_pixmap(fz_context* ctx, const fz_pixmap* src, float degrees);
+
+/* ---- spdf_paint_live.c: a stroke being drawn ---- */
+
+/* Puts back what a stroke being drawn changed and forgets it (any change but its own release, undo, closing). */
+void spdf_paint_live_settle(spdf_paint_doc* doc);
+/* paint.stroke: when it is the stroke being drawn, lays it as shown (*status set) and returns 1; else settles, 0. */
+int spdf_paint_live_lay(spdf_paint_doc* doc, spdf_paint_layer* layer, const spdf_paint_stroke_args* args,
+                        spdf_rect* damage, spdf_paint_status* status);
+/* An object layer the stroke being drawn changes (a pen line cut, a line the whole-line eraser takes), drawn as it
+ * will be: returns 1 when it drew it (or drew nothing: the line goes), 0 to draw the object as it is. */
+/* The box of pixels with any alpha (raster pixels, inside `within`), empty when none: what a PDF page's drawing
+ * layer writes. While a stroke is drawn into a PDF page's layer, that box as it is now (1), else 0. */
+fz_irect spdf_paint_pixels_used(const fz_pixmap* pixels, fz_irect within);
+int spdf_paint_live_used(const spdf_paint_doc* doc, const spdf_paint_layer* layer, fz_irect* used);
+int spdf_paint_live_draw_object(spdf_paint_doc* doc, const spdf_paint_layer* layer, fz_matrix ctm, fz_pixmap* dest,
+                                fz_irect clip, float opacity);
 
 /* ---- Implemented by spdf_paint_pdf.c (PDF), called by Core A ---- */
 

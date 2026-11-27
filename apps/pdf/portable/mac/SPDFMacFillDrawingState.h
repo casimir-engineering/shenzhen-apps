@@ -12,6 +12,7 @@
 @property(nonatomic) BOOL wash;
 @property(nonatomic, weak) SPDFRenderedPage* before;  // the page image when the change was written
 @property(nonatomic) BOOL hadBefore;
+@property(nonatomic, weak) id beforeImage, beforeViewportImage;  // its pictures then (a change patches them in place)
 @property(nonatomic) NSTimeInterval deadline;
 @end
 

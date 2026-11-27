@@ -45,6 +45,7 @@
 // after the write is on screen.
 - (void)holdInk:(NSArray<SPDFFillItem*>*)ink washes:(NSArray<SPDFFillItem*>*)washes;
 - (void)dropDrawingHolds;
+- (void)checkDrawingHolds:(NSTimer*)timer;  // lets go of what the page pictures now show (nil: not from a timer)
 @end
 
 // Shared drawing of a check or a cross inside rect (y down).

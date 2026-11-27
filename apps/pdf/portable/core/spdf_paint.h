@@ -275,6 +275,21 @@ typedef struct spdf_paint_placed { spdf_paint_id id; spdf_rect rect; int turns; 
 spdf_paint_status spdf_paint_render_placed(spdf_paint_doc* doc, const spdf_paint_render_options* options,
                                            const spdf_paint_placed* placed, int count, spdf_bitmap* out, char* err,
                                            size_t err_len);
+/* A stroke being drawn (spdf_paint_live.c): what the release's paint.stroke or erase.lines will do, shown while the
+ * button is held, at a cost per new point that does not grow with the stroke. Begin with the operation as the release
+ * will send it, without its points; add points as they come (x, y, pressure triples: the operation's own values, as
+ * it will round them); *changed (canvas units, empty when nothing) is what now looks different. Meanwhile every
+ * drawing of the canvas shows the stroke: its pixels in the active layer over and under the other layers, the pen
+ * lines the pixel Eraser cuts in their pieces, the lines the whole-line eraser takes faded. The release's operation,
+ * when it is that stroke, lays exactly what was shown; any other change, an undo, or a cancel puts everything back
+ * (cancel: *changed is what to draw again). */
+spdf_paint_status spdf_paint_live_begin(spdf_paint_doc* doc, const char* op_json, char* err, size_t err_len);
+spdf_paint_status spdf_paint_live_add(spdf_paint_doc* doc, const float* xyp, int count, spdf_rect* changed);
+void spdf_paint_live_cancel(spdf_paint_doc* doc, spdf_rect* changed);
+int spdf_paint_live_active(const spdf_paint_doc* doc);
+/* What the release will report changed (spdf_paint_take_written_damage): the part of a PDF page the reader draws again
+ * from the written page, while the rest of its picture stays. 0 when nothing. */
+int spdf_paint_live_written(const spdf_paint_doc* doc, spdf_rect* changed);
 /* The topmost visible object under (x, y) in canvas units, within slop units of its line or box; 0 when none (Core A,
  * for the Select tool's clicks and right-click menus). */
 spdf_paint_id spdf_paint_object_at(spdf_paint_doc* doc, float x, float y, float slop);

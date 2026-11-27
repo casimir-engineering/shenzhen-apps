@@ -356,10 +356,15 @@ generated from it, so a new operation appears everywhere at once.
 | Document | `doc.state` (read-only: size, dpi, `layers` bottom to top, each layer with its `objects` back to front, with ids, kinds, bounds and parameters, active layer, selection, colours, zoom, dirty, file and format), `doc.render {out, region?, scale?, layers?}` (read-only: a PNG to look at), `doc.save`, `doc.save_as {path, format, quality?}`, `doc.save_as_pdf {path?}` (text documents: makes and opens the PDF, answers its tab), `doc.copy {scope, out?}` (`out`: a PNG file instead of the clipboard, Copy to file…), `mode.set {on}` (Annotate on or off, Done) |
 | View (UI state only, not undone) | `view.zoom {level \| "fit" \| "actual"}`, `view.set {rulers?, gridlines?, statusbar?, thumbnail?}`, `tool.choose {tool, options}` (what the palette shows) |
 
-A brush stroke from the mouse is previewed locally and applied as one `paint.stroke` with all its points on release
-(airbrush and the textured brushes take a `seed`, so replaying the operation gives the same pixels). The preview
-stays inside the canvas or page, as what the release paints does; the Pen's line and the Arrow are previewed as the
-object they add (its smoothing, head, width and the Pen row's colour). A drag of an
+A brush stroke from the mouse is shown as it is drawn and applied as one `paint.stroke` with all its points on
+release (airbrush and the textured brushes take a `seed`, chosen at the press, so the stroke drawn and its replay give
+the same pixels). While the button is held the core holds the stroke (`spdf_paint_live_*`, spdf_paint_live.c): its
+real brush, built point by point, laid into the active layer with the layers above and below showing, the pen lines
+the pixel Eraser cuts shown in their pieces, the lines the whole-line Eraser takes shown faded; each point costs only
+what it changes. The release lays exactly what was shown. On a PDF page the part the reader will draw again is drawn
+as the reader draws it. The preview stays inside the canvas or page, as what the release paints does; the Pen's line
+and the Arrow are previewed as the object they add (its smoothing, head, width and the Pen row's colour). The pixel
+Eraser cuts a pen line where it is drawn (its smoothed curve), and the pieces keep the line's own points. A drag of an
 object is one `object.move` on release. Text typing is one `object.update` when the box closes.
 
 Fill & Sign's actions are these same operations: its Pen is `pen.add`, Arrow `arrow.add`, Whole-lines eraser
@@ -405,6 +410,7 @@ sends; anything without one is a bug.
 | `spdf_paint_ops.c` | JSON parsing and validation (cJSON), dispatch, results, schema |
 | `spdf_paint_history.c` | Undo/redo: raster changes as 256 x 256 tile snapshots, object changes as before/after parameter copies; 1 GB cap |
 | `spdf_paint_brush.c` | Pencil, the nine brushes, airbrush, eraser, color eraser; stamp model with seeded noise |
+| `spdf_paint_brush_live.c`, `spdf_paint_live.c` | A stroke drawn point by point (the whole stroke is the same run), and the stroke being drawn, shown in every drawing until its release lays it |
 | `spdf_paint_fill.c` | Flood fill (scanline, tolerance, contiguous or global), colour pick |
 | `spdf_paint_shapes.c` | The 24 shapes as `fz_path`s, outline and fill styles (solid via `fz_fill_path`/`fz_stroke_path`, textured styles by masking the brush textures with the path) |
 | `spdf_paint_text.c` | Text objects drawn with MuPDF fonts; system fonts looked up by the Mac layer and passed as file paths (`spdf_paint_set_font_resolver`) |

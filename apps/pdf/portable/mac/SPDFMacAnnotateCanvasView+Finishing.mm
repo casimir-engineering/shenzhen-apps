@@ -22,31 +22,17 @@ static NSCursor* SPDFAnnotateResizeCursor(NSInteger handle) {
 @implementation SPDFMacAnnotateCanvasView (Finishing)
 
 - (void)finishStrokeOnPage:(NSInteger)page right:(BOOL)right {
-    SPDFMacAnnotateSession* session = self.session;
+    [self liveStrokeSync];  // the release's point too
     NSMutableArray* points = [NSMutableArray array];
     for (NSUInteger i = 0; i < self.points.count; ++i) {
         NSPoint p = self.points[i].pointValue;
         CGFloat pressure = i < self.pressures.count ? self.pressures[i].doubleValue : 1;
         [points addObject:pressure < 0.999 ? @[@(p.x), @(p.y), @(pressure)] : SPDFAnnotatePointArray(p)];
     }
-    if (!points.count) return;
-    NSDictionary* options = [self toolOptions];
-    NSDictionary* op;
-    if (session.tool == SPDFAnnotateToolPen) {
-        op = @{@"op": @"pen.add", @"points": points, @"color": [self colorFor:right], @"width": @([self toolSize])};
-    } else if (session.tool == SPDFAnnotateToolEraser && !session.eraserPixels) {
-        op = @{@"op": @"erase.lines", @"points": points, @"size": @(MAX(1, [self toolSize]))};
-    } else {
-        NSString* tool = session.tool == SPDFAnnotateToolEraser ? (right ? @"color_eraser" : @"eraser")
-                                                                : SPDFAnnotateToolName(session.tool, session.brush);
-        NSMutableDictionary* stroke = [@{@"op": @"paint.stroke", @"tool": tool, @"points": points,
-                                         @"size": @(MAX(1, MIN(100, [self toolSize]))),
-                                         @"seed": @(arc4random())} mutableCopy];
-        if (options[@"opacity"]) stroke[@"opacity"] = options[@"opacity"];
-        if (![tool isEqual:@"eraser"]) stroke[@"color"] = [self colorFor:right && ![tool isEqual:@"color_eraser"]];
-        op = stroke;
-    }
-    [self operation:op page:page done:nil];
+    NSMutableDictionary* op = points.count ? [self strokeOperationRight:right] : nil;  // the seed it was drawn with
+    op[@"points"] = points;
+    if (op) [self operation:op page:page done:nil];
+    [self liveStrokeEnded];  // taken by the operation, which laid what was shown
 }
 
 - (void)finishPolygonOnPage:(NSInteger)page {
@@ -243,6 +229,7 @@ static NSCursor* SPDFAnnotateResizeCursor(NSInteger handle) {
     self.gesture = SPDFAnnotateGestureNone;
     self.liveResizeSize = NSZeroSize;
     self.rightButton = NO;
+    [self liveStrokeEnded];
     [self.points removeAllObjects];
     [self.pressures removeAllObjects];
     if (had) self.needsDisplay = YES;

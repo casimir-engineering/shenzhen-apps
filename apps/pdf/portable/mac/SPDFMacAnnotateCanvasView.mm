@@ -23,7 +23,6 @@ static const int kTileSide = 256;  static const NSUInteger kMaxTiles = 600;  // 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wincomplete-implementation"
 @implementation SPDFMacAnnotateCanvasView {
-    NSMutableDictionary<NSString*, id>* _tiles;  // "page:level:tx:ty" -> CGImageRef
     NSMutableDictionary<NSNumber*, NSNumber*>* _generations;
     NSTrackingArea* _tracking;
 }

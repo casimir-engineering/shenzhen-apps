@@ -237,8 +237,10 @@ static std::vector<spdf_fill_point> SPDFFillHitPoints(SPDFFillItem* item) {
                                                              page:page]));
     }
     if (!finished) return;
-    if (!parts) {
-        if (state.erasing.count) [self.controller removeItems:state.erasing];
+    if (!parts) {  // the faded lines go now: the frame that shows the page without them must not wash them out again
+        NSArray<SPDFFillItem*>* erasing = state.erasing;
+        state.erasing = nil;
+        if (erasing.count) [self.controller removeItems:erasing];
         return;
     }
     NSMutableArray<SPDFFillItem*>* originals = [NSMutableArray array];

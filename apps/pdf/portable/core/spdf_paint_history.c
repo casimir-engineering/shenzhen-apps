@@ -364,6 +364,7 @@ void spdf_paint_history_end(spdf_paint_doc* doc, int keep) {
 /* ---- Public ---- */
 
 spdf_paint_status spdf_paint_undo(spdf_paint_doc* doc, int steps) {
+    spdf_paint_live_settle(doc);
     if (!doc || doc->history.cursor <= 0) return SPDF_PAINT_ERR_NOTHING_TO_UNDO;
     for (int i = 0; i < (steps > 0 ? steps : 1) && doc->history.cursor > 0; i++)
         spdf_paint_history_apply_step(doc, &doc->history.steps[--doc->history.cursor], 1);
@@ -371,6 +372,7 @@ spdf_paint_status spdf_paint_undo(spdf_paint_doc* doc, int steps) {
 }
 
 spdf_paint_status spdf_paint_redo(spdf_paint_doc* doc, int steps) {
+    spdf_paint_live_settle(doc);
     if (!doc || doc->history.cursor >= doc->history.count) return SPDF_PAINT_ERR_NOTHING_TO_UNDO;
     for (int i = 0; i < (steps > 0 ? steps : 1) && doc->history.cursor < doc->history.count; i++)
         spdf_paint_history_apply_step(doc, &doc->history.steps[doc->history.cursor++], 0);

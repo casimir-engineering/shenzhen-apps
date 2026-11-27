@@ -10,6 +10,7 @@
  * - An empty layer name means "named after what it holds" (spdf_paint_layer_display_name): "Rectangle", "Text: Hi".
  * - Pen lines and arrows keep rotation and flips baked into their points; place.rect is their points' box. */
 #include "spdf_paint_handlers.h"
+#include "spdf_fill_items.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -171,6 +172,17 @@ void spdf_paint_invert_pixels(fz_pixmap* pix, fz_irect box, const fz_pixmap* mas
 void spdf_paint_black_white_pixels(fz_pixmap* pix);
 /* Fills the transparent area of pix (only where alpha < 255) under `fill`, as a picture without alpha shows it. */
 void spdf_paint_flatten_onto(fz_pixmap* pix, const unsigned char* fill);
+
+/* ---- spdf_paint_brush_op.c ---- */
+
+/* paint.stroke's arguments, its points apart (no seed: 0); returns 1 when it names a seed. */
+int spdf_paint_stroke_args_read(spdf_paint_call* call, spdf_paint_stroke_args* args);
+/* What the pixel Eraser along `swath` (radius: half its size) leaves of a pen line or arrow: *pieces (copies of the
+ * object, each a pen line or the arrow keeping its head) and their count, 0 when the whole line goes. Returns 1 when
+ * the eraser reaches the line, 0 when it does not (nothing set). Free with spdf_paint_line_pieces_free. */
+int spdf_paint_line_cut(spdf_paint_doc* doc, const spdf_paint_object* o, const spdf_fill_point* swath, int swath_count,
+                        float radius, spdf_paint_object*** pieces, int* count);
+void spdf_paint_line_pieces_free(fz_context* ctx, spdf_paint_object** pieces, int count);
 
 #ifdef __cplusplus
 }

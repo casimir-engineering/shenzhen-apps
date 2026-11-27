@@ -195,7 +195,9 @@ static void SPDFAnnotateChooseFillTool(SPDFMacFillController* controller, NSStri
         if (width >= 0) style.widthIndex = width;
         [controller chooseTool:[name isEqual:@"pen"] ? SPDFFillToolPen : SPDFFillToolArrow];
     } else if ([name isEqual:@"eraser"]) {
-        style.eraserParts = [options[@"eraser"] isEqual:@"pixels"];
+        // Choosing Fill & Sign's Eraser again turns its kind over (chooseTool:): set so it ends as the options say.
+        BOOL parts = [options[@"eraser"] isEqual:@"pixels"];
+        style.eraserParts = [controller session].tool == SPDFFillToolEraser ? !parts : parts;
         [controller chooseTool:SPDFFillToolEraser];
     } else if ([name isEqual:@"select"]) {
         [controller chooseTool:SPDFFillToolSelect];
