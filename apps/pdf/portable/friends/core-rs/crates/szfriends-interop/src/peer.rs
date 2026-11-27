@@ -356,6 +356,9 @@ impl State {
         if off("SZFRIENDS_TEST_AES_LANES") {
             config.capabilities &= !consts::CAPABILITY_AES_LANES;
         }
+        if off("SZFRIENDS_TEST_AES_SESSION") {
+            config.capabilities &= !consts::CAPABILITY_AES_SESSION;
+        }
         if off("SZFRIENDS_TEST_COMPRESSED_PARTS") {
             config.capabilities &= !(consts::CAPABILITY_COMPRESSED_PARTS | consts::CAPABILITY_LZ4_PARTS);
         }
