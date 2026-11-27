@@ -58,23 +58,29 @@ const double SZFriendsDirectWiFiHelpsBelow = 25e6;
 - (BOOL)reaches:(double)now {
     return !closing && !unused && now - heardAt < self.unheardAfter;
 }
-static void SZFPrune(NSMutableArray<NSArray<NSNumber *> *> *samples, double now) {
-    while (samples.count && now - samples.firstObject[0].doubleValue > SZFSampleWindow) [samples removeObjectAtIndex:0];
+// The best of the samples of the last SZFSampleWindow seconds, the newest `value` included: the highest when `highest`,
+// else the lowest. A sliding window's monotonic queue: a sample that a newer one equals or beats can never be the best
+// again and goes at once, so each sample is added and removed once (a fast route samples hundreds of times a second).
+static double SZFWindowBest(NSMutableData *samples, double value, double now, BOOL highest) {
+    SZFSample *kept = samples.mutableBytes;
+    NSUInteger count = samples.length / sizeof(SZFSample);
+    while (count > 0 && (highest ? kept[count - 1].value <= value : kept[count - 1].value >= value)) count--;
+    samples.length = count * sizeof(SZFSample);
+    SZFSample sample = {now, value};
+    [samples appendBytes:&sample length:sizeof sample];
+    kept = samples.mutableBytes;
+    count++;
+    NSUInteger old = 0;
+    while (old < count && now - kept[old].at > SZFSampleWindow) old++;
+    if (old > 0) [samples replaceBytesInRange:NSMakeRange(0, old * sizeof(SZFSample)) withBytes:NULL length:0];
+    return count > old ? ((const SZFSample *)samples.bytes)[0].value : value;
 }
 - (void)sampleRate:(double)value now:(double)now {
-    [rates addObject:@[ @(now), @(MIN(value, 1e11)) ]];
-    SZFPrune(rates, now);
-    double best = 1e3;
-    for (NSArray *sample in rates) best = MAX(best, [sample[1] doubleValue]);
-    rate = best;
+    rate = MAX(1e3, SZFWindowBest(rates, MIN(value, 1e11), now, YES));
     measured = YES;
 }
 - (void)sampleRTT:(double)value now:(double)now {
-    [rtts addObject:@[ @(now), @(value) ]];
-    SZFPrune(rtts, now);
-    double best = value;
-    for (NSArray *sample in rtts) best = MIN(best, [sample[1] doubleValue]);
-    rtt = best;
+    rtt = SZFWindowBest(rtts, value, now, NO);
 }
 - (NSArray<NSNumber *> *)holdSeqs {
     return [holds.allKeys sortedArrayUsingSelector:@selector(compare:)];
@@ -126,8 +132,8 @@ static void SZFPrune(NSMutableArray<NSArray<NSNumber *> *> *samples, double now)
         lane->index = event.index;
         lane->route = event.route;
         SZFTypical(event.route, &lane->rate, &lane->rtt);
-        lane->rates = [NSMutableArray array];
-        lane->rtts = [NSMutableArray array];
+        lane->rates = [NSMutableData data];
+        lane->rtts = [NSMutableData data];
         lane->deliveredAt = lane->progressAt = lane->heardAt = now;
         lane->holds = [NSMutableDictionary dictionary];
         // The first session is wherever the route racer put it; only a lane can be refused.

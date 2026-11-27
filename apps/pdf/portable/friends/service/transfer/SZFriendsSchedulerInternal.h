@@ -7,6 +7,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 // How far back rate and round-trip samples count.
 static const double SZFSampleWindow = 10;
+typedef struct {
+    double at, value;
+} SZFSample;
 // A silent lane: no block completed and no write finished for this long, or 3 round trips if longer.
 static const double SZFSilentAfter = 1, SZFSilentAfterBluetooth = 2;
 // A lane holding blocks that hears nothing from the peer this long is silent (the peer pings every second).
@@ -74,7 +77,9 @@ static inline void SZFTypical(SZFriendsRouteMethod route, double *rate, double *
   @public
     uint8_t index;
     SZFriendsRouteMethod route;
-    NSMutableArray<NSArray<NSNumber *> *> *rates, *rtts; // (time, value)
+    // The window's samples that can still be its best, oldest first, as SZFSample: falling rates (the front is the
+    // highest of the last SZFSampleWindow seconds), rising round trips (the front is the lowest).
+    NSMutableData *rates, *rtts;
     double rate, rtt;
     BOOL measured;
     uint64_t inFlight, delivered;
