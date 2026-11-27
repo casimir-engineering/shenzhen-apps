@@ -285,7 +285,8 @@ static BOOL SZFBefore(const SZFEvent *a, const SZFEvent *b) {
             lane->head = 0;
             break;
         }
-        case SZFriendsScheduleOpenLane: {
+        case SZFriendsScheduleOpenLane:
+        case SZFriendsScheduleOpenLaneBeside: { // the sim's lanes have no interfaces
             [_out.requests addObject:[@"open " stringByAppendingString:SZFSimRouteName(action.route)]];
             for (NSUInteger i = 0; i < _lanes.count; i++) {
                 SZFSimLane *lane = _lanes[i];

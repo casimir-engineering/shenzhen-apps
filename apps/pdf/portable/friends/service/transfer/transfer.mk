@@ -29,6 +29,7 @@ friends-transfer-check: $(FRIENDS_SODIUM_LIB) $(FRIENDS_BLAKE3_LIB)
 	clang $(PORTABLE_OPTFLAGS) $(FRIENDS_OBJC_FLAGS) $(FRIENDS_SODIUM_CFLAGS) $(FRIENDS_BLAKE3_CFLAGS) \
 		-I$(FRIENDS_TRANSFER_DIR)/tests $(wildcard $(FRIENDS_TRANSFER_DIR)/tests/*.m) \
 		$(FRIENDS_TRANSFER_DIR)/SZFriendsScheduler.m "$(FRIENDS_TRANSFER_DIR)/SZFriendsScheduler+Decisions.m" \
+		"$(FRIENDS_TRANSFER_DIR)/SZFriendsScheduler+Health.m" \
 		$(FRIENDS_TRANSFER_DIR)/SZFriendsLaneGroup.m \
 		$(FRIENDS_TRANSFER_DIR)/SZFriendsPull.m $(FRIENDS_TRANSFER_DIR)/SZFriendsBlockFlow.m \
 		$(FRIENDS_TRANSFER_DIR)/SZFriendsTransferBlocks.m $(FRIENDS_TRANSFER_DIR)/SZFriendsBlockSidecars.m \

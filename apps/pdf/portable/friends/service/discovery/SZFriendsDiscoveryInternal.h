@@ -66,6 +66,9 @@ BOOL SZFriendsNetworkAdapterHasNetwork(id<SZFriendsDiscoveryAdapter> adapter);
 // monitor last said; NO for anything that is not a network adapter, YES in loopback mode (test helpers never use
 // AWDL). `changed` below runs when this changes too.
 BOOL SZFriendsNetworkAdapterOnWiFi(id<SZFriendsDiscoveryAdapter> adapter);
+// ADR 0018 § 7.2: the next LAN dial to `endpointID` avoids `interface` (an nw_interface_t: a degraded lane's), so it
+// goes out another one (Ethernet beside Wi-Fi), or fails when there is none. Nothing for other adapters.
+void SZFriendsNetworkAdapterAvoidInterface(id<SZFriendsDiscoveryAdapter> adapter, NSString *endpointID, id interface);
 void SZFriendsNetworkAdapterOnNetworkChange(id<SZFriendsDiscoveryAdapter> adapter,
                                             void (^_Nullable changed)(BOOL hasNetwork));
 

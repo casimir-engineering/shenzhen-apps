@@ -213,6 +213,10 @@ static NSInteger SZFLeavesRank(SZFriendsRouteMethod route) {
         case SZFriendsScheduleOpenLane:
             if (_group != nil && self.onOpenLane) self.onOpenLane(action.route);
             break;
+        case SZFriendsScheduleOpenLaneBeside:
+            if (_group != nil && self.onOpenLaneBeside) self.onOpenLaneBeside(action.route, action.lane);
+            else if (_group != nil && self.onOpenLane) self.onOpenLane(action.route);
+            break;
         case SZFriendsScheduleCloseLane:
             if (action.lane != _control && self.onCloseLane) self.onCloseLane(action.lane);
             break;
@@ -445,6 +449,15 @@ static NSInteger SZFLeavesRank(SZFriendsRouteMethod route) {
 
 - (uint64_t)acknowledgedBytesOfTransfer:(NSString *)transferID {
     return _senders[transferID].serve.acknowledgedBytes;
+}
+
+- (void)lane:(SZFriendsLaneID)lane retransmitted:(double)share {
+    [_scheduler retransmits:lane share:share now:self.clock()];
+    [self pump];
+}
+
+- (NSArray<SZFriendsLaneVerdict *> *)takeVerdicts {
+    return _scheduler ? [_scheduler takeVerdicts] : @[];
 }
 
 - (double)rateOfRoute:(SZFriendsRouteMethod)route {

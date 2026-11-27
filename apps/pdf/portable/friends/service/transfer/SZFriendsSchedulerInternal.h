@@ -86,6 +86,11 @@ static inline void SZFTypical(SZFriendsRouteMethod route, double *rate, double *
     BOOL unheardNoted;
     // Placements in the order they were assigned: seq -> (transfer, block).
     NSMutableDictionary<NSNumber *, NSArray<NSNumber *> *> *holds;
+    // Its health (+Health): (time, delivered) per acknowledgement, when it went low or lossy (-1 for not), the share
+    // retransmitted, when its encrypting thread was last the limit, and whether this spell was acted on.
+    NSMutableArray<NSArray<NSNumber *> *> *acked;
+    double lowSince, lossySince, retransmits, cpuBoundAt;
+    BOOL healthHandled;
 }
 - (double)eta:(uint64_t)bytes;
 - (double)silentAfter;
@@ -104,6 +109,16 @@ static inline void SZFTypical(SZFriendsRouteMethod route, double *rate, double *
     NSMutableArray<SZFriendsScheduleAction *> *_actions;
     NSMutableDictionary<NSNumber *, NSNumber *> *_requested;
     uint64_t _seq;
+    // +Health: the group's acknowledgements, the alternative being tried, when each route was last tried, verdicts.
+    NSMutableArray<NSArray<NSNumber *> *> *_groupAcked;
+    uint64_t _groupDelivered;
+    BOOL _trialOn, _trialHasLane, _healthWatched;
+    double _healthWatchedAt;
+    SZFriendsRouteMethod _trialRoute;
+    SZFriendsLaneID _trialLane;
+    double _trialAskedAt, _trialUpAt, _trialBefore;
+    NSMutableDictionary<NSNumber *, NSNumber *> *_tried;
+    NSMutableArray<SZFriendsLaneVerdict *> *_verdicts;
 }
 - (void)act:(SZFriendsScheduleKind)kind lane:(SZFriendsLaneID)lane transfer:(SZFriendsTransferKey)key
       block:(uint32_t)block;
@@ -117,6 +132,15 @@ static inline void SZFTypical(SZFriendsRouteMethod route, double *rate, double *
             transfer:(SZFriendsTransferKey)transfer
                block:(uint32_t)block
                route:(SZFriendsRouteMethod)route;
+@end
+
+// SZFriendsScheduler+Health.m.
+@interface SZFriendsScheduler (HealthInternal)
+- (void)noteCPUBound:(SZFriendsLaneID)laneID now:(double)now;
+- (void)noteAcked:(SZFriendsLaneID)laneID bytes:(uint64_t)bytes now:(double)now;
+- (void)healthLaneUp:(SZFriendsLaneID)laneID route:(SZFriendsRouteMethod)route now:(double)now;
+- (void)watchHealth:(double)now;
+- (void)watchHealthSoon:(double)now; // from acknowledgements: at most every 100 ms
 @end
 
 // SZFriendsScheduler+Decisions.m.

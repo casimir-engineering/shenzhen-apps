@@ -31,6 +31,7 @@ NS_ASSUME_NONNULL_BEGIN
     // ... and one of those is a Wi-Fi network (ADR 0022: then this Mac never allows direct Wi-Fi). YES until the
     // monitor first answers.
     BOOL _onWiFi;
+    NSMutableDictionary<NSString *, nw_interface_t> *_avoidNext; // endpoint -> interface its next LAN dial avoids
     void (^_Nullable _onNetworkChange)(BOOL hasNetwork);
 }
 - (instancetype)initWithQueue:(dispatch_queue_t)queue options:(SZFriendsNetworkAdapterOptions *)options;

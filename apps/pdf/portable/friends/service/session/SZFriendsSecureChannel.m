@@ -238,6 +238,12 @@ const char SZFriendsPrologueLabel[18] = "SZFriends session"; // the array's 18th
            (self.remoteCapabilities & SZFriendsCapabilityDirectWiFiAllowed);
 }
 
+- (void)collectTransportHealth:(void (^)(uint64_t, uint64_t, id))done {
+    id<SZFriendsByteStream> stream = _stream;
+    if ([stream respondsToSelector:@selector(collectTransportHealth:)]) [stream collectTransportHealth:done];
+    else done(0, 0, nil);
+}
+
 - (BOOL)fastTransfers {
     return self.negotiatedMinor >= SZFriendsFastTransfersMinor &&
            (self.localCapabilities & SZFriendsCapabilityFastTransfers) &&

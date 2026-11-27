@@ -4,6 +4,7 @@
 // blocks. This file ties them to links: lanes dialed and admitted, what is sent where, ACK expectations, durability
 // batches and the scheduler's timers on the helper queue, and what a received file sets off.
 
+#import "service/helper/nearby/SZFriendsNearbyLaneHealth.h"
 #import "service/helper/nearby/SZFriendsNearbyInternal.h"
 
 // A durability batch comes due at most a second after a block was written (SZFriendsBlockDownloads.m).
@@ -110,6 +111,10 @@ static uint64_t SZFriendsNextLaneSerial = 0;
         SZFriendsPeerLink *strongLink = weakLink;
         if (strongLink) [weakSelf openLaneOfLink:strongLink route:route];
     };
+    blocks.onOpenLaneBeside = ^(SZFriendsRouteMethod route, SZFriendsLaneID lane) {
+        SZFriendsPeerLink *strongLink = weakLink;
+        if (strongLink) [weakSelf openLaneOfLink:strongLink route:route beside:lane];
+    };
     blocks.onCloseLane = ^(SZFriendsLaneID lane) {
         for (SZFriendsPeerLink *member in weakLink.lanes.allObjects) {
             if (member.laneSerial == lane) [member.channel closeWithReason:SZFriendsCloseReasonNormal];
@@ -164,6 +169,7 @@ static uint64_t SZFriendsNextLaneSerial = 0;
                        [strongLink.blocks tick];
                        [self traceGroupOfLink:strongLink];
                        [self boostTickOnLink:strongLink];
+                       [self laneHealthTickOnLink:strongLink];
                        [self scheduleBlockTickOnLink:strongLink];
                    });
 }

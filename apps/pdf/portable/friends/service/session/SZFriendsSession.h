@@ -58,6 +58,9 @@ typedef NS_ENUM(uint8_t, SZFriendsHandshakePattern) {
 // authenticated, so a newcomer evicting the oldest such connection cannot cut off a friend whose handshake is
 // already past message 1. May be told more than once; only the first counts.
 - (void)sessionDidAuthenticate;
+// ADR 0018 § 7.2: the transport's own counters, for a lane that degrades: bytes sent and retransmitted so far, and
+// the interface it runs on (an nw_interface_t; nil when unknown). `done` runs once, on any queue.
+- (void)collectTransportHealth:(void (^)(uint64_t sent, uint64_t retransmitted, id _Nullable interface))done;
 @end
 
 #pragma mark - Limits (ADR 0001 § Wire format, § Files)
@@ -343,6 +346,8 @@ typedef BOOL (^SZFriendsRemoteKeyPolicy)(NSData *_Nullable remoteIdentityKey, SZ
 @property(nonatomic, readonly) BOOL directWiFiBoost;
 // Both handshakes set SZFriendsCapabilityDirectWiFiAllowed (any minor): this session may run on peer-to-peer Wi-Fi.
 @property(nonatomic, readonly) BOOL directWiFiAllowed;
+// The stream's counters and interface (SZFriendsByteStream's -collectTransportHealth:); zeros and nil when it has none.
+- (void)collectTransportHealth:(void (^)(uint64_t sent, uint64_t retransmitted, id _Nullable interface))done;
 // Responder: the Lane field of IK message 1, unchecked (the helper checks it against its live sessions); nil when none.
 @property(nonatomic, readonly, nullable) NSData *presentedLane;
 @end

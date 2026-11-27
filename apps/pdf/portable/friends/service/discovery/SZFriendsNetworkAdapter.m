@@ -446,7 +446,11 @@ static NSString *AdmissionKey(nw_connection_t connection) {
         });
         return;
     }
-    nw_connection_t connection = nw_connection_create(endpoint, [self parametersForRoute:route interface:interface]);
+    nw_parameters_t parameters = [self parametersForRoute:route interface:interface];
+    nw_interface_t avoid = nil; // a lane beside a degraded one avoids its interface (ADR 0018 § 7.2)
+    @synchronized(self) { avoid = peerToPeer ? nil : _avoidNext[endpointID], [_avoidNext removeObjectForKey:endpointID]; }
+    if (avoid && !_options.loopbackOnly) nw_parameters_prohibit_interface(parameters, avoid);
+    nw_connection_t connection = nw_connection_create(endpoint, parameters);
     SZFriendsNetworkStream *stream = [[SZFriendsNetworkStream alloc] initWithConnection:connection
                                                                         connectionQueue:_queue];
     [_connecting addObject:stream];

@@ -157,3 +157,52 @@ fn finish_time_fills_the_lanes_like_water() {
     assert!((t - 1.005).abs() < 1e-9, "{t}");
     assert!(s.finish_time(&[], 1).is_infinite());
 }
+
+/// ADR 0018 § 7.2: a LAN lane that falls under half its peak while it has blocks to move gets a lane beside it on
+/// another interface; that lane is kept only if the group then moves 10 % more.
+#[test]
+fn a_degraded_lane_gets_a_lane_beside_it_kept_only_if_it_helps() {
+    use std::collections::VecDeque;
+    let mut s = Scheduler::new(Config::default());
+    up(&mut s, 1, 0, RouteMethod::Lan);
+    s.add_transfer(1, Geometry::for_size(2048 * MIB).unwrap());
+    s.want(1, &[(0, 2048)], Duration::ZERO).unwrap();
+    let mut queue: VecDeque<u32> = VecDeque::new();
+    let mut requests: Vec<(Duration, LaneRequest)> = Vec::new();
+    let mut lane_two_up = false;
+    let mut t = 0u64;
+    loop {
+        let now = ms(t);
+        for a in s.take_actions() {
+            match a {
+                Action::Send { lane, block, .. } => {
+                    s.sent(lane, 1, block, now);
+                    queue.push_back(block);
+                }
+                Action::Lane(request) => requests.push((now, request)),
+                Action::Cancel { block, .. } => queue.retain(|b| *b != block),
+            }
+        }
+        let asked = requests.iter().any(|(_, r)| matches!(r, LaneRequest::OpenBeside { .. }));
+        if asked && !lane_two_up {
+            lane_two_up = true;
+            s.lane_event(LaneEvent::Up { lane: 2, index: 1, route: RouteMethod::Lan }, now);
+            continue;
+        }
+        if t >= 20_000 {
+            break;
+        }
+        // 40 MB/s for 4 s (one MiB every 25 ms), then 10 MB/s whatever the lanes: one slow path.
+        t += if t < 4_000 { 25 } else { 100 };
+        let Some(block) = queue.pop_front() else { break };
+        s.have(1, &[(block, 1)], ms(t)).unwrap();
+    }
+    let (asked_at, _) = requests
+        .iter()
+        .find(|(_, r)| *r == LaneRequest::OpenBeside { route: RouteMethod::Lan, beside: 1 })
+        .unwrap_or_else(|| panic!("a LAN lane beside the degraded one: {requests:?}"));
+    assert!(*asked_at >= ms(6_000) && *asked_at <= ms(9_000), "3 s under half its peak: {asked_at:?}");
+    let verdicts = s.take_verdicts();
+    assert!(verdicts.iter().any(|v| v.lane == 2 && !v.kept), "judged useless: {verdicts:?}");
+    assert!(requests.iter().any(|(_, r)| *r == LaneRequest::Close { lane: 2 }), "and closed: {requests:?}");
+}

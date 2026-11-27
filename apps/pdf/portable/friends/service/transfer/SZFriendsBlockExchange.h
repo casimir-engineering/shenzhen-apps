@@ -19,6 +19,7 @@
 #import "service/store/SZFriendsStore.h"
 #import "service/store/SZFriendsTransfers.h"
 #import "service/transfer/SZFriendsLaneGroup.h"
+#import "service/transfer/SZFriendsScheduler.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -52,6 +53,8 @@ extern const SZFriendsLaneID SZFriendsHeadLane; // 0
 @property(nonatomic, copy, nullable) void (^onFlushNeeded)(void);
 // The scheduler asks for one more lane on `route` (dial the friend's device there with -reserveLane:) or gives one up.
 @property(nonatomic, copy, nullable) void (^onOpenLane)(SZFriendsRouteMethod route);
+// ... or one more on `route` through another interface than `lane`'s, which degraded (ADR 0018 § 7.2).
+@property(nonatomic, copy, nullable) void (^onOpenLaneBeside)(SZFriendsRouteMethod route, SZFriendsLaneID lane);
 @property(nonatomic, copy, nullable) void (^onCloseLane)(SZFriendsLaneID lane);
 // For the helper's log: a PART went out on `lane` (outgoing), or arrived on it; `late` for one that arrived after its
 // block was complete (a copy sent on two lanes, or sent again after its lane went silent), which is wasted.
@@ -150,6 +153,10 @@ extern const SZFriendsLaneID SZFriendsHeadLane; // 0
 @property(nonatomic, readonly) NSSet<NSString *> *sending;
 // The scheduler's measured rate on `route` (bytes per second; 0 while nothing is measured or nothing is sent).
 - (double)rateOfRoute:(SZFriendsRouteMethod)route;
+// ADR 0018 § 7.2: the share of `lane`'s bytes its connection retransmitted lately; the scheduler's verdicts on the
+// lanes it tried, for helper.log.
+- (void)lane:(SZFriendsLaneID)lane retransmitted:(double)share;
+- (NSArray<SZFriendsLaneVerdict *> *)takeVerdicts;
 // Bytes of one of our files the receiver acknowledged on this group (its row's progress); 0 when not sending it.
 - (uint64_t)acknowledgedBytesOfTransfer:(NSString *)transferID;
 @end

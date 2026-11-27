@@ -103,6 +103,7 @@ static const SZFriendsTransferKey SZFriendsPullKey = 0;
             break;
         // Sources are the sessions that hold the file; the scheduler's lane requests do not apply.
         case SZFriendsScheduleOpenLane:
+        case SZFriendsScheduleOpenLaneBeside:
         case SZFriendsScheduleCloseLane: break;
         }
     }

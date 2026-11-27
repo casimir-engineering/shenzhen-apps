@@ -58,6 +58,9 @@ pub enum LaneEvent {
 pub enum LaneRequest {
     /// One more lane on this route (refused quietly past the limits).
     Open { route: RouteMethod },
+    /// One more lane on this route through another interface than `beside`'s (Ethernet beside a Wi-Fi lane that
+    /// degraded); a driver that cannot choose the interface dials another of the device's addresses, or the route.
+    OpenBeside { route: RouteMethod, beside: LaneId },
     /// Close this lane (the first session closes only with the group).
     Close { lane: LaneId },
 }

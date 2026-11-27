@@ -22,6 +22,8 @@ typedef NS_ENUM(NSInteger, SZFriendsScheduleKind) {
     SZFriendsScheduleCancel,    // another copy of `block` completed: drop its parts not yet written on `lane`
     SZFriendsScheduleOpenLane,  // one more lane on `route` (the group keeps its limits)
     SZFriendsScheduleCloseLane, // close `lane`
+    // one more lane on `route` through another interface than `lane`'s, which degraded (Ethernet beside Wi-Fi)
+    SZFriendsScheduleOpenLaneBeside,
 };
 
 @interface SZFriendsScheduleAction : NSObject
@@ -33,6 +35,14 @@ typedef NS_ENUM(NSInteger, SZFriendsScheduleKind) {
 @end
 
 extern const double SZFriendsBluetoothHelpsBelow;  // 4 MB/s
+
+// How a lane the scheduler tried did: the group's acknowledged bytes per second before it and with it.
+@interface SZFriendsLaneVerdict : NSObject
+@property(nonatomic) SZFriendsLaneID lane;
+@property(nonatomic) SZFriendsRouteMethod route;
+@property(nonatomic) double before, with;
+@property(nonatomic) BOOL kept;
+@end
 
 @interface SZFriendsScheduler : NSObject
 // `phone`: at most 8 MiB in flight per lane. `directWiFi`: the owner's rule allows direct Wi-Fi for this group (ADR
@@ -81,6 +91,14 @@ extern const double SZFriendsBluetoothHelpsBelow;  // 4 MB/s
               silent:(BOOL *)silent
              reaches:(BOOL *)reaches
                  now:(double)now;
+@end
+
+// ADR 0018 § 7.2 (SZFriendsScheduler+Health.m): the share of `lane`'s bytes its connection retransmitted lately, as
+// the socket says; the trials judged since the last call; the group's acknowledged rate over `span`.
+@interface SZFriendsScheduler (Health)
+- (void)retransmits:(SZFriendsLaneID)lane share:(double)share now:(double)now;
+- (NSArray<SZFriendsLaneVerdict *> *)takeVerdicts;
+- (double)groupRateOver:(double)span now:(double)now;
 @end
 
 NS_ASSUME_NONNULL_END

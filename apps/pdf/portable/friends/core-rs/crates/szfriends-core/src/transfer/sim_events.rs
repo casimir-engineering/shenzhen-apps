@@ -109,7 +109,8 @@ impl Sim {
                 Action::Lane(request) => {
                     self.out.requests.push((self.now, request));
                     match request {
-                        LaneRequest::Open { route } => {
+                        // The sim's lanes have no interfaces: another one on the route is the one beside.
+                        LaneRequest::Open { route } | LaneRequest::OpenBeside { route, .. } => {
                             let found = self.lanes.iter().position(|l| {
                                 l.profile.route == route && l.profile.up_at.is_none() && l.state == State::Idle
                             });

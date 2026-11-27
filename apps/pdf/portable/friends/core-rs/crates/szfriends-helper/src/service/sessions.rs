@@ -129,6 +129,8 @@ impl State {
         let rate = self.route_rates.get(&meta.dialed_route).copied();
         let silence = self.route_silence.clone().map(|path| (path, super::route_name(meta.dialed_route).to_owned()));
         let emulated = (rate.is_some() || silence.is_some()).then_some((rate, silence));
+        let mut meta = meta;
+        meta.tcp_fd = stream.tcp_fd();
         let link = match Link::start(id, stream, self.input.clone(), Input::Link, emulated) {
             Ok(link) => link,
             Err(error) => {
@@ -383,6 +385,7 @@ impl State {
         self.nearby_tick();
         self.boost_tick();
         self.direct_wifi_tick();
+        self.lane_health_tick();
         self.reconsider_pulls();
         self.serving_tick();
         self.join_tick(unix_now());

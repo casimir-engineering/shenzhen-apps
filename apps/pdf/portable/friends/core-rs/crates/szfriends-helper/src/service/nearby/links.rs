@@ -80,6 +80,9 @@ pub struct LinkMeta {
     pub race_name: Option<String>,
     /// The reason we closed it with, if we did (for the log).
     pub our_close: Option<u8>,
+    /// Its TCP socket, while the link runs, and the kernel's counters last read (`tcp_health.rs`).
+    pub tcp_fd: Option<i32>,
+    pub tcp_counters: Option<super::super::tcp_health::Counters>,
 }
 
 impl LinkMeta {

@@ -54,6 +54,7 @@ mod room;
 pub mod seed;
 mod serving;
 mod sessions;
+mod tcp_health;
 mod transfers;
 mod views;
 

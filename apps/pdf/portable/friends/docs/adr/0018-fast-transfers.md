@@ -229,7 +229,12 @@ smallest time from a block's last part to its HAVE in the last 10 s) and its byt
 a HAVE). The next missing block goes to the lane expected to finish it first: (in flight + block) / rate, plus its
 round-trip time. Faster lanes get proportionally more, a slow lane gets a block only when it would still beat the fast
 one, and the last blocks never wait behind Bluetooth. Each lane keeps about twice its bandwidth-delay product in
-flight: rate × round-trip time × 2, at least two blocks, at most 32 MiB (8 MiB on phones), within § 3's limit.
+flight: rate × round-trip time × 2, at most 32 MiB (8 MiB on phones), within § 3's limit. On network routes (LAN,
+direct Wi-Fi, Internet) that is plus one slice, and at least eight slices before anything is measured; on Bluetooth
+and the relay at least two (amended 2026-11-27). Why: the rate is the peak of what the lane delivered, and with a cap
+of exactly twice what it delivered the cap could only confirm the rate it had: a lane that started at two slices on a
+Wi-Fi with a 12 to 20 ms round trip, or that dipped once and measured its round trip with full queues, stayed below
+what the route carries. One slice of headroom lets the window grow until the path, not the cap, is the limit.
 
 **Congestion control is the transport's.** Every lane rides something that already has it: TCP (CUBIC by default on
 macOS, Linux, Windows, Android, iOS), SCTP in usrsctp, L2CAP credits. A second loop of our own on top would fight it;
@@ -237,7 +242,12 @@ what the application decides is only how much to keep in flight, sized from meas
 them, so the pipe stays full without queueing seconds of data in which a message would wait and from which a lost
 lane's blocks would have to be taken back. Parallel TCP lanes on one route take several shares of a shared
 bottleneck, which is unfair to the person's own other traffic, so § 6 allows them only when this computer, not the
-network, is the limit, and never on the relay.
+network, is the limit, and never on the relay; and, since 2026-11-27 with the owner's approval of the speed work
+(§ 7.2), on a lossy LAN: one second connection when the first retransmits 2 % or more of what it sends and moves under
+70 % of its peak for 3 s, kept only when the group then moves 10 % more. Why: on a lossy Wi-Fi one TCP connection
+halves its window at every loss and spends its time climbing back, while two lose and recover apart, so together they
+keep more of the link busy (what LocalSend gets from its parallel connections); on a clean link a second connection
+only splits the same bandwidth and is closed again by the 10 % rule.
 
 **Losing a lane.** When a lane closes, every block assigned to it and not in a HAVE goes back to the front of the
 missing set and is assigned at once to the remaining lanes; parts of it that did arrive stay where they are and the
@@ -248,6 +258,20 @@ without a byte from the peer. So losing Bluetooth range costs at most about 2 s 
 the transfer. **Endgame:** when nothing is left unassigned, blocks still in flight on a lane that would finish later than
 another lane could are sent there too; the first complete copy wins and the other is dropped. The waste is bounded by
 one lane's window.
+
+**§ 7.2: A lane that degrades** (2026-11-27, `transfer/scheduler_health.rs`, `SZFriendsScheduler+Health.m`). A
+network lane whose acknowledged rate over the last second stays under half its 10 s peak for 3 s, while it had blocks
+to move (at least half its cap in flight, its encrypting thread not the limit), gives its blocks to the others: its peak
+is forgotten, so its cap and expected finish follow what it moves now, and what it holds beyond a second of that, not
+yet sent, goes back (resuming is exact, so only what was in flight is sent again). Then the scheduler tries one
+alternative the owner's rules allow, in this order: a LAN lane on another interface than the degraded one's (Ethernet
+beside Wi-Fi; the Mac helper prohibits the degraded lane's interface for that dial, the Rust helper dials the route
+again), an Internet lane (a punched connection, where the helper has one; the Rust helper has none yet and drops the
+ask), Bluetooth only while the group moves under 4 MB/s; never the relay (ADR 0020). One trial at a time: from 2 s
+after the new lane comes up to 7 s, the group's acknowledged rate must beat the rate before it by 10 %, or the lane is
+closed; a route tried is not tried again for a minute. The helpers read each LAN lane's retransmissions from the
+kernel (Network.framework's data-transfer report on the Mac, `TCP_CONNECTION_INFO` on macOS and iOS and `TCP_INFO`
+on Linux and Android in the Rust helper) and log each verdict.
 
 **Liveness on every session, old peers included.** While a transfer runs on a session, each side sends PING (a frame
 every minor knows and ignores) after 1 s without sending anything, so the other side always hears something. A

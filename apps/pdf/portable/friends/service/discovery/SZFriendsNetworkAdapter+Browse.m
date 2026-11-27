@@ -234,3 +234,12 @@ void SZFriendsNetworkAdapterOnNetworkChange(id<SZFriendsDiscoveryAdapter> adapte
         ((SZFriendsNetworkAdapter *)adapter)->_onNetworkChange = [changed copy];
     }
 }
+
+void SZFriendsNetworkAdapterAvoidInterface(id<SZFriendsDiscoveryAdapter> adapter, NSString *endpointID, id interface) {
+    if (![adapter isKindOfClass:[SZFriendsNetworkAdapter class]] || interface == nil) return;
+    SZFriendsNetworkAdapter *network = (SZFriendsNetworkAdapter *)adapter;
+    @synchronized(network) {
+        if (network->_avoidNext == nil) network->_avoidNext = [NSMutableDictionary dictionary];
+        network->_avoidNext[endpointID] = interface;
+    }
+}

@@ -189,6 +189,8 @@ struct Lane {
     unused: bool,
     /// Placements in the order they were assigned: seq → (transfer, block).
     holds: BTreeMap<u64, (TransferKey, u32)>,
+    /// Whether it degraded (scheduler_health.rs).
+    health: health::Health,
 }
 
 /// The scheduler of one group: every transfer this side sends to that device, over every lane of the group.
@@ -204,6 +206,9 @@ pub struct Scheduler {
     /// ADR 0019: a direct Wi-Fi lane this device's person agreed to (the boost) is kept even where direct Wi-Fi costs
     /// the Internet connection.
     direct_wifi_allowed: bool,
+    /// Degraded lanes and the alternative being tried (scheduler_health.rs).
+    group: health::GroupHealth,
+    verdicts: Vec<Verdict>,
 }
 
 impl Scheduler {
@@ -216,6 +221,8 @@ impl Scheduler {
             requested: BTreeMap::new(),
             seq: 0,
             direct_wifi_allowed: false,
+            group: health::GroupHealth::default(),
+            verdicts: Vec::new(),
         }
     }
 
@@ -297,8 +304,10 @@ impl Scheduler {
                         closing: unused,
                         unused,
                         holds: BTreeMap::new(),
+                        health: health::Health::default(),
                     },
                 );
+                self.health_lane_up(lane, route, now);
             }
             LaneEvent::Down { lane } => {
                 if let Some(gone) = self.lanes.remove(&lane) {
@@ -383,6 +392,7 @@ impl Scheduler {
         if ranges.iter().any(|&(first, count)| u64::from(first) + u64::from(count) > u64::from(blocks)) {
             return Err(SchedulerError::OutOfRange);
         }
+        let mut acked: Vec<(LaneId, u64)> = Vec::new();
         for &(first, count) in ranges {
             for block in first..first + count {
                 let transfer = &mut self.transfers[at];
@@ -411,6 +421,7 @@ impl Scheduler {
                         continue;
                     }
                     lane.delivered += p.bytes;
+                    acked.push((p.lane, p.bytes));
                     let elapsed = now.saturating_sub(p.delivered_at).max(Duration::from_micros(100));
                     lane.sample_rate(now, (lane.delivered - p.delivered) as f64 / elapsed.as_secs_f64());
                     if let Some(sent) = p.sent_at {
@@ -424,6 +435,10 @@ impl Scheduler {
                 }
             }
         }
+        for (lane, bytes) in acked {
+            self.note_acked(lane, bytes, now);
+        }
+        self.watch_health_soon(now);
         self.fill(now);
         Ok(())
     }
@@ -460,6 +475,7 @@ impl Scheduler {
     /// `lane`'s encrypting thread is busy all the time while its socket has room: this computer, not the path, limits
     /// it. One more lane on its route is asked for (never on the relay or Bluetooth).
     pub fn cpu_bound(&mut self, lane: LaneId, now: Duration) {
+        self.note_cpu_bound(lane, now);
         let Some(route) = self.lanes.get(&lane).map(|l| l.route) else { return };
         let on_route = self.lanes.values().filter(|l| l.route == route).count();
         if one_lane_only(route) || on_route >= LANES_PER_ROUTE || self.unassigned_bytes() < 8 << 20 {
@@ -471,6 +487,10 @@ impl Scheduler {
 
 #[path = "scheduler_decisions.rs"]
 mod decisions;
+
+#[path = "scheduler_health.rs"]
+mod health;
+pub use health::Verdict;
 
 #[cfg(test)]
 #[path = "scheduler_tests.rs"]
