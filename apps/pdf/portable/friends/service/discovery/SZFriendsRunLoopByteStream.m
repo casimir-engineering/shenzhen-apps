@@ -6,7 +6,7 @@
 
 #import "service/discovery/SZFriendsDiscoveryInternal.h"
 
-enum { kReadBufferSize = 4096 }; // an enum, so the stack buffer below is a constant array
+enum { kReadBufferSize = 16384 }; // an enum, so the stack buffer below is a constant array; a 16 KiB PART per read
 // After -close, queued writes (the session's CLOSE frame) get this long to drain before the streams close.
 static const NSTimeInterval kDrainTimeout = 2;
 

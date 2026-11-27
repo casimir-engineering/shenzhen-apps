@@ -274,6 +274,44 @@ class BleRadio(private val context: Context) {
         advertising = null
     }
 
+    /**
+     * The link a channel runs on, made fast: the shortest connection interval (CONNECTION_PRIORITY_HIGH, 11.25 to 15 ms
+     * instead of the balanced 30 to 50 ms) and the LE 2M PHY where both radios have it (ADR 0018 § 9.8). Without them
+     * a Mac and a phone moved about 50 KB/s. Only the link's own parameters change: nothing on the wire.
+     */
+    private fun speedUp(gatt: BluetoothGatt, socket: BluetoothSocket, why: String) {
+        val priority = runCatching { gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH) }
+        if (Build.VERSION.SDK_INT >= 26) {
+            runCatching {
+                gatt.setPreferredPhy(
+                    BluetoothDevice.PHY_LE_2M_MASK, BluetoothDevice.PHY_LE_2M_MASK, BluetoothDevice.PHY_OPTION_NO_PREFERRED
+                )
+            }
+        }
+        val sizes = if (Build.VERSION.SDK_INT >= 29) {
+            runCatching { "tx ${socket.maxTransmitPacketSize} rx ${socket.maxReceivePacketSize}" }.getOrDefault("?")
+        } else "?"
+        Log.i(TAG, "link $why: high priority ${priority.getOrNull()}, packets $sizes")
+    }
+
+    /** A GATT client on the link the friend's central made, only to ask for [speedUp]; closed with the channel. */
+    @SuppressLint("MissingPermission")
+    private fun speedUpAccepted(accepted: BluetoothSocket): java.io.Closeable {
+        val device = accepted.remoteDevice ?: return java.io.Closeable {}
+        var gatt: BluetoothGatt? = null
+        val callback = object : BluetoothGattCallback() {
+            override fun onConnectionStateChange(connected: BluetoothGatt, status: Int, state: Int) {
+                if (state == BluetoothProfile.STATE_CONNECTED) speedUp(connected, accepted, "accepted from ${device.address}")
+            }
+
+            override fun onPhyUpdate(connected: BluetoothGatt, txPhy: Int, rxPhy: Int, status: Int) {
+                Log.i(TAG, "link accepted from ${device.address}: PHY tx $txPhy rx $rxPhy (status $status)")
+            }
+        }
+        gatt = runCatching { device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE) }.getOrNull()
+        return java.io.Closeable { runCatching { gatt?.close() } }
+    }
+
     /** A new L2CAP channel; Android 9 and older have none, which the core hears as psm 0. */
     fun publish(public: Boolean) {
         val radio = adapter
@@ -290,7 +328,12 @@ class BleRadio(private val context: Context) {
             val opened = channel
             while (socket != null && opened != null) {
                 val accepted = runCatching { socket.accept() }.getOrNull() ?: break
-                val id = Streams.add(accepted.inputStream, accepted.outputStream, accepted, opened)
+                val link = speedUpAccepted(accepted)
+                val owner = java.io.Closeable {
+                    runCatching { accepted.close() }
+                    runCatching { link.close() }
+                }
+                val id = Streams.add(accepted.inputStream, accepted.outputStream, owner, opened)
                 val peer = accepted.remoteDevice?.address
                 Log.i(TAG, "accepted channel from $peer public=$public")
                 send(JSObject().put("kind", "accepted").put("stream", id).put("public", public).put("peer", peer))
@@ -436,6 +479,7 @@ class BleRadio(private val context: Context) {
             val link = connected ?: return@Thread
             val reports = opened ?: return@Thread
             Log.i(TAG, "open $peripheral psm=$psm ok")
+            gatt?.let { speedUp(it, link, "open $peripheral") }
             val owner = java.io.Closeable {
                 runCatching { link.close() }
                 closeGatt()
@@ -473,6 +517,10 @@ class BleRadio(private val context: Context) {
             override fun onCharacteristicRead(
                 connected: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int
             ) = startChannelOnce()
+
+            override fun onPhyUpdate(connected: BluetoothGatt, txPhy: Int, rxPhy: Int, status: Int) {
+                Log.i(TAG, "link open $peripheral: PHY tx $txPhy rx $rxPhy (status $status)")
+            }
         }
         gatt = device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
         if (gatt == null) return fail("no GATT connection")

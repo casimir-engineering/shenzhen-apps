@@ -121,6 +121,10 @@ typedef NS_OPTIONS(uint32_t, SZFriendsCapabilities) {
     // reads it afresh (SZFriendsSetDirectWiFiAllowedHere). A session or lane on peer-to-peer Wi-Fi stays open only
     // when both sides set it (-directWiFiAllowed), apart from a boost's lane.
     SZFriendsCapabilityDirectWiFiAllowed = 1u << 6,
+    // Bit 8: Friends protocol 2 (ADR 0023): this helper knows bits 6 and 7 and BOOST's Abilities bit 4. Set with fast
+    // transfers. A peer without it speaks Friends protocol 1 (every release up to ShenzhenPDF and Shenzhen Files
+    // 26.11.19-1 and Shenzhen 3D 0.2.10).
+    SZFriendsCapabilityProtocol2 = 1u << 8,
 };
 // What a new channel sets: fast transfers, unless the helper switched them off (settings key transfers.fast, read as
 // it starts) or SZFRIENDS_TEST_FAST_TRANSFERS=0 plays a released helper in a test home; with them, an AES session

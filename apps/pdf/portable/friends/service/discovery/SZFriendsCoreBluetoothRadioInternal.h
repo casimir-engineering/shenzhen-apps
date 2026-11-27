@@ -9,8 +9,10 @@ NS_ASSUME_NONNULL_BEGIN
 // A read is connect, discover, read, disconnect; an open is connect and open. Either gives up after this, so a
 // peripheral that walked away cannot hold a read slot.
 static const NSTimeInterval SZFriendsRadioTimeout = 10;
-// The session sizes Bluetooth chunks itself (4 KiB, ADR 0001); this only bounds one stream write.
-static const NSUInteger SZFriendsL2CAPPreferredWriteSize = 4096;
+// The session sizes Bluetooth parts itself (16 KiB PARTs, ADR 0018; 4 KiB chunks, ADR 0001); this sizes one stream
+// write and, four times over, how much the channel keeps handed to the link (ADR 0018 § 9.8's 64 KiB). At 4 KiB one
+// 16 KiB PART already filled that budget, so the radio idled between parts while the next one was sealed.
+static const NSUInteger SZFriendsL2CAPPreferredWriteSize = 16384;
 
 static inline CBUUID *SZFriendsBluetoothUUID(NSString *string) {
     return [CBUUID UUIDWithString:string];

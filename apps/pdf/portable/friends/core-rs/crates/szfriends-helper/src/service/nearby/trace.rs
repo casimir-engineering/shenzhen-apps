@@ -182,7 +182,17 @@ impl State {
         let Some(s) = self.sessions.map.get(&id) else { return };
         let meta = &s.meta;
         let side = if s.channel.is_initiator() { "we dialed" } else { "they dialed" };
-        let line = format!("session up #{id} ({:?}, {:?}, {side}) {who}", meta.purpose, meta.race_route(&s.channel));
+        let protocol = if s.channel.remote_capabilities() & szfriends_core::wire::consts::CAPABILITY_PROTOCOL_2 != 0 {
+            2
+        } else {
+            1
+        };
+        let aes = if s.channel.aes_session() { ", AES session" } else { "" };
+        let line = format!(
+            "session up #{id} ({:?}, {:?}, {side}) {who}: Friends protocol {protocol}{aes}",
+            meta.purpose,
+            meta.race_route(&s.channel)
+        );
         self.nearby.trace.say(&format!("up|{who}"), line);
     }
 

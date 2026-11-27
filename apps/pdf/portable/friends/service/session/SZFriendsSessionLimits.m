@@ -68,7 +68,7 @@ SZFriendsCapabilities SZFriendsDefaultCapabilities(void) {
     if (SZFriendsFastTransfersOff || (test != NULL && strcmp(test, "0") == 0)) return 0;
     const char *aes = getenv("SZFRIENDS_TEST_AES_SESSION");
     BOOL aesSession = crypto_aead_aes256gcm_is_available() && !(aes != NULL && strcmp(aes, "0") == 0);
-    return SZFriendsCapabilityFastTransfers | SZFriendsCapabilityPieces |
+    return SZFriendsCapabilityFastTransfers | SZFriendsCapabilityPieces | SZFriendsCapabilityProtocol2 |
            (SZFriendsDirectWiFiBoostOn ? SZFriendsCapabilityDirectWiFiBoost : 0) |
            (SZFriendsDirectWiFiAllowedOn ? SZFriendsCapabilityDirectWiFiAllowed : 0) |
            (aesSession ? SZFriendsCapabilityAESSession : 0);

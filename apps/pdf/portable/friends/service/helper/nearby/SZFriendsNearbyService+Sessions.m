@@ -348,9 +348,13 @@
 
 - (void)adoptLink:(SZFriendsPeerLink *)link {
     NSString *conversationID = link.conversationID;
-    [self traceUpOfLink:link
-                   what:link.channel.fastTransfers ? @"carries the conversation, fast transfers"
-                                                   : @"carries the conversation"];
+    SZFriendsSecureChannel *channel = link.channel;
+    NSString *what = [NSString
+        stringWithFormat:@"carries the conversation%@, Friends protocol %d%@",
+                         channel.fastTransfers ? @", fast transfers" : @"",
+                         (channel.remoteCapabilities & SZFriendsCapabilityProtocol2) ? 2 : 1,
+                         channel.aesSession ? @", AES session" : @""];
+    [self traceUpOfLink:link what:what];
     self.activeLinks[conversationID] = link;
     link.adopted = YES;
     [self noteSuccessForConversation:conversationID];
