@@ -306,6 +306,40 @@ NSArray<NSNumber*>* SPDFAnnotateSelectedObjectIds(NSDictionary* state) {
     return found;
 }
 
+NSArray<NSDictionary*>* SPDFAnnotateStateEntries(NSDictionary* state) {
+    NSArray* layers = [state[@"layers"] isKindOfClass:[NSArray class]] ? state[@"layers"] : @[];
+    NSMutableArray* entries = [NSMutableArray arrayWithCapacity:layers.count * 2];
+    for (NSDictionary* layer in layers) {
+        if (![layer isKindOfClass:[NSDictionary class]]) continue;
+        [entries addObject:layer];
+        NSArray* objects = [layer[@"objects"] isKindOfClass:[NSArray class]] ? layer[@"objects"] : nil;
+        BOOL shown = !layer[@"visible"] || [layer[@"visible"] boolValue], locked = [layer[@"locked"] boolValue];
+        for (NSDictionary* object in objects) {
+            if (![object isKindOfClass:[NSDictionary class]]) continue;
+            NSMutableDictionary* entry = [object mutableCopy];
+            entry[@"layer"] = layer[@"id"] ?: @0;
+            if (!shown) entry[@"visible"] = @NO;
+            if (locked) entry[@"locked"] = @YES;
+            [entries addObject:entry];
+        }
+    }
+    return entries;
+}
+
+NSNumber* SPDFAnnotateLayerNeighbour(NSDictionary* state, NSNumber* objectId, BOOL above) {
+    NSMutableArray<NSDictionary*>* layers = [NSMutableArray array];
+    NSInteger holding = -1;
+    for (NSDictionary* layer in [state[@"layers"] isKindOfClass:[NSArray class]] ? state[@"layers"] : @[]) {
+        if (![layer isKindOfClass:[NSDictionary class]] || ![layer[@"objects"] isKindOfClass:[NSArray class]]) continue;
+        for (NSDictionary* object in layer[@"objects"])
+            if ([object isKindOfClass:[NSDictionary class]] && [object[@"id"] isEqual:objectId]) holding = (NSInteger)layers.count;
+        [layers addObject:layer];
+    }
+    NSInteger next = holding < 0 ? -1 : holding + (above ? 1 : -1);
+    if (next < 0 || next >= (NSInteger)layers.count || [layers[next][@"locked"] boolValue]) return nil;
+    return layers[next][@"id"];
+}
+
 BOOL SPDFAnnotateStateHasPixelSelection(NSDictionary* state) {
     id selection = state[@"selection"];
     if (![selection isKindOfClass:[NSDictionary class]]) return NO;

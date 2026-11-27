@@ -5,6 +5,7 @@
 
 #import "SPDFMacAnnotateIntegration.h"
 #import "SPDFMacAnnotateLayerRow.h"
+#import "SPDFMacAnnotateLayerRows.h"
 #import "SPDFMacAnnotatePaletteSupport.h"
 #import "SPDFMacCollectionStyle.h"
 #import "SPDFMacFillController.h"
@@ -21,7 +22,8 @@ static NSPasteboardType const kSPDFLayerRowType = @"com.intuition.shenzhenpdf.an
     __weak SPDFMacAnnotateSession* _session;
     NSTableView* _table;
     NSScrollView* _scroll;
-    NSArray<NSDictionary*>* _rows;  // front first
+    NSArray<NSDictionary*>* _rows;  // front first: layers, each followed by its objects unless folded
+    NSMutableSet<NSNumber*>* _folded;  // layers whose objects are hidden from the list
     NSMutableDictionary<NSNumber*, NSImage*>* _thumbs;
     uint64_t _thumbGeneration;
     spdf_paint_doc* _thumbDoc;  // generations count per document: another tab's can be the same number
@@ -41,6 +43,7 @@ static NSPasteboardType const kSPDFLayerRowType = @"com.intuition.shenzhenpdf.an
     if (self) {
         _controller = controller;
         _thumbs = [NSMutableDictionary dictionary];
+        _folded = [NSMutableSet set];
         self.translatesAutoresizingMaskIntoConstraints = NO;
         self.wantsLayer = YES;
         self.shadow = [NSShadow new];
@@ -103,11 +106,14 @@ static NSPasteboardType const kSPDFLayerRowType = @"com.intuition.shenzhenpdf.an
     _table.columnAutoresizingStyle = NSTableViewUniformColumnAutoresizingStyle;
     [_table registerForDraggedTypes:@[ kSPDFLayerRowType ]];
     [_table setDraggingSourceOperationMask:NSDragOperationMove forLocal:YES];
+    _table.target = self;
+    _table.doubleAction = @selector(renameRow:);  // a double-click on a row types over its name
     _scroll = [[NSScrollView alloc] initWithFrame:NSZeroRect];
     _scroll.documentView = _table;
     _scroll.drawsBackground = NO;
     _scroll.hasVerticalScroller = YES;
     _scroll.autohidesScrollers = YES;
+    _scroll.scrollerStyle = NSScrollerStyleOverlay;  // the rows keep the panel's width for their names
     _add = [self button:@"plus.square" label:@"New Layer" action:@selector(addLayer:)];
     _duplicate = [self button:@"square.on.square" label:@"Duplicate" action:@selector(duplicateLayer:)];
     _merge = [self button:@"arrow.down.to.line" label:@"Merge Down" action:@selector(mergeDown:)];
@@ -171,29 +177,11 @@ static NSPasteboardType const kSPDFLayerRowType = @"com.intuition.shenzhenpdf.an
 
 #pragma mark - Reading doc.state
 
-static NSDictionary* SPDFLayerRowFrom(NSDictionary* layer) {
-    if (![layer isKindOfClass:[NSDictionary class]] || ![layer[@"id"] isKindOfClass:[NSNumber class]]) return nil;
-    NSString* kind = [layer[@"kind"] isKindOfClass:[NSString class]] ? layer[@"kind"] : @"raster";
-    double opacity = [layer[@"opacity"] respondsToSelector:@selector(doubleValue)] ? [layer[@"opacity"] doubleValue] : 100;
-    return @{
-        @"id" : layer[@"id"], @"kind" : kind,
-        @"name" : [layer[@"name"] isKindOfClass:[NSString class]] ? layer[@"name"] : @"",
-        @"visible" : @(layer[@"visible"] ? [layer[@"visible"] boolValue] : YES),
-        @"opacity" : @(opacity),
-        @"locked" : @([layer[@"locked"] boolValue]),
-        @"object" : @(![kind isEqual:@"background"] && ![kind isEqual:@"raster"]),
-    };
-}
-
 - (void)reloadFromSession:(SPDFMacAnnotateSession*)session {
     _session = session;
     if (_controller.palette.superview && !_inSlot) _top.constant = 10 + [_controller.palette reservedHeight] + 8;
     NSDictionary* state = session ? SPDFAnnotateDocState(_controller) : nil;
-    NSMutableArray* rows = [NSMutableArray array];
-    for (id layer in [[state[@"layers"] isKindOfClass:[NSArray class]] ? state[@"layers"] : @[] reverseObjectEnumerator]) {
-        NSDictionary* row = SPDFLayerRowFrom(layer);
-        if (row) [rows addObject:row];
-    }
+    NSArray* rows = SPDFAnnotateLayerRows(state, _folded);
     id active = state[@"active"] ?: state[@"activeLayer"];
     _activeId = [active isKindOfClass:[NSNumber class]] ? active : nil;
     if (![rows isEqual:_rows]) {
@@ -211,11 +199,17 @@ static NSDictionary* SPDFLayerRowFrom(NSDictionary* layer) {
     NSMutableIndexSet* rows = [NSMutableIndexSet indexSet];
     [_rows enumerateObjectsUsingBlock:^(NSDictionary* row, NSUInteger i, BOOL* stop) {
       (void)stop;
-      if ([selected containsObject:row[@"id"]] || (!selected.count && [row[@"id"] isEqual:self->_activeId])) [rows addIndex:i];
+      BOOL object = [row[@"object"] boolValue];
+      if ((object && [selected containsObject:row[@"id"]]) || (!object && !selected.count && [row[@"id"] isEqual:self->_activeId]))
+          [rows addIndex:i];
     }];
     _syncing = YES;
     [_table selectRowIndexes:rows byExtendingSelection:NO];
     _syncing = NO;
+    [self refreshRows];
+}
+
+- (void)refreshRows {
     [self updateButtons];
     for (NSInteger i = 0; i < (NSInteger)_rows.count; ++i) [self configure:[_table viewAtColumn:0 row:i makeIfNecessary:NO] row:i];
     [_table noteHeightOfRowsWithIndexesChanged:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, _rows.count)]];
@@ -224,7 +218,7 @@ static NSDictionary* SPDFLayerRowFrom(NSDictionary* layer) {
 
 // As tall as its rows (a selected row is taller: its opacity slider), up to 360 pt; more rows scroll.
 - (void)fitHeight {
-    CGFloat height = 4;
+    CGFloat height = 6;
     for (NSInteger i = 0; i < (NSInteger)_rows.count; ++i) height += [self tableView:_table heightOfRow:i] + 2;
     _height.constant = MIN(360, MAX(48, height));
 }
@@ -255,7 +249,7 @@ static NSDictionary* SPDFLayerRowFrom(NSDictionary* layer) {
     if (doc == _thumbDoc && generation == _thumbGeneration && _thumbs.count) return;
     _thumbDoc = doc, _thumbGeneration = generation;
     [_thumbs removeAllObjects];
-    for (NSDictionary* row in _rows) {
+    for (NSDictionary* row in _rows) {  // a layer's thumbnail shows its drawing and its objects
         spdf_bitmap bitmap = {0};
         char err[128];
         if (spdf_paint_layer_thumbnail(doc, (spdf_paint_id)[row[@"id"] unsignedIntValue], 72, &bitmap, err, sizeof(err)) ==
@@ -275,15 +269,21 @@ static NSDictionary* SPDFLayerRowFrom(NSDictionary* layer) {
     return (NSInteger)_rows.count;
 }
 
-- (CGFloat)tableView:(NSTableView*)tableView heightOfRow:(NSInteger)row {
+- (BOOL)showsSlider:(NSInteger)row {
     NSDictionary* r = row < (NSInteger)_rows.count ? _rows[row] : nil;
-    BOOL slider = [tableView.selectedRowIndexes containsIndex:(NSUInteger)row] && ![r[@"locked"] boolValue];
-    return slider ? 66 : 44;
+    return r && [_table.selectedRowIndexes containsIndex:(NSUInteger)row] && ![r[@"locked"] boolValue];
 }
 
-- (SPDFAnnotateLayerRow*)makeRow {
-    SPDFAnnotateLayerRow* cell = [SPDFAnnotateLayerRow rowWithTarget:self eyeAction:@selector(toggleVisible:)
-                                                       opacityAction:@selector(opacityChanged:)];
+- (CGFloat)tableView:(NSTableView*)tableView heightOfRow:(NSInteger)row {
+    (void)tableView;
+    BOOL object = row < (NSInteger)_rows.count && [_rows[row][@"object"] boolValue];
+    return (object ? 30 : 44) + ([self showsSlider:row] ? 22 : 0);
+}
+
+- (SPDFAnnotateLayerRow*)makeRow:(BOOL)object {
+    SPDFAnnotateLayerRow* cell = [SPDFAnnotateLayerRow rowWithTarget:self object:object eyeAction:@selector(toggleVisible:)
+                                                         lockAction:@selector(toggleLock:) discloseAction:@selector(toggleFold:)
+                                                      opacityAction:@selector(opacityChanged:)];
     __weak SPDFAnnotateLayerRow* weakCell = cell;
     __weak SPDFMacAnnotateLayersPanel* weakSelf = self;
     __weak SPDFMacFillController* controller = _controller;
@@ -299,46 +299,77 @@ static NSDictionary* SPDFLayerRowFrom(NSDictionary* layer) {
       if (ok) [weakSelf opacityChanged:row.opacity];
     };
     cell.percent.keysView = ^NSView* { return (NSView*)controller.annotateCanvasView; };
+    cell.name.keysView = cell.percent.keysView;
+    cell.name.renamed = ^(NSString* name) {
+      NSInteger i = weakCell.eye.tag;
+      SPDFMacAnnotateLayersPanel* panel = weakSelf;
+      if (panel && i < (NSInteger)panel->_rows.count) [panel send:@{@"op" : @"layer.set", @"id" : panel->_rows[i][@"id"], @"name" : name}];
+    };
     return cell;
+}
+
+static NSString* SPDFObjectsCount(NSInteger count) {
+    return count == 1 ? @"1 object" : count ? [NSString stringWithFormat:@"%ld objects", (long)count] : @"";
 }
 
 - (void)configure:(SPDFAnnotateLayerRow*)cell row:(NSInteger)row {
     if (![cell isKindOfClass:[SPDFAnnotateLayerRow class]] || row >= (NSInteger)_rows.count) return;
     NSDictionary* r = _rows[row];
-    BOOL locked = [r[@"locked"] boolValue], visible = [r[@"visible"] boolValue];
-    BOOL selected = [_table.selectedRowIndexes containsIndex:(NSUInteger)row];
-    cell.name.stringValue = r[@"name"];
+    BOOL locked = [r[@"locked"] boolValue], visible = [r[@"visible"] boolValue], page = [r[@"page"] boolValue];
+    BOOL object = [r[@"object"] boolValue], base = [r[@"base"] boolValue];
+    if (!cell.name.currentEditor) cell.name.stringValue = r[@"name"];
     cell.name.textColor = visible ? NSColor.labelColor : NSColor.tertiaryLabelColor;
     cell.thumb.image = _thumbs[r[@"id"]];
-    BOOL active = [r[@"id"] isEqual:_activeId] && ![r[@"object"] boolValue];
-    cell.badge.image = locked ? SPDFAnnotateSymbol(@"lock.fill", @"Locked")
-                              : active ? SPDFAnnotateSymbol(@"paintbrush.pointed.fill", @"Pixel tools paint here") : nil;
-    cell.badge.toolTip = locked ? SPDFAnnotatePageLockedText : active ? @"Pixel tools paint here" : nil;
-    cell.eye.hidden = locked;
+    cell.detail.stringValue = base ? (page ? @"The page itself" : @"The picture") : SPDFObjectsCount([r[@"count"] integerValue]);
+    cell.disclosure.hidden = object || ![r[@"count"] integerValue];
+    BOOL folded = [r[@"folded"] boolValue];
+    cell.disclosure.image = SPDFAnnotateSymbol(folded ? @"chevron.right" : @"chevron.down", folded ? @"Show its objects" : @"Hide its objects");
+    cell.disclosure.toolTip = folded ? @"Show its objects" : @"Hide its objects";
+    BOOL active = [r[@"id"] isEqual:_activeId] && !object;
+    BOOL objectLocked = object && locked;  // on a locked layer, or another app's annotation
+    cell.badge.image = (page || objectLocked) ? SPDFAnnotateSymbol(@"lock.fill", @"Locked")
+                       : active ? SPDFAnnotateSymbol(@"paintbrush.pointed.fill", @"Drawing and new objects go here") : nil;
+    cell.badge.toolTip = page ? SPDFAnnotatePageLockedText : objectLocked ? @"Locked" : active ? @"Drawing and new objects go here" : nil;
+    cell.badge.hidden = !cell.badge.image;
+    cell.lock.hidden = object || base;
+    cell.lockWidth.constant = cell.lock.hidden ? 0 : 22;
+    cell.lock.image = SPDFAnnotateSymbol(locked ? @"lock.fill" : @"lock.open", locked ? @"Unlock" : @"Lock");
+    cell.lock.toolTip = locked ? @"Unlock" : @"Lock";
+    cell.lock.contentTintColor = locked ? NSColor.labelColor : NSColor.tertiaryLabelColor;
+    cell.lock.tag = row;
+    cell.eye.hidden = page || objectLocked;
     cell.eye.image = SPDFAnnotateSymbol(visible ? @"eye" : @"eye.slash", visible ? @"Hide" : @"Show");
     cell.eye.toolTip = visible ? @"Hide" : @"Show";
     cell.eye.tag = row;
-    [cell showOpacity:[r[@"opacity"] doubleValue] visible:!locked && selected];
+    cell.disclosure.tag = row;
+    [cell showOpacity:[r[@"opacity"] doubleValue] visible:[self showsSlider:row]];
     cell.opacity.tag = row;
     cell.needsDisplay = YES;
 }
 
 - (NSView*)tableView:(NSTableView*)tableView viewForTableColumn:(NSTableColumn*)column row:(NSInteger)row {
     (void)column;
-    SPDFAnnotateLayerRow* cell = [tableView makeViewWithIdentifier:@"layer" owner:self] ?: [self makeRow];
+    BOOL object = row < (NSInteger)_rows.count && [_rows[row][@"object"] boolValue];
+    SPDFAnnotateLayerRow* cell = [tableView makeViewWithIdentifier:object ? @"object" : @"layer" owner:self] ?: [self makeRow:object];
     [self configure:cell row:row];
     return cell;
 }
 
 - (void)tableViewSelectionDidChange:(NSNotification*)note {
     (void)note;
-    [_table noteHeightOfRowsWithIndexesChanged:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, _rows.count)]];
-    for (NSInteger i = 0; i < (NSInteger)_rows.count; ++i) [self configure:[_table viewAtColumn:0 row:i makeIfNecessary:NO] row:i];
-    [self updateButtons];
-    [self fitHeight];
+    [self refreshRows];
     if (_syncing || _table.selectedRow < 0) return;
     NSDictionary* row = _rows[(NSUInteger)_table.selectedRow];
-    if (![row[@"locked"] boolValue]) SPDFAnnotateSend(_controller, SPDFAnnotateOnCurrentPage(_controller, @{@"op" : @"layer.activate", @"id" : row[@"id"]}), nil);
+    if (![row[@"page"] boolValue] && !([row[@"object"] boolValue] && [row[@"locked"] boolValue]))
+        [self send:@{@"op" : @"layer.activate", @"id" : row[@"id"]}];
+}
+
+- (void)renameRow:(id)sender {
+    (void)sender;
+    NSInteger i = _table.clickedRow;
+    if (i < 0 || i >= (NSInteger)_rows.count || [_rows[i][@"page"] boolValue] || [_rows[i][@"locked"] boolValue]) return;
+    SPDFAnnotateLayerRow* cell = [_table viewAtColumn:0 row:i makeIfNecessary:NO];
+    if ([cell isKindOfClass:[SPDFAnnotateLayerRow class]]) [cell.name beginRenaming];
 }
 
 - (NSDictionary*)selectedRow {
@@ -346,13 +377,22 @@ static NSDictionary* SPDFLayerRowFrom(NSDictionary* layer) {
     return i >= 0 && i < (NSInteger)_rows.count ? _rows[i] : nil;
 }
 
+// The layer row under a layer's own row in the list (the next lower layer), or nil.
+- (NSDictionary*)layerBelow:(NSDictionary*)row {
+    NSUInteger i = [_rows indexOfObject:row];
+    for (NSUInteger k = i == NSNotFound ? _rows.count : i + 1; k < _rows.count; ++k)
+        if (![_rows[k][@"object"] boolValue]) return _rows[k];
+    return nil;
+}
+
 - (void)updateButtons {
     NSDictionary* row = [self selectedRow];
-    BOOL editable = row && ![row[@"locked"] boolValue] && ![row[@"kind"] isEqual:@"background"];
-    BOOL bottom = row && _table.selectedRow >= (NSInteger)_rows.count - 1;
+    BOOL object = [row[@"object"] boolValue], base = [row[@"base"] boolValue];
+    BOOL editable = row && ![row[@"locked"] boolValue] && !base;
+    NSDictionary* below = object || !row ? nil : [self layerBelow:row];
     _add.enabled = _session != nil;
-    _duplicate.enabled = editable || (row && ![row[@"locked"] boolValue]);
-    _merge.enabled = editable && !bottom && ![_rows[MIN(_rows.count - 1, (NSUInteger)_table.selectedRow + 1)][@"locked"] boolValue];
+    _duplicate.enabled = row && ![row[@"page"] boolValue] && !(object && [row[@"locked"] boolValue]);
+    _merge.enabled = editable && (object || (below && ![below[@"locked"] boolValue] && ![below[@"page"] boolValue]));
     _delete.enabled = editable;
     _merge.toolTip = _merge.enabled || !row ? @"Merge Down" : @"Merge Down: there is no layer below it that can change";
 }
@@ -369,6 +409,20 @@ static NSDictionary* SPDFLayerRowFrom(NSDictionary* layer) {
     [self send:@{@"op" : @"layer.set", @"id" : row[@"id"], @"visible" : @(![row[@"visible"] boolValue])}];
 }
 
+- (void)toggleLock:(NSButton*)sender {
+    if (sender.tag >= (NSInteger)_rows.count) return;
+    NSDictionary* row = _rows[sender.tag];
+    [self send:@{@"op" : @"layer.set", @"id" : row[@"id"], @"locked" : @(![row[@"locked"] boolValue])}];
+}
+
+- (void)toggleFold:(NSButton*)sender {
+    if (sender.tag >= (NSInteger)_rows.count) return;
+    NSNumber* layer = _rows[sender.tag][@"id"];
+    if ([_folded containsObject:layer]) [_folded removeObject:layer];
+    else [_folded addObject:layer];
+    [self reloadFromSession:_session];
+}
+
 - (void)opacityChanged:(NSSlider*)sender {
     if (sender.tag >= (NSInteger)_rows.count || lround(sender.doubleValue) == lround([_rows[sender.tag][@"opacity"] doubleValue]))
         return;  // as it was (a value typed again, or Return without a change)
@@ -377,8 +431,9 @@ static NSDictionary* SPDFLayerRowFrom(NSDictionary* layer) {
 
 - (void)addLayer:(id)sender {
     (void)sender;
-    NSDictionary* row = [self selectedRow];
-    [self send:row && ![row[@"object"] boolValue] ? @{@"op" : @"layer.add", @"above" : row[@"id"]} : @{@"op" : @"layer.add"}];
+    NSDictionary* row = [self selectedRow];  // above the selected layer (an object's: its layer), with its objects
+    [self send:row ? @{@"op" : @"layer.add", @"above" : row[@"object"] ? row[@"layer"] ?: row[@"id"] : row[@"id"]}
+                   : @{@"op" : @"layer.add"}];
 }
 
 - (void)duplicateLayer:(id)sender {
@@ -399,12 +454,11 @@ static NSDictionary* SPDFLayerRowFrom(NSDictionary* layer) {
     if (row) [self send:@{@"op" : [row[@"object"] boolValue] ? @"object.delete" : @"layer.delete", @"id" : row[@"id"]}];
 }
 
-#pragma mark - Dragging rows (depth)
+#pragma mark - Dragging rows: layers among layers, objects within or into a layer
 
 - (id<NSPasteboardWriting>)tableView:(NSTableView*)tableView pasteboardWriterForRow:(NSInteger)row {
     (void)tableView;
-    if (row >= (NSInteger)_rows.count || [_rows[row][@"locked"] boolValue] || [_rows[row][@"kind"] isEqual:@"background"])
-        return nil;
+    if (row >= (NSInteger)_rows.count || [_rows[row][@"locked"] boolValue] || [_rows[row][@"base"] boolValue]) return nil;
     NSPasteboardItem* item = [NSPasteboardItem new];
     [item setString:[NSString stringWithFormat:@"%ld", (long)row] forType:kSPDFLayerRowType];
     return item;
@@ -414,23 +468,17 @@ static NSDictionary* SPDFLayerRowFrom(NSDictionary* layer) {
        proposedDropOperation:(NSTableViewDropOperation)operation {
     (void)info;
     if (operation == NSTableViewDropOn) [tableView setDropRow:row dropOperation:NSTableViewDropAbove];
-    BOOL background = _rows.count && [_rows.lastObject[@"kind"] isEqual:@"background"];
-    return row > (NSInteger)_rows.count - (background ? 1 : 0) ? NSDragOperationNone : NSDragOperationMove;  // never under it
+    return row >= (NSInteger)_rows.count ? NSDragOperationNone : NSDragOperationMove;  // never under the base layer
 }
 
 - (BOOL)tableView:(NSTableView*)tableView acceptDrop:(id<NSDraggingInfo>)info row:(NSInteger)row
     dropOperation:(NSTableViewDropOperation)operation {
     (void)tableView; (void)operation;
     NSInteger from = [[info.draggingPasteboard stringForType:kSPDFLayerRowType] integerValue];
-    if (from < 0 || from >= (NSInteger)_rows.count) return NO;
-    NSInteger to = from < row ? row - 1 : row;  // front-first index once the row is taken out
-    if (to == from) return NO;
-    BOOL background = [_rows.lastObject[@"kind"] isEqual:@"background"];
-    // depth counts from the bottom, 0 = just above the Background
-    NSInteger depth = MAX(0, (NSInteger)_rows.count - 1 - to - (background ? 1 : 0));
-    NSDictionary* moved = _rows[from];
-    [self send:@{@"op" : [moved[@"object"] boolValue] ? @"object.order" : @"layer.order", @"id" : moved[@"id"], @"to" : @(depth)}];
-    return YES;
+    if (from < 0 || from >= (NSInteger)_rows.count || row == from || row == from + 1) return NO;
+    NSDictionary* op = SPDFAnnotateLayerDrop(_rows, from, row);
+    if (op) [self send:op];
+    return op != nil;
 }
 
 @end

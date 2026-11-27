@@ -1,6 +1,7 @@
 // The operations the frontend carries out (route "frontend" in the operation table, docs/plans/annotate.md § 6):
 // history across the tab, saving, the clipboard, the mode, the view and the tool; and the inputs the core can't work
 // out itself (a picture to decode, Vision's subject mask). Mac UI A.
+#import "SPDFMacAnnotatePaletteSupport.h"
 #import "SPDFMacAnnotateOperations.h"
 #import "SPDFMacAnnotateAgents.h"
 #import "SPDFMacFillController+AnnotatePDF.h"
@@ -35,7 +36,7 @@ static spdf_rect ScopeRegion(SPDFMacAnnotateSession* session, NSInteger page, NS
     BOOL wantsObject = [scope isEqual:@"object"] || ([scope isEqual:@"auto"] && !bounds);
     if (wantsObject && session.selectedObjects.count) {
         *object = (spdf_paint_id)session.selectedObjects.firstObject.unsignedIntValue;
-        for (NSDictionary* layer in state[@"layers"])
+        for (NSDictionary* layer in SPDFAnnotateStateEntries(state))
             if ([layer[@"id"] unsignedIntValue] == *object) {
                 NSDictionary* box = layer[@"bounds"] ?: layer[@"object"][@"bounds"];
                 if ([box isKindOfClass:NSDictionary.class]) bounds = box;

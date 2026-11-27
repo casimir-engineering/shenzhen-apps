@@ -204,6 +204,9 @@ void SPDFAnnotateInstallMenuItems(NSMenu* fileMenu, NSMenu* editMenu, NSMenu* vi
     NSMenu* layers = [[NSMenu alloc] initWithTitle:@"Layers"];
     [layers addItem:BAR(@"New Layer", @"", 0, @{@"op" : @"layer.add"}, nil)];
     [layers addItem:BAR(@"Merge Down", @"", 0, (@{@"op" : @"object.merge_down", @"id" : SPDFAnnotateSelectedIds}), nil)];
+    [layers addItem:[NSMenuItem separatorItem]];
+    [layers addItem:BAR(@"Move to Layer Above", @"", 0, (@{@"op" : @"object.layer", @"ids" : SPDFAnnotateSelectedIds, @"to" : @"above"}), nil)];
+    [layers addItem:BAR(@"Move to Layer Below", @"", 0, (@{@"op" : @"object.layer", @"ids" : SPDFAnnotateSelectedIds, @"to" : @"below"}), nil)];
     [image addItemWithTitle:@"Layers" action:nil keyEquivalent:@""].submenu = layers;
     NSMenuItem* imageItem = [[NSMenuItem alloc] initWithTitle:@"Image" action:nil keyEquivalent:@""];
     imageItem.submenu = image;

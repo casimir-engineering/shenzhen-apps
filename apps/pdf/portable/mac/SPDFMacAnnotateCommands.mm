@@ -231,6 +231,12 @@ BOOL SPDFAnnotatePayloadEnabled(SPDFMacFillController* controller, id payload, N
         if (state && (objects || !SPDFAnnotateStateHasPixelSelection(state)) && !SPDFAnnotateSelectedObjectIds(state).count)
             return NO;
     }
+    if ([name isEqual:@"object.layer"] && payload[@"to"]) {  // Move to Layer Above / Below: not past the ends
+        NSDictionary* state = SPDFAnnotateCachedState(controller);
+        id ids = [payload[@"ids"] isEqual:SPDFAnnotateSelectedIds] ? SPDFAnnotateSelectedObjectIds(state) : payload[@"ids"];
+        NSNumber* first = [ids isKindOfClass:[NSArray class]] ? [ids firstObject] : payload[@"id"];
+        if (state && !SPDFAnnotateLayerNeighbour(state, first, [payload[@"to"] isEqual:@"above"])) return NO;
+    }
     return YES;
 }
 

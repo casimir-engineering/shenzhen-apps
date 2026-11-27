@@ -2,6 +2,7 @@
 // (encoded and written off the main thread, Collection told before and after), Save As, the layers kept beside a
 // picture in <state>/Annotate (written 2 s after the last change), the flush before a tab closes or the app quits,
 // and the tool settings file.
+#import "SPDFMacAnnotatePaletteSupport.h"
 #import "SPDFMacAnnotateSessionPrivate.h"
 
 #import <CommonCrypto/CommonDigest.h>
@@ -82,10 +83,19 @@ static NSString* UTIForFormat(NSString* format) {
     return spdf_paint_read_project(sidecar.fileSystemRepresentation, err, sizeof(err));
 }
 
-// Layers are worth keeping when there is more than the Background: an object, another layer.
+// Layers are worth keeping when there is more than the Background and an empty Layer 1: an object, a drawing, another
+// layer, or Layer 1 renamed, hidden, locked or see-through.
 - (BOOL)hasLayersToKeep {
     NSArray* layers = [self stateForPage:-1][@"layers"];
-    return [layers isKindOfClass:NSArray.class] && layers.count > 1;
+    if (![layers isKindOfClass:NSArray.class]) return NO;
+    if (layers.count > 2) return YES;
+    for (NSDictionary* layer in layers) {
+        if (![layer isKindOfClass:NSDictionary.class] || [layer[@"kind"] isEqual:@"background"]) continue;
+        if ([layer[@"objects"] count] || [layer[@"painted"] boolValue] || ![layer[@"name"] isEqual:@"Layer 1"] ||
+            ![layer[@"visible"] boolValue] || [layer[@"locked"] boolValue] || [layer[@"opacity"] doubleValue] < 100)
+            return YES;
+    }
+    return NO;
 }
 
 - (void)writeSidecarNow:(BOOL)synchronously {

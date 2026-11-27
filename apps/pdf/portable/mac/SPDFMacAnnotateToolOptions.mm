@@ -267,7 +267,7 @@ static NSArray* SPDFSizeRange(NSString* tool) {
     NSArray* selected = SPDFAnnotateSelectedObjectIds(state);
     if (selected.count != 1) return;
     NSString* kind = nil;
-    for (NSDictionary* layer in [state[@"layers"] isKindOfClass:[NSArray class]] ? state[@"layers"] : @[])
+    for (NSDictionary* layer in SPDFAnnotateStateEntries(state))
         if ([layer isKindOfClass:[NSDictionary class]] && [layer[@"id"] isEqual:selected[0]])
             kind = [layer[@"object"] isKindOfClass:[NSDictionary class]] ? layer[@"object"][@"kind"] : layer[@"kind"];
     BOOL matches = [tool isEqual:@"text_box"] ? [kind isEqual:@"text"] : kind && ![kind isEqual:@"text"];

@@ -76,6 +76,13 @@ FOUNDATION_EXPORT NSDictionary* _Nullable SPDFAnnotateDocState(SPDFMacFillContro
 // The ids of the selected objects in a doc.state answer, front to back (empty when none).
 FOUNDATION_EXPORT NSArray<NSNumber*>* SPDFAnnotateSelectedObjectIds(NSDictionary* _Nullable state);
 FOUNDATION_EXPORT BOOL SPDFAnnotateStateHasPixelSelection(NSDictionary* _Nullable state);
+// doc.state's layers and their objects in one list, bottom to top, as they stack: each object with "layer" (its
+// layer's id), hidden when its layer is and locked when its layer is.
+FOUNDATION_EXPORT NSArray<NSDictionary*>* SPDFAnnotateStateEntries(NSDictionary* _Nullable state);
+// The id of the layer above (or below) the one holding objectId, when objects can go there (not the base layer, not a
+// locked layer); nil at the ends.
+FOUNDATION_EXPORT NSNumber* _Nullable SPDFAnnotateLayerNeighbour(NSDictionary* _Nullable state, NSNumber* _Nullable objectId,
+                                                                 BOOL above);
 // An operation with "page" added (1-based, the page the session follows) on a PDF when the op needs one.
 FOUNDATION_EXPORT NSDictionary* SPDFAnnotateOnCurrentPage(SPDFMacFillController* controller, NSDictionary* op);
 

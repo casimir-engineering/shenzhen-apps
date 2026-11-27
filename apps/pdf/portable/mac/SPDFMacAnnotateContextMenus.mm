@@ -16,10 +16,8 @@ static NSRect SPDFAnnotateRect(id value) {
 
 // The front-most object whose bounds hold the point (canvas units), or nil.
 static NSDictionary* SPDFAnnotateObjectAt(NSDictionary* state, NSPoint point) {
-    NSArray* layers = [state[@"layers"] isKindOfClass:[NSArray class]] ? state[@"layers"] : @[];
-    for (NSDictionary* layer in layers.reverseObjectEnumerator) {
-        if (![layer isKindOfClass:[NSDictionary class]] || [layer[@"kind"] isEqual:@"background"] ||
-            [layer[@"kind"] isEqual:@"raster"] || (layer[@"visible"] && ![layer[@"visible"] boolValue]))
+    for (NSDictionary* layer in SPDFAnnotateStateEntries(state).reverseObjectEnumerator) {
+        if (![layer[@"kind"] isEqual:@"object"] || (layer[@"visible"] && ![layer[@"visible"] boolValue]))
             continue;
         NSDictionary* object = [layer[@"object"] isKindOfClass:[NSDictionary class]] ? layer[@"object"] : @{};
         NSRect bounds = SPDFAnnotateRect(layer[@"bounds"] ?: object[@"bounds"]);
@@ -47,6 +45,12 @@ static NSMenu* SPDFAnnotateObjectMenu(SPDFMacFillController* c, NSDictionary* la
     ITEM(@"Bring Forward", @"]", cmd, ORDER(@"forward"));
     ITEM(@"Send Backward", @"[", cmd, ORDER(@"backward"));
     ITEM(@"Send to Back", @"[", cmd | opt, ORDER(@"back"));
+    [menu addItem:[NSMenuItem separatorItem]];
+    // Every selected object goes, when the one right-clicked is among them (it is made the selection first otherwise).
+    NSArray* selected = SPDFAnnotateCurrentSession(c, NO).selectedObjects;
+    NSArray* moving = [selected containsObject:objectId] ? selected : @[ objectId ];
+    ITEM(@"Move to Layer Above", @"", 0, (@{@"op" : @"object.layer", @"ids" : moving, @"to" : @"above"}));
+    ITEM(@"Move to Layer Below", @"", 0, (@{@"op" : @"object.layer", @"ids" : moving, @"to" : @"below"}));
     [menu addItem:[NSMenuItem separatorItem]];
     ITEM(@"Merge Down", @"", 0, (@{@"op" : @"object.merge_down", @"id" : objectId}));
     ITEM(@"Duplicate", @"d", cmd | opt, (@{@"op" : @"object.duplicate", @"id" : objectId}));

@@ -2,19 +2,22 @@
 // The Layers sidebar (docs/plans/annotate.md § 1 Layers panel, § 3): on the right of the canvas, in the minimap's
 // place while Annotate is on (the minimap comes back on Done), shown by the palette's Layers button or Shift-Cmd-L.
 //
-// Top of the list is front. Each row: thumbnail (spdf_paint_layer_thumbnail), name ("Background", "Page 3" on a PDF,
-// "Drawing", "Layer 2", "Rectangle", "Text: Hello", "Picture", "Pen line", "Signature"), an eye (hide/show) and, while
-// selected, an opacity slider. A PDF page's Background row shows a lock and has no eye, opacity or delete. The active
-// raster layer carries a brush badge. Dragging rows reorders them (depth); selecting an object's row selects that
-// object on the canvas. Buttons under the list: New Layer, Duplicate, Merge Down, Delete.
+// Top of the list is front, as in Photoshop: each layer's row (disclosure triangle, thumbnail of its drawing and
+// objects from spdf_paint_layer_thumbnail, name over its objects' count, lock, eye), then its objects' rows indented
+// under it, front first ("Rectangle", "Text: Hello", "Picture", "Pen line", "Signature"); the base layer last
+// ("Background", "Page 3" on a PDF with a lock and no eye, opacity or delete). A selected row shows its opacity slider.
+// The active layer carries a brush badge. A double-click types over a row's name. Dragging a layer's row reorders the
+// layers; an object's row moves within its layer or into another (SPDFMacAnnotateLayerRows.h). Buttons under the list:
+// New Layer, Duplicate, Merge Down, Delete.
 //
 // Every change it makes is an operation (layer.add, layer.duplicate, layer.merge_down, layer.delete, layer.set,
-// layer.order, layer.activate, object.order, object.merge_down, object.delete) sent through
+// layer.order, layer.activate, object.layer, object.duplicate, object.merge_down, object.delete) sent through
 // -[SPDFMacFillController applyOperation:tab:completion:]. Clicking an object's row sends layer.activate with the
 // object's id, which selects that object. It reads what it shows from doc.state's answer, never from the core
 // directly (thumbnails aside):
-//   {"layers": [{"id", "kind": "background" | "raster" | "object", "name", "visible", "opacity" (0-100), "locked",
-//                "object": {"kind": ...}}, ... bottom to top], "active": id, "selection": {"objects": [ids]}}
+//   {"layers": [{"id", "kind": "background" | "layer", "name", "visible", "opacity" (0-100), "locked",
+//                "objects": [{"id", "kind": "object", "name", ..., "object": {"kind": ...}}, ... back to front]},
+//               ... bottom to top], "active": id, "selection": {"objects": [ids]}}
 #import <Cocoa/Cocoa.h>
 
 @class SPDFMacFillController, SPDFMacAnnotateSession;

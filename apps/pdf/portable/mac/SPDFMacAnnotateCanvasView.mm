@@ -440,7 +440,7 @@ static void DrawImage(CGContextRef context, CGImageRef image, NSRect rect) {
 #pragma mark - The state, read for hit tests and handles
 
 - (NSArray<NSDictionary*>*)objectsOnPage:(NSInteger)page {
-    NSArray* layers = [self.session stateForPage:page][@"layers"];
+    NSArray* layers = SPDFAnnotateStateEntries([self.session stateForPage:page]);
     NSMutableArray* objects = [NSMutableArray array];
     for (NSDictionary* layer in [layers isKindOfClass:NSArray.class] ? layers.reverseObjectEnumerator.allObjects : @[]) {
         if (![layer isKindOfClass:NSDictionary.class] || ![layer[@"kind"] isEqual:@"object"]) continue;

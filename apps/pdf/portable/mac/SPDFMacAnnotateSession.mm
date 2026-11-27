@@ -1,5 +1,6 @@
 // Annotate, per tab (SPDFMacAnnotateSession.h): the canvas, the tool state, the operations the canvas route applies
 // and the tab's one undo stack. Saving, the kept layers and the settings file are in SPDFMacAnnotateSessionSaving.mm.
+#import "SPDFMacAnnotatePaletteSupport.h"
 #import "SPDFMacAnnotateSessionPrivate.h"
 
 #import <ImageIO/ImageIO.h>
@@ -376,7 +377,7 @@ NSString* SPDFAnnotateProjectForBackingPath(NSString* path) {
     }
     if (!_selectedObjects.count) return;
     NSMutableSet* ids = [NSMutableSet set];
-    for (NSDictionary* layer in [self stateForPage:page][@"layers"])
+    for (NSDictionary* layer in SPDFAnnotateStateEntries([self stateForPage:page]))
         if ([layer isKindOfClass:NSDictionary.class] && layer[@"id"]) [ids addObject:layer[@"id"]];
     NSMutableArray* kept = [NSMutableArray array];
     for (NSNumber* object in _selectedObjects)

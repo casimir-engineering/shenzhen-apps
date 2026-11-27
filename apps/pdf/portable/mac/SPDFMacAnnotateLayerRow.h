@@ -1,6 +1,8 @@
 #pragma once
-// One row of the Layers panel (SPDFMacAnnotateLayersPanel.h): thumbnail over a checkerboard, name, brush badge or
-// lock, eye, and while selected the opacity slider with its percentage, which can be typed (SPDFMacAnnotateValueField.h).
+// One row of the Layers panel (SPDFMacAnnotateLayersPanel.h). A layer's row: the disclosure triangle that shows or
+// hides its objects, thumbnail over a checkerboard, name over how many objects it holds, the brush badge on the active
+// layer, lock and eye, and while selected the opacity slider with its percentage, which can be typed
+// (SPDFMacAnnotateValueField.h). An object's row, indented under its layer: thumbnail, name and eye.
 #import <Cocoa/Cocoa.h>
 
 #import "SPDFMacAnnotateValueField.h"
@@ -8,15 +10,29 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+// A name that reads as a label and is typed over after a double-click: Return or a click elsewhere renames, Escape
+// leaves it as it was.
+@interface SPDFAnnotateNameField : NSTextField
+@property(nonatomic, copy, nullable) void (^renamed)(NSString* name);
+@property(nonatomic, copy, nullable) NSView* _Nullable (^keysView)(void);
+- (void)beginRenaming;
+@end
+
 @interface SPDFAnnotateLayerRow : NSTableCellView
 @property(nonatomic, strong) NSImageView* thumb;
-@property(nonatomic, strong) NSTextField* name;
+@property(nonatomic, strong) SPDFAnnotateNameField* name;
+@property(nonatomic, strong) NSTextField* detail;  // "3 objects" under a layer's name
 @property(nonatomic, strong) NSImageView* badge;
+@property(nonatomic, strong) NSButton* disclosure;
+@property(nonatomic, strong) NSButton* lock;
+@property(nonatomic, strong) NSLayoutConstraint* lockWidth;  // 0 where there is no lock (the base layer)
 @property(nonatomic, strong) NSButton* eye;
 @property(nonatomic, strong, nullable) NSSlider* opacity;  // made the first time the row shows it
 @property(nonatomic, strong) SPDFAnnotateValueField* percent;
-// A row laid out, its eye and slider sending these actions to target (their tag is the row).
-+ (instancetype)rowWithTarget:(id)target eyeAction:(SEL)eyeAction opacityAction:(SEL)opacityAction;
+// A row laid out (a layer's, or an object's indented under it), its buttons and slider sending these actions to
+// target (their tag is the row).
++ (instancetype)rowWithTarget:(id)target object:(BOOL)object eyeAction:(SEL)eyeAction lockAction:(SEL)lockAction
+                 discloseAction:(SEL)discloseAction opacityAction:(SEL)opacityAction;
 // The opacity shown, slider and percentage, or hidden.
 - (void)showOpacity:(double)percent visible:(BOOL)visible;
 @end
