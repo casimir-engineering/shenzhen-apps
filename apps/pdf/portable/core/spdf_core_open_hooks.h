@@ -80,9 +80,25 @@ static void spdf_note_opened(spdf_document* doc, const char* path, int progressi
     if (doc->opened_path) spdf_file_seen_now(path, &doc->opened_file);
 }
 
+/* The same file, named the same or another way (a symbolic link, /tmp for /private/tmp). */
+static int spdf_same_path(const char* a, const char* b) {
+    int same = !strcmp(a, b);
+#ifndef _WIN32
+    if (!same) {
+        char* ra = realpath(a, NULL);
+        char* rb = ra ? realpath(b, NULL) : NULL;
+        same = ra && rb && !strcmp(ra, rb);
+        free(ra);
+        free(rb);
+    }
+#endif
+    return same;
+}
+
 /* After every spdf_save_document: a save into the file the document reads moves what it was last seen as. */
 static int spdf_note_saved(spdf_document* doc, const char* path) {
-    if (doc && doc->opened_path && path && !strcmp(doc->opened_path, path)) spdf_file_seen_now(path, &doc->opened_file);
+    if (doc && doc->opened_path && path && spdf_same_path(doc->opened_path, path))
+        spdf_file_seen_now(path, &doc->opened_file);
     return 1;
 }
 
