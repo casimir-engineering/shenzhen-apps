@@ -5,6 +5,7 @@
  * box an opaque background, a pen line or arrow its colour, a picture is filled within its own pixels. */
 #include "spdf_paint_brush_engine.h"
 #include "spdf_paint_handlers.h"
+#include "spdf_paint_model.h"
 #include "spdf_fill_ink_geometry.h"
 
 #include <math.h>
@@ -276,7 +277,8 @@ spdf_paint_status spdf_paint_op_paint_fill(spdf_paint_call* call) {
         return SPDF_PAINT_OK;
     }
     if (!spdf_paint_active_pixels(doc, &layer) || !layer)
-        return spdf_paint_call_fail(call, SPDF_PAINT_ERR_FAILED, "There is no layer to fill into.");
+        return layer ? spdf_paint_fail_unpaintable(call, layer)
+                     : spdf_paint_call_fail(call, SPDF_PAINT_ERR_FAILED, "There is no layer to fill into.");
     st = spdf_paint_flood_fill(doc, layer, &args, &damage);
     if (st == SPDF_PAINT_ERR_PAGE_LOCKED) return spdf_paint_call_fail(call, st, "The page itself can't be changed.");
     if (st == SPDF_PAINT_ERR_NO_MEMORY) return spdf_paint_call_fail(call, st, "There isn't enough memory to fill this.");

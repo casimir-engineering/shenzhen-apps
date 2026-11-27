@@ -13,7 +13,6 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-static const char k_page_locked[] = "The page itself can't be changed.";
 
 static int is_pdf(const spdf_paint_doc* doc) { return doc->kind == SPDF_PAINT_DOC_PDF; }
 
@@ -330,7 +329,7 @@ static spdf_paint_layer* image_layer(spdf_paint_call* call) {
     spdf_paint_doc* doc = call->doc;
     spdf_paint_layer* layer = spdf_paint_layer_find(doc, doc->active);
     if (!spdf_paint_layer_paintable(doc, layer) || !spdf_paint_layer_pixels(doc, layer)) {
-        spdf_paint_call_fail(call, SPDF_PAINT_ERR_PAGE_LOCKED, k_page_locked);
+        spdf_paint_fail_unpaintable(call, layer);
         return NULL;
     }
     return layer;

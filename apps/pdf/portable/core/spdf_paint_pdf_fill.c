@@ -4,6 +4,7 @@
  * exactly what Fill & Sign writes and reads; only visibility (Hidden), opacity (/CA) and a renamed layer's name
  * (/SPDFAnnotate /Name) are set here directly. A duplicated item is a copy of its annotation under a new /NM. */
 #include "spdf_paint_pdf_internal.h"
+#include "spdf_paint_pdf_layers.h"
 
 #include "spdf_core_document.h"
 #include "spdf_fill_ink.h"
@@ -110,33 +111,36 @@ static void apply_props(spdf_paint_doc* doc, const char* group, const spdf_paint
     pdf_page* volatile page = spdf_paint_pdf_load_page(doc);
     const cJSON* old_name = cJSON_GetObjectItemCaseSensitive(old, "n");
     int renamed = !cJSON_IsString(old_name) || strcmp(old_name->valuestring, layer->name) != 0;
+    int index = spdf_paint_layer_index(doc, layer->id), shown = spdf_paint_entry_shown(doc, index);
+    float drawn = spdf_paint_entry_opacity(doc, index); /* its own opacity times its layer's */
     fz_try(ctx) {
         pdf_annot* a;
         for (a = pdf_first_annot(ctx, page); a; a = pdf_next_annot(ctx, a)) {
             pdf_obj* obj = pdf_annot_obj(ctx, a);
             int flags = pdf_dict_get_int(ctx, obj, PDF_NAME(F));
-            int want = layer->visible ? ((flags & ~PDF_ANNOT_IS_HIDDEN) | PDF_ANNOT_IS_PRINT)
+            int want = shown ? ((flags & ~PDF_ANNOT_IS_HIDDEN) | PDF_ANNOT_IS_PRINT)
                                       : ((flags | PDF_ANNOT_IS_HIDDEN) & ~PDF_ANNOT_IS_PRINT); /* Quick Look draws Print */
             float opacity = pdf_dict_get_real_default(ctx, obj, PDF_NAME(CA), 1);
             if (!matches(spdf_paint_pdf_nm(ctx, obj), group)) continue;
             spdf_paint_pdf_stash_appearance(ctx, page->doc, obj, 0); /* the real drawing back while it changes */
             if (want != flags) pdf_dict_put_int(ctx, obj, PDF_NAME(F), want);
+            spdf_paint_pdf_put_layer_record(doc, obj, layer); /* which layer it is on */
             if (old && renamed) {
                 pdf_obj* ours = pdf_dict_puts_dict(ctx, obj, SPDF_PAINT_PDF_KEY, 1);
                 pdf_dict_puts_drop(ctx, ours, "Name", pdf_new_text_string(ctx, layer->name));
             }
-            if (fabsf(opacity - layer->opacity) < 0.001f) {
-                if (!layer->visible) spdf_paint_pdf_stash_appearance(ctx, page->doc, obj, 1), pdf_clean_obj(ctx, obj);
+            if (fabsf(opacity - drawn) < 0.001f) {
+                if (!shown) spdf_paint_pdf_stash_appearance(ctx, page->doc, obj, 1), pdf_clean_obj(ctx, obj);
                 continue;
             }
             if (pdf_annot_type(ctx, a) != PDF_ANNOT_STAMP) {
-                pdf_set_annot_opacity(ctx, a, layer->opacity); /* MuPDF redraws text and ink with it */
+                pdf_set_annot_opacity(ctx, a, drawn); /* MuPDF redraws text and ink with it */
                 pdf_update_annot(ctx, a);
             } else { /* a signature keeps its drawing: wrapped in a form that paints it at this opacity */
                 pdf_obj* ours = pdf_dict_puts_dict(ctx, obj, SPDF_PAINT_PDF_KEY, 1);
                 pdf_obj* base = pdf_dict_gets(ctx, ours, "BaseAP");
                 if (!base) base = pdf_dict_getp(ctx, obj, "AP/N"), pdf_dict_puts(ctx, ours, "BaseAP", base);
-                if (layer->opacity >= 0.999f) {
+                if (drawn >= 0.999f) {
                     pdf_dict_putp(ctx, obj, "AP/N", base);
                     pdf_dict_del(ctx, obj, PDF_NAME(CA));
                 } else {
@@ -146,19 +150,19 @@ static void apply_props(spdf_paint_doc* doc, const char* group, const spdf_paint
                     pdf_obj *gs, *wrapper;
                     fz_buffer* content = fz_new_buffer_from_copied_data(ctx, (const unsigned char*)"q /GS0 gs /Fm0 Do Q", 19);
                     gs = pdf_new_dict(ctx, page->doc, 2);
-                    pdf_dict_put_real(ctx, gs, PDF_NAME(ca), layer->opacity);
-                    pdf_dict_put_real(ctx, gs, PDF_NAME(CA), layer->opacity);
+                    pdf_dict_put_real(ctx, gs, PDF_NAME(ca), drawn);
+                    pdf_dict_put_real(ctx, gs, PDF_NAME(CA), drawn);
                     pdf_dict_putp_drop(ctx, res, "ExtGState/GS0", gs);
                     pdf_dict_putp(ctx, res, "XObject/Fm0", base);
                     wrapper = pdf_new_xobject(ctx, page->doc, box, fz_identity, res, content);
                     pdf_dict_putp_drop(ctx, obj, "AP/N", wrapper);
-                    pdf_dict_put_real(ctx, obj, PDF_NAME(CA), layer->opacity);
+                    pdf_dict_put_real(ctx, obj, PDF_NAME(CA), drawn);
                     pdf_drop_obj(ctx, res);
                     fz_drop_buffer(ctx, content);
                 }
                 pdf_clean_obj(ctx, obj);
             }
-            if (!layer->visible) spdf_paint_pdf_stash_appearance(ctx, page->doc, obj, 1), pdf_clean_obj(ctx, obj);
+            if (!shown) spdf_paint_pdf_stash_appearance(ctx, page->doc, obj, 1), pdf_clean_obj(ctx, obj);
         }
     }
     fz_always(ctx) pdf_drop_page(ctx, page);

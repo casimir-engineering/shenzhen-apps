@@ -1,6 +1,6 @@
 /* The paint.stroke operation (docs/plans/annotate.md § 6 Pixels): Pencil, the nine brushes, Airbrush, Eraser and
- * Color Eraser into the active raster layer (on a PDF page its "Drawing" layer, made on the first stroke; never the
- * page), clipped to the selection when there is one. The pixel Eraser also cuts the pen lines and arrows it crosses,
+ * Color Eraser into the active layer (on a PDF page Layer 1 or the one the person picked; never the page, nor a locked
+ * layer), clipped to the selection when there is one. The pixel Eraser also cuts the pen lines and arrows it crosses,
  * as Fill & Sign's "Parts" eraser does: what it rubs out of a line is gone, the pieces left stay lines at the same
  * depth, an arrow keeps its head on the piece that still ends at its tip. */
 #include "spdf_paint_brush_engine.h"
@@ -176,8 +176,7 @@ spdf_paint_status spdf_paint_op_paint_stroke(spdf_paint_call* call) {
     args.mask = doc->selection.active ? doc->selection.mask : NULL;
     if (!spdf_paint_active_pixels(doc, &layer) || !layer) {
         fz_free(doc->ctx, points);
-        if (layer && layer->locked)
-            return spdf_paint_call_fail(call, SPDF_PAINT_ERR_PAGE_LOCKED, "The page itself can't be changed.");
+        if (layer && layer->locked) return spdf_paint_fail_unpaintable(call, layer);
         return spdf_paint_call_fail(call, SPDF_PAINT_ERR_FAILED, "There is no layer to paint into.");
     }
     st = spdf_paint_brush_stroke(doc, layer, &args, &damage);

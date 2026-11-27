@@ -143,8 +143,9 @@ cJSON* spdf_paint_layer_json(const spdf_paint_doc* doc, const spdf_paint_layer* 
     cJSON_AddStringToObject(o, "name", name);
     cJSON_AddBoolToObject(o, "visible", layer->visible);
     cJSON_AddNumberToObject(o, "opacity", round(layer->opacity * 1000.0) / 10.0);
+    int index = spdf_paint_layer_index(doc, layer->id);
     cJSON_AddBoolToObject(o, "locked", layer->locked || spdf_paint_layer_is_page(doc, layer) ||
-                                           (layer->object && layer->object->kind == SPDF_PAINT_OBJ_FOREIGN));
+                                           (layer->object && spdf_paint_entry_locked(doc, index)));
     cJSON_AddBoolToObject(o, "active", layer->id == doc->active);
     if (layer->object) {
         spdf_paint_object_update_bounds(layer->object);

@@ -127,7 +127,8 @@ static void apply_record(spdf_paint_doc* doc, spdf_paint_record* r, int undo) {
 
 static void settle(spdf_paint_doc* doc) {
     spdf_paint_selection_prune(doc);
-    if (!spdf_paint_layer_paintable(doc, spdf_paint_layer_find(doc, doc->active))) {
+    spdf_paint_layer* active = spdf_paint_layer_find(doc, doc->active);
+    if (!(active && active->kind == SPDF_PAINT_LAYER_RASTER) && !spdf_paint_layer_paintable(doc, active)) {
         doc->active = 0;
         for (int i = doc->layer_count - 1; i >= 0 && !doc->active; i--)
             if (spdf_paint_layer_paintable(doc, doc->layers[i])) doc->active = doc->layers[i]->id;

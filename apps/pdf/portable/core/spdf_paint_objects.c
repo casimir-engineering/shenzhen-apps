@@ -17,7 +17,9 @@ spdf_paint_object* spdf_paint_object_new(spdf_paint_doc* doc, spdf_paint_object_
     spdf_paint_object* o = doc ? calloc(1, sizeof(*o)) : NULL;
     if (!o) return NULL;
     o->kind = kind;
-    spdf_paint_layer* layer = spdf_paint_layer_new(doc, SPDF_PAINT_LAYER_OBJECT, NULL, 0);
+    int at = spdf_paint_object_insert_index(doc, NULL); /* on top of the active layer's objects */
+    spdf_paint_layer* layer =
+        spdf_paint_layer_new(doc, SPDF_PAINT_LAYER_OBJECT, NULL, at > 0 ? doc->layers[at - 1]->id : 0);
     if (!layer) { free(o); return NULL; }
     layer->object = o;
     if (id_out) *id_out = layer->id;
@@ -137,6 +139,8 @@ static spdf_paint_status find_object(spdf_paint_call* call, spdf_paint_id id, sp
     if (layer->locked || layer->object->kind == SPDF_PAINT_OBJ_FOREIGN)
         return spdf_paint_call_fail(call, SPDF_PAINT_ERR_LOCKED,
                                     "This annotation was made in another app and can't be changed here.");
+    if (spdf_paint_entry_locked(call->doc, spdf_paint_layer_index(call->doc, id)))
+        return spdf_paint_call_fail(call, SPDF_PAINT_ERR_LOCKED, "This object's layer is locked.");
     return SPDF_PAINT_OK;
 }
 

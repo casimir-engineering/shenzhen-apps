@@ -210,9 +210,13 @@ void spdf_paint_composite_into(spdf_paint_doc* doc, fz_pixmap* dest, fz_irect cl
     if (fz_is_empty_irect(clip)) return;
     clear_box(dest, clip);
     int nearest = (flags & SPDF_PAINT_RENDER_NEAREST) && scale > (float)doc->raster_scale;
+    spdf_paint_layer* owner = NULL; /* the layer the objects that follow are on: its eye and opacity apply to them */
     for (int i = 0; i < doc->layer_count; i++) {
         spdf_paint_layer* layer = doc->layers[i];
-        if (filter_count > 0 ? !in_list(filter, filter_count, layer->id) : !layer->visible) continue;
+        if (layer->kind != SPDF_PAINT_LAYER_OBJECT) owner = layer->kind == SPDF_PAINT_LAYER_RASTER ? layer : NULL;
+        int listed = in_list(filter, filter_count, layer->id) || (owner && in_list(filter, filter_count, owner->id));
+        if (filter_count > 0 ? !listed : !layer->visible || (owner && !owner->visible)) continue;
+        float opacity = layer->object && owner ? layer->opacity * owner->opacity : layer->opacity;
         if ((flags & SPDF_PAINT_RENDER_HIDE_SELECTION) &&
             in_list(doc->selection.objects, doc->selection.object_count, layer->id))
             continue;
@@ -222,8 +226,8 @@ void spdf_paint_composite_into(spdf_paint_doc* doc, fz_pixmap* dest, fz_irect cl
                                          (flags & SPDF_PAINT_RENDER_DARK_PAGE) != 0);
             continue;
         }
-        if (layer->object) spdf_paint_object_draw(doc, layer->object, fz_scale(scale, scale), dest, clip, layer->opacity);
-        else if (layer->pixels) spdf_paint_draw_raster(doc, layer->pixels, dest, clip, scale, layer->opacity, nearest);
+        if (layer->object) spdf_paint_object_draw(doc, layer->object, fz_scale(scale, scale), dest, clip, opacity);
+        else if (layer->pixels) spdf_paint_draw_raster(doc, layer->pixels, dest, clip, scale, opacity, nearest);
     }
 }
 

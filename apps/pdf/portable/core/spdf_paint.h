@@ -30,7 +30,7 @@ extern "C" {
 #endif
 
 #define SPDF_PAINT_SCHEMA_VERSION 1
-#define SPDF_PAINT_FILE_VERSION 1        /* .szpaint manifest "version" */
+#define SPDF_PAINT_FILE_VERSION 2        /* .szpaint manifest "version" (1: before layers held objects) */
 #define SPDF_PAINT_DEFAULT_SIZE 1000     /* File > New Canvas: 1000 x 1000 px */
 #define SPDF_PAINT_MAX_SIDE 16384        /* canvas handles and canvas.resize: at most 16384 x 16384 */
 #define SPDF_PAINT_MAX_PIXELS 268435456u /* ... and 268 M pixels */
@@ -310,8 +310,9 @@ void spdf_paint_mark_saved(spdf_paint_doc* doc);
 spdf_paint_status spdf_paint_flatten(spdf_paint_doc* doc, spdf_paint_color matte, spdf_bitmap* out, char* err,
                                      size_t err_len);
 /* .szpaint, version SPDF_PAINT_FILE_VERSION: a ZIP (fz_zip_writer) of manifest.json (canvas size, dpi, layers bottom
- * to top with kind, name, visibility, opacity, and each object's kind and parameters) and one PNG per raster layer and
- * Picture object (§ 5). Written to a temporary file beside `path`, then swapped in. A PDF page canvas is refused. */
+ * to top with kind, name, visibility, opacity, lock, each with its objects' kinds and parameters) and one PNG per layer
+ * with pixels and Picture object (§ 5). Written to a temporary file beside `path`, then swapped in. A PDF page canvas
+ * is refused. Version 1 projects (one object per layer) are read into the layers model. */
 spdf_paint_status spdf_paint_write_project(spdf_paint_doc* doc, const char* path, char* err, size_t err_len);
 /* Opens a .szpaint as a canvas (kind SPDF_PAINT_DOC_CANVAS), clean, with an empty history. */
 spdf_paint_doc* spdf_paint_read_project(const char* path, char* err, size_t err_len);

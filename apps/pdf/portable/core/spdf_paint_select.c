@@ -9,7 +9,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-static const char k_page_locked[] = "The page itself can't be changed.";
 
 static void clear_pixels(spdf_paint_doc* doc) {
     spdf_paint_selection* s = &doc->selection;
@@ -179,19 +178,36 @@ spdf_paint_status spdf_paint_op_select_objects(spdf_paint_call* call) {
     return SPDF_PAINT_OK;
 }
 
-/* The layer a pixel selection works on, or NULL with call failed (a PDF page with nothing drawn on it). */
+static int has_pixels_in(const fz_pixmap* pix, fz_irect box) {
+    box = fz_intersect_irect(box, fz_make_irect(0, 0, pix->w, pix->h));
+    for (int y = box.y0; y < box.y1; y++) {
+        const unsigned char* p = pix->samples + (size_t)y * pix->stride + (size_t)box.x0 * 4 + 3;
+        for (int x = box.x0; x < box.x1; x++, p += 4)
+            if (*p) return 1;
+    }
+    return 0;
+}
+
+/* The layer a pixel selection works on, or NULL with call failed (a PDF page with nothing drawn on it): the active
+ * layer, or when it has nothing inside the selection the nearest layer under it that has (on a picture, usually the
+ * picture itself), so a part of the picture can be lifted, moved and resized while Layer 1 is active. */
 static spdf_paint_layer* selection_layer(spdf_paint_call* call) {
     spdf_paint_doc* doc = call->doc;
-    spdf_paint_layer* layer = spdf_paint_layer_find(doc, doc->active);
-    if (!spdf_paint_layer_paintable(doc, layer)) {
-        layer = NULL;
-        for (int i = doc->layer_count - 1; i >= 0 && !layer; i--)
-            if (spdf_paint_layer_paintable(doc, doc->layers[i])) layer = doc->layers[i];
-    }
+    spdf_paint_layer* layer = NULL;
+    spdf_paint_active_pixels(doc, &layer);
     if (!layer || !spdf_paint_layer_pixels(doc, layer)) {
-        spdf_paint_call_fail(call, SPDF_PAINT_ERR_PAGE_LOCKED, k_page_locked);
+        spdf_paint_fail_unpaintable(call, layer);
         return NULL;
     }
+    const spdf_paint_selection* s = &doc->selection;
+    if (s->mask && !has_pixels_in(layer->pixels, s->bounds))
+        for (int i = spdf_paint_layer_index(doc, layer->id) - 1; i >= 0; i--) {
+            spdf_paint_layer* below = doc->layers[i];
+            if (below->kind == SPDF_PAINT_LAYER_OBJECT || !below->visible || !spdf_paint_layer_paintable(doc, below) ||
+                !below->pixels)
+                continue;
+            if (has_pixels_in(below->pixels, s->bounds)) return below;
+        }
     return layer;
 }
 
@@ -278,7 +294,7 @@ spdf_paint_status spdf_paint_lift_selection(spdf_paint_call* call, spdf_paint_id
     o->place.rect = (spdf_rect){box.x0 / rs, box.y0 / rs, box.x1 / rs, box.y1 / rs};
     spdf_paint_object_update_bounds(o);
     spdf_paint_layer* object_layer = spdf_paint_layer_detach(doc, id);
-    spdf_paint_layer_insert(doc, object_layer, spdf_paint_layer_index(doc, layer->id) + 1);
+    spdf_paint_layer_insert(doc, object_layer, spdf_paint_object_insert_index(doc, layer)); /* its place: just above */
     clear_pixels(doc);
     spdf_paint_select_objects(doc, &id, 1);
     s->active = 1;

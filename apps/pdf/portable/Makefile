@@ -88,7 +88,7 @@ CORE_OBJS += $(CORE_FILL_OBJS)
 # operations with cJSON, which goes in the archive too: the app and the probes that link Friends already load
 # Friends' cJSON.o, and ld64 loads every object before it searches an archive, so the archive's copy is pulled only
 # by binaries without Friends (a duplicate cJSON.o on one link line fails). Nothing here runs until Annotate is used.
-CORE_PAINT_NAMES := doc ops schema schema_build history brush brush_tex brush_op fill shapes shapes_draw text transform \
+CORE_PAINT_NAMES := doc groups pdf_layers ops schema schema_build history brush brush_tex brush_op fill shapes shapes_draw text transform \
 	file pdf pdf_pixels pdf_params pdf_write pdf_fill pdf_remove \
 	composite select layers objects objjson validate transform_ops doc_util history_apply canvas_ops pdf_live presets preview \
 	preview_dark

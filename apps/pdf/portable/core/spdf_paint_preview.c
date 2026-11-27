@@ -65,7 +65,7 @@ static const spdf_paint_placed* find_placed(const spdf_paint_placed* placed, int
 
 /* One object layer: from its annotation on a PDF page when it has one (moved by dx, dy), else drawn here. */
 static void draw_object(spdf_paint_doc* doc, spdf_paint_layer* layer, const spdf_paint_placed* placed, fz_pixmap* dest,
-                        fz_irect clip, float scale) {
+                        fz_irect clip, float scale, float opacity) {
     spdf_paint_object* o = layer->object;
     float w = o->place.rect.x1 - o->place.rect.x0, h = o->place.rect.y1 - o->place.rect.y0;
     int moved_only = !placed || (!placed->turns && fabsf((placed->rect.x1 - placed->rect.x0) - w) < 1e-3f &&
@@ -80,12 +80,12 @@ static void draw_object(spdf_paint_doc* doc, spdf_paint_layer* layer, const spdf
         return;
     }
     if (!placed) {
-        spdf_paint_object_draw(doc, o, fz_scale(scale, scale), dest, clip, layer->opacity);
+        spdf_paint_object_draw(doc, o, fz_scale(scale, scale), dest, clip, opacity);
         return;
     }
     spdf_paint_object* copy = placed_copy(doc->ctx, o, placed);
     if (!copy) return;
-    spdf_paint_object_draw(doc, copy, fz_scale(scale, scale), dest, clip, layer->opacity);
+    spdf_paint_object_draw(doc, copy, fz_scale(scale, scale), dest, clip, opacity);
     spdf_paint_object_free(doc->ctx, copy);
 }
 
@@ -144,14 +144,15 @@ spdf_paint_status spdf_paint_render_placed(spdf_paint_doc* doc, const spdf_paint
     int dark = doc->pdf && (options->flags & SPDF_PAINT_RENDER_DARK_PAGE);
     for (int i = 0; i < doc->layer_count; i++) {  /* as spdf_paint_composite_into, bottom to top */
         spdf_paint_layer* layer = doc->layers[i];
-        if (!layer->visible) continue;
+        if (!spdf_paint_entry_shown(doc, i)) continue;
+        float opacity = spdf_paint_entry_opacity(doc, i);
         if (spdf_paint_layer_is_page(doc, layer)) {
             if (!(options->flags & SPDF_PAINT_RENDER_SKIP_LOCKED_BACKGROUND)) draw_page(doc, dest, box, scale);
         } else if (layer->object) {
             const spdf_paint_placed* at = layer->locked ? NULL : find_placed(placed, count, layer->id);
-            draw_object(doc, layer, at, dest, box, scale);
+            draw_object(doc, layer, at, dest, box, scale, opacity);
         } else if (layer->pixels) {
-            spdf_paint_draw_raster(doc, layer->pixels, dest, box, scale, layer->opacity, nearest);
+            spdf_paint_draw_raster(doc, layer->pixels, dest, box, scale, opacity, nearest);
         }
     }
     if (dark) spdf_paint_dark_recolor(doc, dest, box, scale,

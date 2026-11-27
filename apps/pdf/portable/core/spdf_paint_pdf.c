@@ -1,10 +1,11 @@
 /* A PDF page as an Annotate canvas (docs/plans/annotate.md § 5 PDFs, § 8 Core spdf_paint_pdf.c): the page rendered
  * as the locked Background (render only, at the scale asked), and its annotations read into layers and objects in
  * /Annots order (back to front): ours from /SPDFAnnotate, Fill & Sign's from their /NM names (spdf_fill_load_items),
- * other readers' shown but locked. Writing back is spdf_paint_pdf_write.c; the sync model is described in
- * spdf_paint_pdf_internal.h. Never rewrites the page itself. */
+ * other readers' shown but locked; each on its layer (spdf_paint_pdf_layers.c). Writing back is
+ * spdf_paint_pdf_write.c; the sync model is described in spdf_paint_pdf_internal.h. Never rewrites the page itself. */
 #include "spdf_paint_model.h"
 #include "spdf_paint_pdf_internal.h"
+#include "spdf_paint_pdf_layers.h"
 
 #include "spdf_core_document.h"
 #include "spdf_fill_items.h"
@@ -133,11 +134,6 @@ static spdf_rect page_rect_of(fz_context* ctx, pdf_obj* annot, fz_matrix page_ct
     return out;
 }
 
-static void read_visibility(fz_context* ctx, pdf_obj* annot, spdf_paint_layer* layer) {
-    layer->visible = !(pdf_dict_get_int(ctx, annot, PDF_NAME(F)) & PDF_ANNOT_IS_HIDDEN);
-    layer->opacity = pdf_dict_get_real_default(ctx, annot, PDF_NAME(CA), 1);
-}
-
 /* ---- Our annotations: the image in their appearance ---- */
 
 static fz_pixmap* canvas_pixmap(spdf_paint_doc* doc) {
@@ -166,15 +162,18 @@ static void read_raster(spdf_paint_doc* doc, pdf_document* pdf, pdf_obj* annot, 
     fz_drop_pixmap(ctx, image);
 }
 
-static void read_ours(spdf_paint_doc* doc, pdf_document* pdf, pdf_obj* annot, spdf_paint_layer** layer) {
+static void read_ours(spdf_paint_doc* doc, pdf_document* pdf, pdf_obj* annot, spdf_paint_layer** layer,
+                      const spdf_paint_pdf_layer_record* rec, int first_read) {
     fz_context* ctx = doc->ctx;
     pdf_obj* ours = pdf_dict_gets(ctx, annot, SPDF_PAINT_PDF_KEY);
     const char* kind = pdf_to_text_string(ctx, pdf_dict_gets(ctx, ours, "Kind"));
     const char* name = pdf_to_text_string(ctx, pdf_dict_gets(ctx, ours, "Name"));
-    if (strcmp(kind, "layer") == 0) {
-        if (!*layer) *layer = spdf_paint_layer_new(doc, SPDF_PAINT_LAYER_RASTER, name, 0);
+    if (strcmp(kind, "layer") == 0) { /* a layer's drawing; one written before layers held objects is Layer 1's */
+        if (!*layer)
+            *layer = spdf_paint_pdf_layer_for_drawing(doc, spdf_paint_pdf_nm(ctx, annot), name, rec, first_read);
         if (!*layer) fz_throw(ctx, FZ_ERROR_SYSTEM, "Couldn't add a layer to the page.");
         read_raster(doc, pdf, annot, ours, *layer);
+        name = NULL; /* the record's name, or the page's Layer 1 */
     } else {
         spdf_paint_object_kind k = strcmp(kind, "text") == 0      ? SPDF_PAINT_OBJ_TEXT
                                    : strcmp(kind, "picture") == 0 ? SPDF_PAINT_OBJ_PICTURE
@@ -194,7 +193,7 @@ static void read_ours(spdf_paint_doc* doc, pdf_document* pdf, pdf_obj* annot, sp
     }
     fz_free(ctx, (*layer)->pdf_nm);
     (*layer)->pdf_nm = fz_strdup(ctx, spdf_paint_pdf_nm(ctx, annot));
-    set_layer_name(*layer, name);
+    if (name) set_layer_name(*layer, name);
 }
 
 /* ---- Fill & Sign's items, as objects of this model ---- */
@@ -270,37 +269,12 @@ static int unmodelled(fz_context* ctx, pdf_obj* annot) {
            subtype == PDF_NAME(Popup);
 }
 
-/* The model's stack in the file's order: Background, then the annotations' layers as /Annots has them; a layer the
- * file doesn't hold (never written) stays just above the layer it was above. */
-static void order_layers(spdf_paint_doc* doc, const spdf_paint_id* order, int count) {
-    spdf_paint_layer** sorted = (spdf_paint_layer**)calloc((size_t)doc->layer_count, sizeof(*sorted));
-    int n = 0, i, j;
-    if (!sorted) return;
-    sorted[n++] = doc->layers[0];
-    for (i = 0; i < count; ++i) {
-        int k = spdf_paint_layer_index(doc, order[i]);
-        if (k > 0) sorted[n++] = doc->layers[k];
-    }
-    for (i = 1; i < doc->layer_count; ++i) {
-        spdf_paint_layer* l = doc->layers[i];
-        int placed = 0, at = n;
-        for (j = 0; j < n && !placed; ++j) placed = sorted[j] == l;
-        if (placed) continue;
-        for (j = 0; j < n; ++j)
-            if (sorted[j] == doc->layers[i - 1]) at = j + 1;
-        memmove(&sorted[at + 1], &sorted[at], (size_t)(n - at) * sizeof(*sorted));
-        sorted[at] = l, ++n;
-    }
-    memcpy(doc->layers, sorted, (size_t)n * sizeof(*sorted));
-    free(sorted);
-}
-
 void spdf_paint_pdf_read(spdf_paint_doc* doc, int reload) {
     fz_context* ctx = doc->ctx;
     spdf_paint_pdf_state* st = doc->pdf_state;
     pdf_page* volatile page = NULL;
     spdf_fill_items items = {0};
-    spdf_paint_id* volatile order = NULL;
+    spdf_paint_pdf_placed* volatile placed = NULL;
     char err[256];
     int i, changed = !reload;
     for (i = 0; i < st->count; ++i) st->entries[i].seen = 0;
@@ -315,8 +289,8 @@ void spdf_paint_pdf_read(spdf_paint_doc* doc, int reload) {
         pdf_page_transform(ctx, page, NULL, &page_ctm);
         annots = pdf_dict_get(ctx, page->obj, PDF_NAME(Annots));
         n = pdf_array_len(ctx, annots);
-        order = (spdf_paint_id*)calloc((size_t)(n + 1), sizeof(spdf_paint_id));
-        if (!order) fz_throw(ctx, FZ_ERROR_SYSTEM, "Out of memory");
+        placed = (spdf_paint_pdf_placed*)calloc((size_t)(n + 1), sizeof(*placed));
+        if (!placed) fz_throw(ctx, FZ_ERROR_SYSTEM, "Out of memory");
         for (i = 0; i < n; ++i) {
             pdf_obj* annot = pdf_array_get(ctx, annots, i);
             const char* nm = spdf_paint_pdf_nm(ctx, annot);
@@ -325,7 +299,7 @@ void spdf_paint_pdf_read(spdf_paint_doc* doc, int reload) {
             spdf_rect bounds = {0, 0, 0, 0};
             spdf_paint_pdf_entry* e;
             spdf_paint_layer* layer = NULL;
-            char *fp, *model;
+            char* fp;
             int cells = 0, num = pdf_to_num(ctx, annot);
             if (unmodelled(ctx, annot)) continue;
             if (spdf_paint_pdf_has_prefix(nm, SPDF_PAINT_NM_PREFIX) && pdf_dict_gets(ctx, annot, SPDF_PAINT_PDF_KEY))
@@ -356,39 +330,53 @@ void spdf_paint_pdf_read(spdf_paint_doc* doc, int reload) {
             if (e && layer && e->file && strcmp(e->file, fp) == 0) {
                 free(fp);
                 e->seen = 1;
-                order[count++] = e->layer;
+                placed[count++].layer = e->layer;
                 continue;
             }
             changed = 1;
-            if (origin == SPDF_PAINT_PDF_OURS) read_ours(doc, pdf, annot, &layer);
+            spdf_paint_pdf_placed* at = &placed[count];
+            if (origin != SPDF_PAINT_PDF_FOREIGN) spdf_paint_pdf_read_layer_record(ctx, annot, &at->record);
+            at->reread = 1, at->fresh = !layer;
+            if (origin == SPDF_PAINT_PDF_OURS) read_ours(doc, pdf, annot, &layer, &at->record, !reload);
             else if (origin == SPDF_PAINT_PDF_FILL) read_fill(doc, item, bounds, &layer);
             else read_foreign(doc, annot, page_ctm, &layer);
-            read_visibility(ctx, annot, layer);
+            spdf_paint_pdf_read_props(ctx, annot, layer, &at->record);
             if (!e) spdf_paint_pdf_revive(doc, nm, origin == SPDF_PAINT_PDF_FOREIGN ? num : 0, layer);
             if (!e) e = spdf_paint_pdf_entry_add(doc, layer->id, origin, nm, origin == SPDF_PAINT_PDF_FOREIGN ? num : 0);
-            model = spdf_paint_pdf_layer_state(doc, layer);
-            spdf_paint_pdf_entry_set(doc, e, model, fp);
+            spdf_paint_pdf_entry_set(doc, e, NULL, fp); /* its model state once it is on its layer, below */
             e->seen = 1;
             if (origin == SPDF_PAINT_PDF_OURS) {
                 unsigned rev = (unsigned)pdf_to_int(ctx, pdf_dict_gets(ctx, pdf_dict_gets(ctx, annot, SPDF_PAINT_PDF_KEY), "Rev"));
                 if (rev > st->rev) st->rev = rev;
             }
-            order[count++] = layer->id;
+            at->layer = layer->id;
+            count++;
         }
         for (i = st->count - 1; i >= 0; --i) { /* gone from the file: gone from the canvas */
             spdf_paint_pdf_entry* e = &st->entries[i];
             int index;
             if (e->seen) continue;
             index = spdf_paint_layer_index(doc, e->layer);
+            if (index > 0 && doc->layers[index]->kind == SPDF_PAINT_LAYER_RASTER) { /* a layer stays; its drawing goes */
+                spdf_paint_layer* l = doc->layers[index];
+                if (e->file && e->file[0] && l->pixels) fz_drop_pixmap(ctx, l->pixels), l->pixels = NULL, changed = 1;
+                spdf_paint_pdf_entry_set(doc, e, spdf_paint_pdf_layer_state(doc, l), spdf_paint_pdf_strdup(""));
+                continue;
+            }
             if (index > 0) spdf_paint_pdf_retire(doc, e), drop_layer(doc, index);
             if (doc->active == e->layer) doc->active = 0;
             spdf_paint_pdf_entry_remove(doc, e);
             changed = 1;
         }
-        order_layers(doc, order, count);
+        spdf_paint_pdf_arrange(doc, placed, count, !reload);
+        for (i = 0; i < count; ++i) { /* what was read, as the canvas now has it, to compare the next write with */
+            spdf_paint_layer* l = placed[i].reread ? spdf_paint_layer_find(doc, placed[i].layer) : NULL;
+            spdf_paint_pdf_entry* e = l ? spdf_paint_pdf_entry_for(doc, l->id) : NULL;
+            if (e) spdf_paint_pdf_entry_set(doc, e, spdf_paint_pdf_layer_state(doc, l), NULL);
+        }
     }
     fz_always(ctx) {
-        free(order);
+        free(placed);
         spdf_free_fill_items(&items);
         pdf_drop_page(ctx, page);
     }
@@ -437,6 +425,11 @@ spdf_paint_doc* spdf_paint_open_pdf_page(spdf_document* pdf, int page_index, cha
         fz_drop_pixmap(ctx, background->pixels), background->pixels = NULL;
         set_layer_name(background, name);
         if (doc->active == background->id) doc->active = 0;
+        if (doc->layer_count < 2) { /* the page's first layer, which takes everything until the person adds more */
+            spdf_paint_layer* first = spdf_paint_layer_new(doc, SPDF_PAINT_LAYER_RASTER, spdf_paint_first_layer_name,
+                                                           background->id);
+            if (first) doc->active = first->id;
+        }
         spdf_paint_pdf_read(doc, 0);
         spdf_paint_pdf_live_add(doc);
     }

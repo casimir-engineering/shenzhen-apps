@@ -120,6 +120,33 @@ spdf_paint_status spdf_paint_order_layers(spdf_paint_call* call, const spdf_pain
 /* Draws the object into the paintable layer below it (made on a PDF page when there is none) and deletes it. */
 spdf_paint_status spdf_paint_merge_object_down(spdf_paint_call* call, spdf_paint_layer* layer);
 
+/* ---- spdf_paint_groups.c: layers holding objects ---- */
+
+extern const char spdf_paint_first_layer_name[]; /* "Layer 1" */
+int spdf_paint_is_layer(const spdf_paint_layer* entry); /* the base layer or a layer, not an object */
+/* The index of the layer holding entry `index`: itself for a layer or the base layer, else the nearest layer below;
+ * -1 for an object with none under it. */
+int spdf_paint_owner_index(const spdf_paint_doc* doc, int index);
+spdf_paint_layer* spdf_paint_owner(spdf_paint_doc* doc, const spdf_paint_layer* entry);
+int spdf_paint_group_end(const spdf_paint_doc* doc, int layer_index); /* one past the layer's last object */
+int spdf_paint_layer_ordinal(const spdf_paint_doc* doc, int layer_index); /* 1 for the lowest layer */
+/* As drawn: shown (its own eye and its layer's), opacity (its own times its layer's), locked (or its layer). */
+int spdf_paint_entry_shown(const spdf_paint_doc* doc, int index);
+float spdf_paint_entry_opacity(const spdf_paint_doc* doc, int index);
+int spdf_paint_entry_locked(const spdf_paint_doc* doc, int index);
+/* The layer new objects go into: the active one, else the lowest; "Layer 1" is made when there is none. */
+spdf_paint_layer* spdf_paint_home_layer(spdf_paint_doc* doc);
+/* Where a new object goes in the list: on top of the home layer (source NULL), at the bottom of `source` when it is a
+ * layer (a lifted selection keeps its place), at the bottom of the lowest layer when `source` is the base layer. */
+int spdf_paint_object_insert_index(spdf_paint_doc* doc, const spdf_paint_layer* source);
+/* Old stacks (one object per layer): objects right above the base layer, or no layer at all, get a new "Layer 1"
+ * just above the base layer. No history. 1 when it changed. */
+int spdf_paint_normalize_layers(spdf_paint_doc* doc);
+/* Fails the call for a layer the pixel tools can't change: a locked layer, else the PDF page. */
+spdf_paint_status spdf_paint_fail_unpaintable(spdf_paint_call* call, const spdf_paint_layer* layer);
+cJSON* spdf_paint_layers_json(const spdf_paint_doc* doc); /* doc.state "layers": each with its "objects" */
+spdf_paint_status spdf_paint_op_object_layer(spdf_paint_call* call);
+
 /* ---- spdf_paint_transform_ops.c ---- */
 
 /* Moves an object through m (canvas units), its own size times (sx, sy), turned by rot degrees, flipped (1

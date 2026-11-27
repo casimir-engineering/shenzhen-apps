@@ -86,7 +86,8 @@ static spdf_paint_doc* new_raster_doc(spdf_paint_doc_kind kind, int width, int h
         spdf_paint_set_error(err, err_len, "There is not enough memory for a canvas this size.");
         return NULL;
     }
-    doc->active = bg->id;
+    spdf_paint_layer* first = spdf_paint_layer_new(doc, SPDF_PAINT_LAYER_RASTER, spdf_paint_first_layer_name, bg->id);
+    doc->active = first ? first->id : bg->id; /* new drawing goes into Layer 1, above the picture */
     return doc;
 }
 
@@ -279,10 +280,10 @@ void spdf_paint_format_color(spdf_paint_color color, char out[10]) {
 const char* spdf_paint_layer_kind_name(spdf_paint_layer_kind kind) {
     switch (kind) {
     case SPDF_PAINT_LAYER_BACKGROUND: return "background";
-    case SPDF_PAINT_LAYER_RASTER: return "raster";
+    case SPDF_PAINT_LAYER_RASTER: return "layer";
     case SPDF_PAINT_LAYER_OBJECT: return "object";
     }
-    return "raster";
+    return "layer";
 }
 
 int spdf_paint_layer_index(const spdf_paint_doc* doc, spdf_paint_id id) {
@@ -345,7 +346,7 @@ spdf_paint_layer* spdf_paint_layer_detach(spdf_paint_doc* doc, spdf_paint_id id)
 }
 
 static void default_layer_name(const spdf_paint_doc* doc, char* out, size_t cap) {
-    for (int n = 2;; n++) {
+    for (int n = 1;; n++) {
         snprintf(out, cap, "Layer %d", n);
         int used = 0;
         for (int i = 0; i < doc->layer_count && !used; i++) used = !strcmp(doc->layers[i]->name, out);
@@ -380,12 +381,13 @@ spdf_paint_layer* spdf_paint_layer_new(spdf_paint_doc* doc, spdf_paint_layer_kin
 
 fz_pixmap* spdf_paint_active_pixels(spdf_paint_doc* doc, spdf_paint_layer** layer_out) {
     spdf_paint_layer* layer = spdf_paint_layer_find(doc, doc->active);
+    if (layer && layer->kind == SPDF_PAINT_LAYER_RASTER && layer->locked) { /* locked: nothing is painted */
+        if (layer_out) *layer_out = layer;
+        return NULL;
+    }
     if (!spdf_paint_layer_paintable(doc, layer)) {
-        layer = NULL;
-        for (int i = doc->layer_count - 1; i >= 0 && !layer; i--)
-            if (spdf_paint_layer_paintable(doc, doc->layers[i])) layer = doc->layers[i];
-        if (!layer && doc->kind == SPDF_PAINT_DOC_PDF)
-            layer = spdf_paint_layer_new(doc, SPDF_PAINT_LAYER_RASTER, "Drawing", 0);
+        layer = spdf_paint_home_layer(doc); /* the layer of the active object, else the lowest (made when none) */
+        if (layer && !spdf_paint_layer_paintable(doc, layer)) layer = NULL;
         if (layer) doc->active = layer->id;
     }
     if (layer_out) *layer_out = layer;
@@ -423,11 +425,13 @@ void spdf_paint_layer_delete(spdf_paint_doc* doc, spdf_paint_layer* layer) {
     spdf_rect damage = spdf_paint_canvas_rect(doc);
     if (layer->object) { spdf_paint_object_update_bounds(layer->object); damage = layer->object->bounds; }
     spdf_paint_layer_detach(doc, layer->id);
-    if (doc->active == layer->id) {
-        int below = spdf_paint_paintable_below(doc, index);
-        doc->active = below >= 0 ? doc->layers[below]->id : 0;
-        for (int i = index; !doc->active && i < doc->layer_count; i++)
-            if (spdf_paint_layer_paintable(doc, doc->layers[i])) doc->active = doc->layers[i]->id;
+    if (doc->active == layer->id) { /* the nearest layer below, else above, else a picture's Background */
+        doc->active = 0;
+        for (int i = index - 1; i > 0 && !doc->active; i--)
+            if (doc->layers[i]->kind == SPDF_PAINT_LAYER_RASTER) doc->active = doc->layers[i]->id;
+        for (int i = index; i < doc->layer_count && !doc->active; i++)
+            if (doc->layers[i]->kind == SPDF_PAINT_LAYER_RASTER) doc->active = doc->layers[i]->id;
+        if (!doc->active && spdf_paint_layer_paintable(doc, doc->layers[0])) doc->active = doc->layers[0]->id;
     }
     spdf_paint_layer_free(doc->ctx, layer);
     spdf_paint_selection_prune(doc);

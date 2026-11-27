@@ -7,6 +7,7 @@
  * opacity /CA (also inside our appearances, which MuPDF draws without applying /CA). Never touches the page itself.
  * The caller saves (Fill & Sign's commit cycle). */
 #include "spdf_paint_pdf_internal.h"
+#include "spdf_paint_pdf_layers.h"
 
 #include "spdf_core_document.h"
 
@@ -159,17 +160,20 @@ static void put_ours(spdf_paint_doc* doc, pdf_annot* annot, const spdf_paint_lay
     fz_context* ctx = doc->ctx;
     pdf_obj* obj = pdf_annot_obj(ctx, annot);
     pdf_obj* ours;
+    int index = spdf_paint_layer_index(doc, layer->id);
+    float opacity = spdf_paint_entry_opacity(doc, index); /* its own times its layer's, as drawn */
     pdf_dict_puts_drop(ctx, obj, "NM", pdf_new_text_string(ctx, nm));
     /* Hidden, and its drawing kept aside (spdf_paint_pdf_stash_appearance): Quick Look draws hidden annotations. */
-    pdf_dict_put_int(ctx, obj, PDF_NAME(F), layer->visible ? PDF_ANNOT_IS_PRINT : PDF_ANNOT_IS_HIDDEN);
+    pdf_dict_put_int(ctx, obj, PDF_NAME(F), spdf_paint_entry_shown(doc, index) ? PDF_ANNOT_IS_PRINT : PDF_ANNOT_IS_HIDDEN);
     pdf_dict_put(ctx, obj, PDF_NAME(P), pdf_annot_page(ctx, annot)->obj);
-    if (layer->opacity < 1) pdf_dict_put_real(ctx, obj, PDF_NAME(CA), layer->opacity);
+    if (opacity < 1) pdf_dict_put_real(ctx, obj, PDF_NAME(CA), opacity);
     ours = pdf_dict_puts_dict(ctx, obj, SPDF_PAINT_PDF_KEY, 6);
     pdf_dict_puts_drop(ctx, ours, "V", pdf_new_int(ctx, SPDF_PAINT_PDF_VERSION));
     pdf_dict_puts_drop(ctx, ours, "Kind", pdf_new_text_string(ctx, kind));
     pdf_dict_puts_drop(ctx, ours, "Name", pdf_new_text_string(ctx, layer->name));
     if (args) pdf_dict_puts_drop(ctx, ours, "Args", pdf_new_text_string(ctx, args));
     pdf_dict_puts_drop(ctx, ours, "Rev", pdf_new_int(ctx, (int64_t)++doc->pdf_state->rev));
+    spdf_paint_pdf_put_layer_record(doc, obj, layer);
     if (!fz_is_empty_irect(box)) {
         pdf_obj* b = pdf_new_array(ctx, pdf_get_bound_document(ctx, obj), 4);
         pdf_dict_puts_drop(ctx, ours, "Box", b);
@@ -258,6 +262,8 @@ static pdf_annot* write_ours(spdf_paint_doc* doc, pdf_page* page, spdf_paint_lay
     pdf_annot* volatile annot = NULL;
     char* volatile args = NULL;
     fz_matrix page_ctm;
+    int index = spdf_paint_layer_index(doc, layer->id);
+    float opacity = spdf_paint_entry_opacity(doc, index);
     pdf_page_transform(ctx, page, NULL, &page_ctm);
     delete_named(ctx, page, nm);
     fz_try(ctx) {
@@ -273,7 +279,7 @@ static pdf_annot* write_ours(spdf_paint_doc* doc, pdf_page* page, spdf_paint_lay
             pixels = crop(ctx, layer->pixels, box);
             r = fz_make_rect(box.x0 / scale, box.y0 / scale, box.x1 / scale, box.y1 / scale);
             list = image_list(ctx, pixels, fz_concat(fz_scale(r.x1 - r.x0, r.y1 - r.y0), fz_translate(r.x0, r.y0)), r,
-                              layer->opacity);
+                              opacity);
             layer->pdf_used = box;
         } else {
             cJSON* json = spdf_paint_pdf_object_args(o);
@@ -285,20 +291,20 @@ static pdf_annot* write_ours(spdf_paint_doc* doc, pdf_page* page, spdf_paint_lay
             if (o->kind == SPDF_PAINT_OBJ_PICTURE) {
                 kind = "picture";
                 if (!o->u.picture.pixels) break;
-                list = image_list(ctx, o->u.picture.pixels, picture_matrix(&o->place), r, layer->opacity);
+                list = image_list(ctx, o->u.picture.pixels, picture_matrix(&o->place), r, opacity);
             } else if (o->kind == SPDF_PAINT_OBJ_TEXT) {
                 kind = "text", type = PDF_ANNOT_FREE_TEXT;
                 pixels = object_pixels(doc, o, r, SPDF_PAINT_PDF_TEXT_SCALE);
                 list = image_list(ctx, pixels, fz_concat(fz_scale(r.x1 - r.x0, r.y1 - r.y0), fz_translate(r.x0, r.y0)),
-                                  r, layer->opacity);
+                                  r, opacity);
             } else {
                 kind = "shape", type = shape_subtype(&o->u.shape);
                 if (type != PDF_ANNOT_STAMP) {
-                    list = shape_list(ctx, o, r, layer->opacity);
+                    list = shape_list(ctx, o, r, opacity);
                 } else {
                     pixels = object_pixels(doc, o, r, scale);
                     list = image_list(ctx, pixels, fz_concat(fz_scale(r.x1 - r.x0, r.y1 - r.y0), fz_translate(r.x0, r.y0)),
-                                      r, layer->opacity);
+                                      r, opacity);
                 }
             }
         }
@@ -317,7 +323,7 @@ static pdf_annot* write_ours(spdf_paint_doc* doc, pdf_page* page, spdf_paint_lay
             put_shape_semantics(ctx, annot, o, fz_invert_matrix(page_ctm));
         }
         spdf_paint_pdf_set_appearance(ctx, annot, list, r);
-        if (!layer->visible) spdf_paint_pdf_stash_appearance(ctx, page->doc, pdf_annot_obj(ctx, annot), 1);
+        if (!spdf_paint_entry_shown(doc, index)) spdf_paint_pdf_stash_appearance(ctx, page->doc, pdf_annot_obj(ctx, annot), 1);
         pdf_clean_obj(ctx, pdf_annot_obj(ctx, annot)); /* our appearance stays: MuPDF redraws dirty annotations */
     }
     fz_always(ctx) {
@@ -427,6 +433,10 @@ spdf_paint_status spdf_paint_pdf_write_back(spdf_paint_doc* doc, int* pages_chan
                 free(model);
                 continue;
             }
+            if (spdf_paint_pdf_name_empty_layer(doc, layer, e)) { /* nothing in the file: only its name */
+                free(model);
+                continue;
+            }
             free(model);
             if (!spdf_owner_allows(doc->pdf, FZ_PERMISSION_ANNOTATE))
                 fz_throw(ctx, FZ_ERROR_ARGUMENT, "This PDF's owner doesn't allow adding to it.");
@@ -437,6 +447,8 @@ spdf_paint_status spdf_paint_pdf_write_back(spdf_paint_doc* doc, int* pages_chan
                 char name[64];
                 pdf_annot* annot;
                 if (e) snprintf(name, sizeof name, "%s", e->nm);
+                else if (layer->kind == SPDF_PAINT_LAYER_RASTER && spdf_paint_pdf_layer_key(layer)[0])
+                    snprintf(name, sizeof name, "%s", layer->pdf_nm); /* its name in its objects' records */
                 else {
                     char uuid[33];
                     spdf_paint_pdf_uuid(uuid);

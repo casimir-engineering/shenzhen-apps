@@ -152,6 +152,7 @@ static const struct { const char* name; spdf_paint_handler handler; } k_handlers
     {"object.move", spdf_paint_op_object_move}, {"object.transform", spdf_paint_op_object_transform},
     {"object.order", spdf_paint_op_object_order}, {"object.merge_down", spdf_paint_op_object_merge_down},
     {"object.duplicate", spdf_paint_op_object_duplicate}, {"object.delete", spdf_paint_op_object_delete},
+    {"object.layer", spdf_paint_op_object_layer},
     {"layer.add", spdf_paint_op_layer_add}, {"layer.duplicate", spdf_paint_op_layer_duplicate},
     {"layer.delete", spdf_paint_op_layer_delete}, {"layer.merge_down", spdf_paint_op_layer_merge_down},
     {"layer.set", spdf_paint_op_layer_set}, {"layer.order", spdf_paint_op_layer_order},
@@ -328,8 +329,7 @@ spdf_paint_status spdf_paint_op_doc_state(spdf_paint_call* call) {
     cJSON_AddStringToObject(r, "units", doc->kind == SPDF_PAINT_DOC_PDF ? "pt" : "px");
     cJSON_AddNumberToObject(r, "dpi", doc->dpi);
     cJSON_AddBoolToObject(r, "transparent", doc->has_alpha);
-    cJSON* layers = cJSON_AddArrayToObject(r, "layers");
-    for (int i = 0; i < doc->layer_count; i++) cJSON_AddItemToArray(layers, spdf_paint_layer_json(doc, doc->layers[i]));
+    cJSON_AddItemToObject(r, "layers", spdf_paint_layers_json(doc)); /* bottom to top, each with its objects */
     if (doc->active) cJSON_AddNumberToObject(r, "active", doc->active);
     else cJSON_AddNullToObject(r, "active");
     const spdf_paint_selection* s = &doc->selection;

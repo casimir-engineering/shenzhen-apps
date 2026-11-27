@@ -30,8 +30,9 @@ extern "C" {
 
 typedef enum spdf_paint_layer_kind {
     SPDF_PAINT_LAYER_BACKGROUND = 0, /* bottom; a picture's own pixels, or a PDF page (locked, no pixels of its own) */
-    SPDF_PAINT_LAYER_RASTER = 1,     /* "Layer 2", a PDF page's "Drawing": pixels the pixel tools paint into */
-    SPDF_PAINT_LAYER_OBJECT = 2      /* one object; every object is its own layer, so it keeps its depth */
+    SPDF_PAINT_LAYER_RASTER = 1,     /* a layer ("Layer 1"): its pixels, which the pixel tools paint into, then the
+                                        objects that follow it in the list (spdf_paint_groups.c) */
+    SPDF_PAINT_LAYER_OBJECT = 2      /* one object, on the layer before it in the list; keeps its depth there */
 } spdf_paint_layer_kind;
 
 typedef enum spdf_paint_object_kind {
@@ -180,10 +181,11 @@ typedef struct spdf_paint_object {
 typedef struct spdf_paint_layer {
     spdf_paint_id id;
     spdf_paint_layer_kind kind;
-    char name[SPDF_PAINT_NAME_MAX]; /* "Background", "Page 3", "Drawing", "Layer 2", "Rectangle", "Text: Hello" ... */
+    char name[SPDF_PAINT_NAME_MAX]; /* "Background", "Page 3", "Layer 1", "Rectangle", "Text: Hello" ... */
     int visible;
     float opacity;            /* 0-1 */
-    int locked;               /* a PDF page's Background and other readers' annotations: nothing changes them */
+    int locked;               /* a PDF page's Background and other readers' annotations: nothing changes them; a
+                                 layer the person locked: neither it nor its objects change */
     fz_pixmap* pixels;        /* raster and picture Background: premultiplied RGBA covering the whole canvas at
                                  raster_scale (NULL for a PDF Background, an object layer, or a raster layer nothing
                                  painted into yet) */
@@ -324,10 +326,10 @@ spdf_paint_layer* spdf_paint_layer_new(spdf_paint_doc* doc, spdf_paint_layer_kin
                                        spdf_paint_id above);
 spdf_paint_layer* spdf_paint_layer_find(spdf_paint_doc* doc, spdf_paint_id id);
 int spdf_paint_layer_index(const spdf_paint_doc* doc, spdf_paint_id id); /* -1 when absent */
-/* The active raster layer's pixels, made (canvas-sized, transparent) on first use; on a PDF page the "Drawing" layer
- * is made first. NULL with err when there is none to paint into. */
+/* The active layer's pixels, made (canvas-sized, transparent) on first use; with an object or nothing active, its
+ * layer or the lowest (Layer 1 made when there is none). NULL when it can't be painted (*layer_out: a locked layer). */
 fz_pixmap* spdf_paint_active_pixels(spdf_paint_doc* doc, spdf_paint_layer** layer_out);
-/* An object layer holding a new object of `kind`, placed above the active layer's group (on top by default), named
+/* A new object of `kind` on top of the active layer's objects (spdf_paint_object_insert_index), its list entry named
  * after it ("Rectangle", "Text: Hello", "Picture", "Pen line", "Signature"). */
 spdf_paint_object* spdf_paint_object_new(spdf_paint_doc* doc, spdf_paint_object_kind kind, spdf_paint_id* id_out);
 void spdf_paint_object_free(fz_context* ctx, spdf_paint_object* object);

@@ -2,6 +2,7 @@
  * an annotation's /SPDFAnnotate so it can be edited again, a layer's whole state as one string so the bridge writes
  * only what changed, and an annotation's fingerprint so a reload reads only what someone else changed. */
 #include "spdf_paint_pdf_internal.h"
+#include "spdf_paint_pdf_layers.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -269,6 +270,7 @@ char* spdf_paint_pdf_layer_state(spdf_paint_doc* doc, const spdf_paint_layer* la
     cJSON_AddStringToObject(s, "n", layer->name);
     cJSON_AddBoolToObject(s, "v", layer->visible);
     cJSON_AddNumberToObject(s, "o", floorf(layer->opacity * 1000.0f + 0.5f));
+    spdf_paint_pdf_state_layer(doc, s, layer); /* its layer: a change to it writes the annotation again */
     if (layer->kind == SPDF_PAINT_LAYER_RASTER) {
         snprintf(hash, sizeof hash, "%016llx", (unsigned long long)spdf_paint_pdf_hash_pixmap(doc->ctx, layer->pixels));
         cJSON_AddStringToObject(s, "h", hash);

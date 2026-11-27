@@ -111,7 +111,8 @@ spdf_paint_id spdf_paint_hit_object(spdf_paint_doc* doc, float x, float y, float
     for (int i = doc->layer_count - 1; i >= 0; i--) {
         spdf_paint_layer* layer = doc->layers[i];
         spdf_paint_object* o = layer->object;
-        if (!o || !layer->visible) continue;
+        if (!o || !spdf_paint_entry_shown(doc, i)) continue;
+        if (spdf_paint_entry_locked(doc, i) && !layer->locked && o->kind != SPDF_PAINT_OBJ_FOREIGN) continue;
         if (o->kind == SPDF_PAINT_OBJ_PEN || o->kind == SPDF_PAINT_OBJ_ARROW) {
             if (o->u.line.point_count && line_distance(&o->u.line, x, y) <= o->u.line.width / 2 + slop)
                 return layer->id;

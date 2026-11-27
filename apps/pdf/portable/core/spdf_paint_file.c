@@ -3,10 +3,13 @@
  * their parameters and drawn again on load), the flattened picture the frontend encodes into the file, PNGs for
  * doc.render, and the doc.render handler.
  *
- * manifest.json, version 1: {"format":"shenzhen-paint","version":1,"kind":"picture"|"canvas","width","height","dpi",
+ * manifest.json, version 2: {"format":"shenzhen-paint","version":2,"kind":"picture"|"canvas","width","height","dpi",
  * "transparent","color1","color2","custom":[10 colours or null],"active":id,"layers":[bottom to top: {"id","kind":
- * "background"|"raster"|"object","name" (empty: named after its object),"visible","opacity" (percent),"locked",
- * "png":"layers/<id>.png" when it has pixels,"object":{"type", and its settings as object.update names them}}]}. */
+ * "background"|"layer","name","visible","opacity" (percent),"locked","png":"layers/<id>.png" when it has pixels,
+ * "objects":[back to front: {"id","kind":"object","name" (empty: named after its object),"visible","opacity",
+ * "png" (a picture's pixels),"object":{"type", and its settings as object.update names them}}]}]}.
+ * Version 1 (before layers held objects) listed every object as a layer of its own, "raster" for layers; it reads
+ * with each object on the layer below it, and objects right above the Background on a new "Layer 1". */
 #include "spdf_paint_model.h"
 
 #include <stdio.h>
@@ -75,6 +78,7 @@ static cJSON* manifest(spdf_paint_doc* doc) {
         cJSON_AddItemToArray(custom, doc->custom[i] ? spdf_paint_color_json(doc->custom[i]) : cJSON_CreateNull());
     cJSON_AddNumberToObject(m, "active", doc->active);
     cJSON* layers = cJSON_AddArrayToObject(m, "layers");
+    cJSON* objects = NULL;
     for (int i = 0; i < doc->layer_count; i++) {
         const spdf_paint_layer* layer = doc->layers[i];
         cJSON* l = cJSON_CreateObject();
@@ -92,7 +96,10 @@ static cJSON* manifest(spdf_paint_doc* doc) {
             cJSON_AddStringToObject(l, "png", name);
         }
         if (layer->object) cJSON_AddItemToObject(l, "object", spdf_paint_object_json(doc, layer->object, 1));
-        cJSON_AddItemToArray(layers, l);
+        if (!layer->object) {
+            cJSON_AddItemToArray(layers, l);
+            objects = layer->kind == SPDF_PAINT_LAYER_RASTER ? cJSON_AddArrayToObject(l, "objects") : NULL;
+        } else cJSON_AddItemToArray(objects ? objects : layers, l);
     }
     return m;
 }
@@ -183,7 +190,7 @@ static fz_pixmap* read_png(fz_context* ctx, fz_archive* zip, const char* name) {
     return pix;
 }
 
-static spdf_paint_layer_kind layer_kind(const char* name) {
+static spdf_paint_layer_kind layer_kind(const char* name) { /* "layer", and version 1's "raster" */
     if (name && !strcmp(name, "background")) return SPDF_PAINT_LAYER_BACKGROUND;
     if (name && !strcmp(name, "object")) return SPDF_PAINT_LAYER_OBJECT;
     return SPDF_PAINT_LAYER_RASTER;
@@ -269,7 +276,11 @@ spdf_paint_doc* spdf_paint_read_project(const char* path, char* err, size_t err_
                                  w, h);
     const cJSON* l = NULL;
     const cJSON* list = doc ? cJSON_GetObjectItemCaseSensitive(m, "layers") : NULL;
-    cJSON_ArrayForEach(l, list) read_layer(doc, zip, l);
+    cJSON_ArrayForEach(l, list) {
+        read_layer(doc, zip, l);
+        const cJSON* o = NULL; /* version 2: the layer's objects follow it */
+        cJSON_ArrayForEach(o, cJSON_GetObjectItemCaseSensitive(l, "objects")) read_layer(doc, zip, o);
+    }
     fz_drop_archive(ctx, zip);
     if (!doc || !doc->layer_count || doc->layers[0]->kind != SPDF_PAINT_LAYER_BACKGROUND) {
         cJSON_Delete(m);
@@ -287,8 +298,12 @@ spdf_paint_doc* spdf_paint_read_project(const char* path, char* err, size_t err_
     spdf_paint_json_color(cJSON_GetObjectItemCaseSensitive(m, "color2"), &doc->color2);
     for (int i = 0; i < SPDF_PAINT_CUSTOM_COLORS; i++)
         spdf_paint_json_color(cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(m, "custom"), i), &doc->custom[i]);
+    int converted = spdf_paint_normalize_layers(doc); /* a version 1 project: its objects on a layer */
     doc->active = (spdf_paint_id)cJSON_GetNumberValue(cJSON_GetObjectItemCaseSensitive(m, "active"));
-    if (!spdf_paint_layer_paintable(doc, spdf_paint_layer_find(doc, doc->active))) doc->active = doc->layers[0]->id;
+    spdf_paint_layer* active = spdf_paint_layer_find(doc, doc->active);
+    if (!active || active->kind == SPDF_PAINT_LAYER_OBJECT || (converted && active->kind == SPDF_PAINT_LAYER_BACKGROUND))
+        active = spdf_paint_home_layer(doc); /* new drawing goes on Layer 1, as in a new document */
+    doc->active = active ? active->id : doc->layers[0]->id;
     if (!doc->layers[0]->pixels) doc->layers[0]->pixels = spdf_paint_pixmap_new(ctx, w, h);
     cJSON_Delete(m);
     spdf_paint_damage_all(doc);
