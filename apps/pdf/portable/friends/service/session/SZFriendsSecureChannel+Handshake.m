@@ -103,6 +103,13 @@
         return;
     }
     _hasTransportKeys = YES;
+    // ADR 0018 § 9.2 (c): both sides have hardware AES and said so; a side that cannot switch keeps the session
+    // ChaChaPoly, which its peer would not open, so it closes rather than go on half switched.
+    if (self.aesSession && (szfriends_cipher_aes_from_second(&_sendCipher) != SZFRIENDS_NOISE_OK ||
+                            szfriends_cipher_aes_from_second(&_receiveCipher) != SZFRIENDS_NOISE_OK)) {
+        [self failWithCode:SZFriendsSessionErrorHandshakeFailed reason:@"AES session could not start"];
+        return;
+    }
     if (self.isInitiator) {
         [self becomeEstablished];
     } else {

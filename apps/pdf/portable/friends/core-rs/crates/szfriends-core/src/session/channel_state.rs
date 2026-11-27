@@ -83,6 +83,13 @@ impl SecureChannel {
         self.fast_with(szfriends_wire::consts::CAPABILITY_AES_LANES)
     }
 
+    /// ADR 0018 § 9.2 (c): this session's transport runs AES-256-GCM from its second message in each direction (both
+    /// sides have hardware AES and set bit 7 on a fast session; a session that is AES-GCM from its handshake, a lane,
+    /// has nothing to switch).
+    pub fn aes_session(&self) -> bool {
+        self.cipher == NoiseCipher::ChaChaPoly && self.fast_with(szfriends_wire::consts::CAPABILITY_AES_SESSION)
+    }
+
     /// ADR 0018 § 9.4: the codec this session's compressed PARTs use, zstd when both sides read it (bit 2), else LZ4
     /// (bit 4). Only Bluetooth and relay lanes send them compressed.
     pub fn part_codec(&self) -> Option<u8> {

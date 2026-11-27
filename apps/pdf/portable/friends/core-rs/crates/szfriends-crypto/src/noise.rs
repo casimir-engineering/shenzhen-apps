@@ -7,7 +7,9 @@
 //! - The key material each pattern needs is checked up front: XX needs a static key, IK one on both sides and the
 //!   responder's on the initiator, and NN refuses any, so an NN session can never reveal a static key by mistake.
 //! - A handshake that has returned an error is dead and refuses every later call.
-//! - Transport plaintext is one frame, at most 65,519 bytes; nonces never wrap (`snow` refuses 2^64-1).
+//! - Transport plaintext is one frame, at most 65,519 bytes; nonces never wrap (2^64-1 is refused).
+//! - A session whose two sides set capability bit 7 runs AES-256-GCM from its second message in each direction
+//!   (ADR 0018 § 9.2 (c), [`Transport::aes_from_second_message`]).
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -193,6 +195,7 @@ impl std::fmt::Debug for HandshakeKeys {
 pub struct Handshake {
     state: Option<snow::HandshakeState>,
     pattern: Pattern,
+    cipher: NoiseCipher,
     dh_count: Arc<AtomicUsize>,
 }
 
@@ -239,7 +242,7 @@ impl Handshake {
             builder = builder.fixed_ephemeral_key_for_testing_only(ephemeral.as_ref());
         }
         let state = if initiator { builder.build_initiator() } else { builder.build_responder() };
-        Ok(Self { state: Some(state.map_err(map_error)?), pattern, dh_count })
+        Ok(Self { state: Some(state.map_err(map_error)?), pattern, cipher, dh_count })
     }
 
     pub fn pattern(&self) -> Pattern {
@@ -311,11 +314,94 @@ impl Handshake {
 
     /// Split(), after the last message.
     pub fn into_transport(mut self) -> Result<Transport, NoiseError> {
-        let state = self.state.take().ok_or(NoiseError::State)?;
+        let mut state = self.state.take().ok_or(NoiseError::State)?;
         if !state.is_handshake_finished() {
             return Err(NoiseError::State);
         }
-        Ok(Transport { state: state.into_stateless_transport_mode().map_err(map_error)?, sending: 0, receiving: 0 })
+        let (first, second) = state.dangerously_get_raw_split();
+        let (first, second) = (Zeroizing::new(first), Zeroizing::new(second));
+        let (send, receive) = if state.is_initiator() { (first, second) } else { (second, first) };
+        Ok(Transport {
+            send: Direction::new(self.cipher, send)?,
+            receive: Direction::new(self.cipher, receive)?,
+            sending: 0,
+            receiving: 0,
+        })
+    }
+}
+
+/// `"SZFriends AES session v1"`: what the AES-256-GCM key of a session's later messages is derived with (ADR 0018
+/// § 9.2 (c), [`Transport::aes_from_second_message`]).
+pub const AES_SESSION_LABEL: &[u8; 24] = b"SZFriends AES session v1";
+
+fn resolve_cipher(choice: NoiseCipher) -> Result<Box<dyn Cipher>, NoiseError> {
+    let choice = match choice {
+        NoiseCipher::ChaChaPoly => CipherChoice::ChaChaPoly,
+        NoiseCipher::AesGcm => CipherChoice::AESGCM,
+    };
+    DefaultResolver.resolve_cipher(&choice).ok_or(NoiseError::Argument)
+}
+
+/// One direction's CipherState: its key, kept for REKEY and for the switch to AES-256-GCM, and the cipher set to it.
+struct Direction {
+    key: Zeroizing<[u8; 32]>,
+    cipher: Box<dyn Cipher>,
+    /// Armed by [`Transport::aes_from_second_message`] and not yet switched: messages from nonce 1 on go under
+    /// AES-256-GCM with the key derived from `key` as it is when message 1 is first sealed or opened.
+    aes_from_second: bool,
+    /// That cipher, made for a batch that reaches nonce 1, until a message at nonce 1 or later was counted.
+    next: Option<(Zeroizing<[u8; 32]>, Box<dyn Cipher>)>,
+}
+
+impl Direction {
+    fn new(choice: NoiseCipher, key: Zeroizing<[u8; 32]>) -> Result<Self, NoiseError> {
+        let mut cipher = resolve_cipher(choice)?;
+        cipher.set(&key);
+        Ok(Self { key, cipher, aes_from_second: false, next: None })
+    }
+
+    fn cipher_for(&self, nonce: u64) -> &dyn Cipher {
+        match &self.next {
+            Some((_, aes)) if nonce >= 1 => aes.as_ref(),
+            _ => self.cipher.as_ref(),
+        }
+    }
+
+    /// Before sealing or opening messages up to nonce `last`: the AES cipher, if this direction switches by then.
+    fn prepare(&mut self, last: u64) -> Result<(), NoiseError> {
+        if !self.aes_from_second || self.next.is_some() || last < 1 {
+            return Ok(());
+        }
+        use blake2::digest::{KeyInit, Mac};
+        let mut mac = <blake2::Blake2bMac<blake2::digest::consts::U32> as KeyInit>::new_from_slice(&self.key[..])
+            .map_err(|_| NoiseError::Argument)?;
+        mac.update(AES_SESSION_LABEL);
+        let key = Zeroizing::new(<[u8; 32]>::from(mac.finalize().into_bytes()));
+        let mut aes = resolve_cipher(NoiseCipher::AesGcm)?;
+        aes.set(&key);
+        self.next = Some((key, aes));
+        Ok(())
+    }
+
+    /// After counting messages up to `counter` (the next nonce): once message 1 was counted, AES is the cipher.
+    fn commit(&mut self, counter: u64) {
+        if counter >= 2 {
+            if let Some((key, cipher)) = self.next.take() {
+                self.key = key;
+                self.cipher = cipher;
+                self.aes_from_second = false;
+            }
+        }
+    }
+
+    /// `k = first 32 bytes of ENCRYPT(k, 2^64-1, empty, zeros)` with the cipher in use; the nonce is kept. A switch
+    /// prepared but not yet used is made again from the new key.
+    fn rekey(&mut self) {
+        self.next = None;
+        let mut out = Zeroizing::new([0u8; 32 + NOISE_TAG_LEN]);
+        self.cipher.encrypt(u64::MAX, &[], &[0u8; 32], &mut out[..]);
+        self.key.copy_from_slice(&out[..32]);
+        self.cipher.set(&self.key);
     }
 }
 
@@ -323,7 +409,8 @@ impl Handshake {
 /// (snow's stateless transport takes them explicitly), so a batch of messages can be sealed or opened on several cores
 /// at once ([`Transport::encrypt_many`], [`Transport::decrypt_many`]) with exactly the nonces one at a time would use.
 pub struct Transport {
-    state: snow::StatelessTransportState,
+    send: Direction,
+    receive: Direction,
     sending: u64,
     receiving: u64,
 }
@@ -373,8 +460,11 @@ impl Transport {
         if plaintext.len() > FRAME_PLAINTEXT_MAX {
             return Err(NoiseError::Size);
         }
+        if nonce == u64::MAX {
+            return Err(NoiseError::Nonce);
+        }
         let mut out = vec![0u8; plaintext.len() + NOISE_TAG_LEN];
-        let length = self.state.write_message(nonce, plaintext, &mut out).map_err(map_error)?;
+        let length = self.send.cipher_for(nonce).encrypt(nonce, &[], plaintext, &mut out);
         out.truncate(length);
         Ok(out)
     }
@@ -383,16 +473,30 @@ impl Transport {
         if message.len() > NOISE_MESSAGE_MAX || message.len() < NOISE_TAG_LEN {
             return Err(NoiseError::Size);
         }
-        let mut out = vec![0u8; message.len()];
-        let length = self.state.read_message(nonce, message, &mut out).map_err(map_error)?;
+        if nonce == u64::MAX {
+            return Err(NoiseError::Nonce);
+        }
+        let mut out = vec![0u8; message.len() - NOISE_TAG_LEN];
+        let length = self.receive.cipher_for(nonce).decrypt(nonce, &[], message, &mut out).map_err(map_error)?;
         out.truncate(length);
         Ok(out)
     }
 
+    /// ADR 0018 § 9.2 (c), a session whose two handshakes set capability bit 7: in each direction the first message
+    /// stays under the handshake's cipher (ChaChaPoly) and every later one is AES-256-GCM, Noise's `AESGCM` nonces, under
+    /// `BLAKE2b-256(key: k, "SZFriends AES session v1")`, k being that direction's key when its message 1 goes. REKEY
+    /// after that rekeys the AES key the same way. Called right after Split(), before any message.
+    pub fn aes_from_second_message(&mut self) {
+        self.send.aes_from_second = true;
+        self.receive.aes_from_second = true;
+    }
+
     /// One frame's plaintext, at most 65,519 bytes, to one transport message.
     pub fn encrypt(&mut self, plaintext: &[u8]) -> Result<Vec<u8>, NoiseError> {
+        self.send.prepare(self.sending)?;
         let message = self.seal(self.sending, plaintext)?;
         self.sending += 1;
+        self.send.commit(self.sending);
         Ok(message)
     }
 
@@ -402,16 +506,20 @@ impl Transport {
     pub fn encrypt_many(&mut self, plaintexts: &[&[u8]]) -> Result<Vec<Vec<u8>>, NoiseError> {
         let bytes = plaintexts.iter().map(|p| p.len()).sum();
         let first = self.sending;
+        self.send.prepare(first + plaintexts.len().saturating_sub(1) as u64)?;
         let sealed = map_batch(plaintexts, bytes, |n, plaintext| self.seal(first + n as u64, plaintext));
         let sealed: Vec<Vec<u8>> = sealed.into_iter().collect::<Result<_, _>>()?;
         self.sending += sealed.len() as u64;
+        self.send.commit(self.sending);
         Ok(sealed)
     }
 
     /// Any failure closes the session: there is no resynchronisation.
     pub fn decrypt(&mut self, message: &[u8]) -> Result<Vec<u8>, NoiseError> {
+        self.receive.prepare(self.receiving)?;
         let plaintext = self.open(self.receiving, message)?;
         self.receiving += 1;
+        self.receive.commit(self.receiving);
         Ok(plaintext)
     }
 
@@ -426,6 +534,13 @@ impl Transport {
     ) -> Vec<Result<Vec<u8>, NoiseError>> {
         let bytes = messages.iter().map(|m| m.len()).sum();
         let first = self.receiving;
+        // Message 0 alone while the switch to AES is ahead: it may be a REKEY, which changes the key AES comes from.
+        if self.receive.aes_from_second && first == 0 && messages.len() > 1 {
+            return vec![self.decrypt(messages[0])];
+        }
+        if let Err(error) = self.receive.prepare(first + messages.len().saturating_sub(1) as u64) {
+            return vec![Err(error)];
+        }
         let opened = map_batch(messages, bytes, |n, message| self.open(first + n as u64, message));
         let mut out = Vec::with_capacity(opened.len());
         for result in opened {
@@ -441,17 +556,18 @@ impl Transport {
                 break;
             }
         }
+        self.receive.commit(self.receiving);
         out
     }
 
     /// After sending REKEY: `k = first 32 bytes of ENCRYPT(k, 2^64-1, empty, zeros)`; the nonce is kept.
     pub fn rekey_outgoing(&mut self) {
-        self.state.rekey_outgoing();
+        self.send.rekey();
     }
 
     /// Right after decrypting the peer's REKEY.
     pub fn rekey_incoming(&mut self) {
-        self.state.rekey_incoming();
+        self.receive.rekey();
     }
 
     pub fn sending_nonce(&self) -> u64 {

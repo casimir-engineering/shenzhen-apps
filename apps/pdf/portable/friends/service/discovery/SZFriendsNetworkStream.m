@@ -4,7 +4,9 @@
 
 #include <dns_sd.h>
 
-static const uint32_t kReceiveMaximum = 65536;
+// Up to 1 MiB per delivery: a fast route then costs a sixteenth of the callbacks of 64 KiB ones, and each delivery
+// holds several whole transport messages the channel reads in place.
+static const uint32_t kReceiveMaximum = 1u << 20;
 // After a local close, the FIN normally goes out at once; this bounds how long a peer that stopped reading can
 // keep the connection (and its buffers) alive.
 static const NSTimeInterval kGracefulCloseTimeout = 5;
@@ -35,15 +37,18 @@ NSError *SZFriendsErrorFromNetworkError(nw_error_t error) {
     return SZFriendsDiscoveryMakeError(SZFriendsDiscoveryErrorCancelled, @"connection ended");
 }
 
-static NSData *CopyDispatchData(dispatch_data_t content) {
-    NSMutableData *data = [NSMutableData dataWithCapacity:dispatch_data_get_size(content)];
-    dispatch_data_apply(content, ^bool(dispatch_data_t region, size_t offset, const void *buffer, size_t size) {
-        (void)region;
-        (void)offset;
-        [data appendBytes:buffer length:size];
-        return true;
-    });
-    return data;
+// The delivery as NSData without a copy when it is one region (a map of several regions is one copy), kept alive by
+// the map for as long as the NSData lives.
+static NSData *DataFromDispatchData(dispatch_data_t content) {
+    const void *bytes = NULL;
+    size_t size = 0;
+    dispatch_data_t map = dispatch_data_create_map(content, &bytes, &size);
+    return [[NSData alloc] initWithBytesNoCopy:(void *)bytes
+                                        length:size
+                                   deallocator:^(void *unused, NSUInteger length) {
+                                       (void)unused, (void)length;
+                                       (void)map;
+                                   }];
 }
 
 @implementation SZFriendsNetworkStream {
@@ -186,7 +191,7 @@ static NSData *CopyDispatchData(dispatch_data_t content) {
                               }
                               if (!strongSelf || strongSelf->_closed) return;
                               if (content && dispatch_data_get_size(content) > 0) {
-                                  NSData *data = CopyDispatchData(content);
+                                  NSData *data = DataFromDispatchData(content);
                                   dispatch_async(strongSelf->_callbackQueue, ^{
                                       if (strongSelf.onData) strongSelf.onData(data);
                                   });
@@ -218,7 +223,12 @@ static NSData *CopyDispatchData(dispatch_data_t content) {
 
 - (void)writeData:(NSData *)data completion:(void (^)(NSError *))completion {
     void (^done)(NSError *) = [completion copy];
-    dispatch_data_t content = dispatch_data_create(data.bytes, data.length, NULL, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
+    // Without a copy: the bytes stay with an immutable NSData until the connection is done with them (a mutable one
+    // is copied once here, so a caller reusing it cannot change what is sent).
+    NSData *held = [data copy];
+    dispatch_data_t content = dispatch_data_create(held.bytes, held.length, NULL, ^{
+        (void)held;
+    });
     __weak SZFriendsNetworkStream *weakSelf = self;
     nw_connection_send(_connection, content, NW_CONNECTION_DEFAULT_STREAM_CONTEXT, false, ^(nw_error_t error) {
         SZFriendsNetworkStream *strongSelf = weakSelf;

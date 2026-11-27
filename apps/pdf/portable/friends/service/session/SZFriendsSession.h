@@ -105,6 +105,9 @@ extern const uint16_t SZFriendsFastTransfersMinor;      // 4
 typedef NS_OPTIONS(uint32_t, SZFriendsCapabilities) {
     SZFriendsCapabilityFastTransfers = 1u << 0, // blocks, the tree, WANT and HAVE (ADR 0018)
     SZFriendsCapabilityAESLanes = 1u << 1,      // reserved for AES-GCM lanes (ADR 0018 § 9.2): never sent yet
+    // An AES session (ADR 0018 § 9.2 (c)): set with hardware AES; a fast session whose two sides set it runs
+    // AES-256-GCM from the second transport message in each direction (szfriends_cipher_aes_from_second).
+    SZFriendsCapabilityAESSession = 1u << 7,
     SZFriendsCapabilityCompressedParts = 1u << 2, // compressed PARTs (ADR 0018 § 9.4): never sent yet
     // Pieces (field 47) in WANT and HAVE (ADR 0018 § 3): sent only to a peer that sets it; to one that does not, a
     // partly received block is wanted whole and the sender schedules whole blocks.
@@ -119,7 +122,8 @@ typedef NS_OPTIONS(uint32_t, SZFriendsCapabilities) {
     SZFriendsCapabilityDirectWiFiAllowed = 1u << 6,
 };
 // What a new channel sets: fast transfers, unless the helper switched them off (settings key transfers.fast, read as
-// it starts) or SZFRIENDS_TEST_FAST_TRANSFERS=0 plays a released helper in a test home.
+// it starts) or SZFRIENDS_TEST_FAST_TRANSFERS=0 plays a released helper in a test home; with them, an AES session
+// where this Mac has hardware AES, unless SZFRIENDS_TEST_AES_SESSION=0.
 SZFriendsCapabilities SZFriendsDefaultCapabilities(void);
 void SZFriendsSetFastTransfersEnabled(BOOL enabled);
 // ADR 0019: new channels also set SZFriendsCapabilityDirectWiFiBoost (with fast transfers) once the helper can join a
@@ -342,6 +346,9 @@ typedef BOOL (^SZFriendsRemoteKeyPolicy)(NSData *_Nullable remoteIdentityKey, SZ
 @property(nonatomic, readonly) BOOL fastTransfers;
 // Both sides set capability bit 3 on a fast session: Pieces go to this peer (ADR 0018 § 3).
 @property(nonatomic, readonly) BOOL pieces;
+// Both sides set capability bit 7 on a fast session: the transport is AES-256-GCM from its second message each way
+// (ADR 0018 § 9.2 (c)).
+@property(nonatomic, readonly) BOOL aesSession;
 // Both sides set capability bit 5 on a fast session: BOOST may go either way (ADR 0019).
 @property(nonatomic, readonly) BOOL directWiFiBoost;
 // Both handshakes set SZFriendsCapabilityDirectWiFiAllowed (any minor): this session may run on peer-to-peer Wi-Fi.

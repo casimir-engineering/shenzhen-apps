@@ -1,5 +1,6 @@
 // Noise Protocol Framework, revision 34, for exactly one suite and three patterns:
-// Noise_{XX,IK,NN}_25519_ChaChaPoly_BLAKE2b (ADR 0001). Internal to service/session/; Objective-C callers use
+// Noise_{XX,IK,NN}_25519_ChaChaPoly_BLAKE2b (ADR 0001), whose transport may switch to AES-256-GCM after its first
+// message (ADR 0018 § 9.2 (c), szfriends_cipher_aes_from_second). Internal to service/session/; Objective-C callers use
 // SZFriendsSession.h. CipherState, SymmetricState and HandshakeState follow the spec's sections 5.1 to 5.3 name
 // for name, so a reviewer can read them side by side with it; there are no PSK modifiers, no fallback and no
 // run-time protocol-name parsing, because every extra path is review surface we do not need.
@@ -57,6 +58,8 @@ typedef struct {
     uint8_t k[SZFRIENDS_NOISE_KEYLEN];
     int has_key;
     uint64_t n;
+    int aes;             // k is an AES-256-GCM key (Noise's AESGCM): set by the switch below, never by Split()
+    int aes_from_second; // armed by szfriends_cipher_aes_from_second and not yet switched
 } szfriends_cipher_state;
 
 // `key` NULL means empty: EncryptWithAd then returns the plaintext unchanged, as the spec requires before the
@@ -72,6 +75,13 @@ int szfriends_cipher_decrypt(szfriends_cipher_state *cs, const uint8_t *ad, size
 // k = first 32 bytes of ENCRYPT(k, 2^64-1, empty, 32 zero bytes) (spec § 4.2 default REKEY, § 11.3). n is kept.
 int szfriends_cipher_rekey(szfriends_cipher_state *cs);
 void szfriends_cipher_clear(szfriends_cipher_state *cs);
+// An AES session (ADR 0018 § 9.2 (c)), armed on a transport CipherState right after Split(): the first message (n 0)
+// stays ChaChaPoly; just before the first encryption or decryption at n 1 or later, k becomes
+// BLAKE2b-256(key: k, "SZFriends AES session v1") and every message from then on is AES-256-GCM with Noise's AESGCM
+// nonce (32 zero bits, then n big-endian), REKEY included. Needs hardware AES; NO-op, returning an error, without it.
+int szfriends_cipher_aes_from_second(szfriends_cipher_state *cs);
+// The label that derivation hashes, 24 bytes.
+extern const uint8_t szfriends_noise_aes_session_label[24];
 
 #pragma mark - SymmetricState (spec § 5.2)
 

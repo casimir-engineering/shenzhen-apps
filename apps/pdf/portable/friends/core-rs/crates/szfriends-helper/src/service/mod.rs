@@ -309,9 +309,10 @@ pub const ENV_TEST_FAST_TRANSFERS: &str = "SZFRIENDS_TEST_FAST_TRANSFERS";
 pub const ENV_TEST_COPIES_BY_BLOCKS: &str = "SZFRIENDS_TEST_COPIES_BY_BLOCKS";
 /// A test home's switch for lanes (ADR 0018 § 6): "0" opens and admits none.
 pub const ENV_TEST_LANES: &str = "SZFRIENDS_TEST_LANES";
-/// A test home's switches for AES-GCM lanes and compressed parts (ADR 0018 § 9.2, § 9.4): "0" leaves that bit out of
-/// the handshake, so the pair runs without it (the bench's before and after).
+/// A test home's switches for AES-GCM lanes, AES sessions and compressed parts (ADR 0018 § 9.2, § 9.4): "0"
+/// leaves that bit out of the handshake, so the pair runs without it (the bench's before and after).
 pub const ENV_TEST_AES_LANES: &str = "SZFRIENDS_TEST_AES_LANES";
+pub const ENV_TEST_AES_SESSION: &str = "SZFRIENDS_TEST_AES_SESSION";
 pub const ENV_TEST_COMPRESSED_PARTS: &str = "SZFRIENDS_TEST_COMPRESSED_PARTS";
 /// A test home's emulated route rates, `lan=1250000,bluetooth=175000` (bytes per second each side writes at), so
 /// lanes over several routes can be measured on one computer (WP5's bench emulates one route at a time).
