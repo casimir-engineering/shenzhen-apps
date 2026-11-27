@@ -7,6 +7,7 @@
 // the Airbrush sprays the same dots), and the core lays exactly what was shown.
 #import "SPDFMacAnnotateCanvasViewPrivate.h"
 
+#import "SPDFMacAnnotateLayersPanelPrivate.h"
 #import "SPDFMacFillController.h"
 
 #include <vector>
@@ -39,6 +40,7 @@
     if (page < 0) [self dropTilesOnPage:page inRect:rect];  // its screen tiles, small, drawn again
     else [self liveStrokePaintPicture:rect page:page];
     [self liveStrokeRedraw:rect page:page];
+    [NSNotificationCenter.defaultCenter postNotificationName:SPDFAnnotateLiveStrokeNotification object:self.controller];
 }
 
 // Drawn again on whole pixels of the screen: a part of a pixel drawn over blends with what was there before, and the
