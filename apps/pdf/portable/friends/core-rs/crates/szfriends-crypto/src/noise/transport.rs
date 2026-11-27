@@ -24,6 +24,9 @@ fn resolve_cipher(choice: NoiseCipher) -> Result<Box<dyn Cipher>, NoiseError> {
     DefaultResolver.resolve_cipher(&choice).ok_or(NoiseError::Argument)
 }
 
+/// A key and the cipher set to it.
+type KeyedCipher = (Zeroizing<[u8; 32]>, Box<dyn Cipher>);
+
 /// One direction's CipherState: its key, kept for REKEY and for the switch to AES-256-GCM, and the cipher set to it.
 struct Direction {
     key: Zeroizing<[u8; 32]>,
@@ -32,7 +35,7 @@ struct Direction {
     /// AES-256-GCM with the key derived from `key` as it is when message 1 is first sealed or opened.
     aes_from_second: bool,
     /// That cipher, made for a batch that reaches nonce 1, until a message at nonce 1 or later was counted.
-    next: Option<(Zeroizing<[u8; 32]>, Box<dyn Cipher>)>,
+    next: Option<KeyedCipher>,
 }
 
 impl Direction {
