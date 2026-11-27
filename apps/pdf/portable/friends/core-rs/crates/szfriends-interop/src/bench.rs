@@ -74,11 +74,26 @@ pub const LAN_SLOW: RouteProfile = RouteProfile {
     loss_per_million: 0,
 };
 
+/// The owner's Wi-Fi as one TCP connection sees it (LocalSend fills it at 40 MB/s), at a 12 ms and a 20 ms round trip,
+/// and at 12 ms with AWDL awake beside it: the radio away 70 ms in every 524 ms (ADR 0021's measurement), which ADR
+/// 0022 now keeps off. Named only (`BENCH_ROUTES=wifi12,wifi20,wifi_awdl`), not in the default run.
+pub const WIFI12: RouteProfile =
+    RouteProfile { name: "wifi12", class: "lan", bytes_per_second: Some(40_000_000), one_way_ms: 6, loss_per_million: 0 };
+pub const WIFI20: RouteProfile =
+    RouteProfile { name: "wifi20", class: "lan", bytes_per_second: Some(40_000_000), one_way_ms: 10, loss_per_million: 0 };
+pub const WIFI_AWDL: RouteProfile = RouteProfile {
+    name: "wifi_awdl",
+    class: "lan",
+    bytes_per_second: Some(40_000_000),
+    one_way_ms: 6,
+    loss_per_million: 0,
+};
+
 pub const ROUTES: [RouteProfile; 7] = [LOOPBACK, LAN, P2P_WIFI, INTERNET, INTERNET_LOSSY, RELAY, BLUETOOTH];
 
 impl RouteProfile {
     pub fn named(name: &str) -> Option<Self> {
-        ROUTES.iter().copied().chain([LAN_SLOW]).find(|r| r.name == name)
+        ROUTES.iter().copied().chain([LAN_SLOW, WIFI12, WIFI20, WIFI_AWDL]).find(|r| r.name == name)
     }
 
     pub fn tamper(&self) -> Tamper {
@@ -86,6 +101,7 @@ impl RouteProfile {
             bytes_per_second: self.bytes_per_second,
             one_way_delay: (self.one_way_ms > 0).then(|| Duration::from_millis(self.one_way_ms)),
             loss_per_million: self.loss_per_million,
+            flap: (self.name == WIFI_AWDL.name).then(|| (Duration::from_millis(454), Duration::from_millis(70))),
             ..Tamper::default()
         }
     }
