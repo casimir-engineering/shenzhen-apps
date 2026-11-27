@@ -28,8 +28,8 @@ static inline NSError *SZFriendsBlockError(SZFriendsStoreError code, NSString *w
 - (nullable NSData *)finishWithBlocks:(uint32_t)blocks;
 @end
 
-// A durability batch running off the store queue (SZFriendsBlockDownloads.m): the blocks it makes durable, the bytes
-// they hold, and once it ran, whether every step succeeded.
+// A durability batch running off the store queue (SZFriendsBlockDownloads+Durability.m): the blocks it makes
+// durable, the bytes they hold, and once it ran, whether every step succeeded.
 @interface SZFriendsBlockFlush : NSObject
 @property(nonatomic, copy) NSIndexSet *blocks;
 @property(nonatomic) uint64_t bytes;
@@ -82,7 +82,7 @@ BOOL SZFriendsWriteSidecar(NSString *path, NSData *bytes);
 SZFriendsBlockSet *SZFriendsRecheck(int fd, SZFriendsBlockGeometry geometry, NSData *leaves, SZFriendsBlockSet *claimed);
 uint64_t SZFriendsDurablePrefix(SZFriendsBlockGeometry geometry, SZFriendsBlockSet *durable);
 
-// SZFriendsBlockDownloads.m's, for the check.
+// SZFriendsBlockDownloads.m's and SZFriendsBlockDownloads+Durability.m's, for the check and each other.
 @interface SZFriendsTransfers (BlocksInternal)
 - (NSString *)blockMapPathForTransfer:(NSString *)transferID;
 - (NSString *)senderTreePathForTransfer:(NSString *)transferID;
@@ -92,6 +92,12 @@ uint64_t SZFriendsDurablePrefix(SZFriendsBlockGeometry geometry, SZFriendsBlockS
                                           error:(NSError **)error;
 - (BOOL)flushBlocks:(SZFriendsBlockDownload *)download transfer:(NSString *)transferID db:(SZFriendsStoreDB *)db
               error:(NSError **)error;
+// SZFriendsBlockDownloads+Durability.m's, for the receive path.
+- (BOOL)settleBlockFlush:(SZFriendsBlockDownload *)download
+                transfer:(NSString *)transferID
+                      db:(SZFriendsStoreDB *)db
+                    wait:(BOOL)wait;
+- (void)flushBlocksInBackground:(SZFriendsBlockDownload *)download transfer:(NSString *)transferID;
 @end
 
 NS_ASSUME_NONNULL_END
