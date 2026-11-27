@@ -115,6 +115,8 @@ static char kQuitStateKey;
 static const NSTimeInterval kQuitImageCopyBy = 1.2, kQuitWritesBy = 1.4, kQuitCollectionBy = 1.6,
                             kQuitRelaunchBy = 1.7, kQuitExitBy = 1.85;
 static CFAbsoluteTime gQuitHiddenAt; // when the windows of the quit under way left the screen; 0 before
+static BOOL gQuitFinishing;          // a quit started (beginQuit) or its last writes ran
+BOOL spdf_mac_quit_finishing(void) { return gQuitFinishing; }
 // `by` seconds after the windows left the screen (from now when no quit is under way: applicationWillTerminate alone).
 static CFAbsoluteTime QuitTime(NSTimeInterval by) {
     return (gQuitHiddenAt > 0 ? gQuitHiddenAt : CFAbsoluteTimeGetCurrent()) + by;
@@ -181,6 +183,7 @@ static dispatch_time_t QuitDispatchTime(NSTimeInterval by) {
     SPDFMacQuitState* state = [self quitState];
     if (state.finishing) return NO;
     state.finishing = YES;
+    gQuitFinishing = YES;
     [self hideWindowsForQuit];
     [self armQuitDeadline];
     return YES;
@@ -248,6 +251,7 @@ static dispatch_time_t QuitDispatchTime(NSTimeInterval by) {
     SPDFMacQuitState* state = [self quitState];
     if (state.finalWritesDone) return NO;
     state.finalWritesDone = YES;
+    gQuitFinishing = YES;
     SPDF_LIFECYCLE_EVENT("QuitWrites");
     [self annotateFlushForQuit];  // pictures and canvases written now, never asking (SPDFMacAnnotateIntegration.mm)
     return YES;

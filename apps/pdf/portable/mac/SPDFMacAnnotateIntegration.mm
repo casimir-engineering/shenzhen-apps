@@ -35,6 +35,9 @@ NSString* const SPDFAnnotateCopyNoteText = @"Annotate saves a copy of this pictu
 NSString* const SPDFAnnotateWritableCopyNote =
     @"You're annotating a copy, because the original can't be changed. Choose File > Save As... to put it where you "
     @"want.";
+NSString* const SPDFAnnotateChangedCopyNote =
+    @"You're annotating a copy, because another app changed the original while you were annotating it. Choose "
+    @"File > Save As... to put it where you want.";
 NSString* const SPDFAnnotateGrowCanvasQuestion = @"Make the canvas bigger to fit?";
 NSString* const SPDFAnnotateRemoveEverythingTitle = @"Remove Everything Added with Annotate";
 NSString* const SPDFAnnotateProjectFormatTitle = @"Shenzhen Paint project";

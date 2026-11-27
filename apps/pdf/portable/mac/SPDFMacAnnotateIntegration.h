@@ -31,6 +31,7 @@ FOUNDATION_EXPORT NSString* const SPDFAnnotateCopyNoteText;         // "Annotate
 // "You're annotating a copy, because the original can't be changed. Choose File > Save As... to put it where you
 // want." (Fill & Sign's writable-copy note, worded for annotations)
 FOUNDATION_EXPORT NSString* const SPDFAnnotateWritableCopyNote;
+FOUNDATION_EXPORT NSString* const SPDFAnnotateChangedCopyNote;  // the copy made when another app changed the file
 FOUNDATION_EXPORT NSString* const SPDFAnnotateGrowCanvasQuestion;   // "Make the canvas bigger to fit?"
 FOUNDATION_EXPORT NSString* const SPDFAnnotateRemoveEverythingTitle;// "Remove Everything Added with Annotate"
 FOUNDATION_EXPORT NSString* const SPDFAnnotateProjectFormatTitle;   // "Shenzhen Paint project"

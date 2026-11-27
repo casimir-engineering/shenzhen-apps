@@ -153,8 +153,7 @@ static char kSPDFFillSessionKey;
     // No-break spaces keep "File ▸ Save As…" on one line.
     // Shown from the start when the original can't be changed, so the line doesn't appear (and move the pages)
     // with the first change.
-    if (![_host fillIsEditedCopy] && ![_host fillWillFillACopy]) return nil;
-    return SPDFAnnotateWritableCopyNote;
+    return [_host fillEditedCopyNote];
 }
 
 - (void)activeDocumentChanged {

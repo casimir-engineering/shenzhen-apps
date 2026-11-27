@@ -453,7 +453,9 @@ NSBezierPath* SPDFFillMarkPath(NSRect r, BOOL cross) {
     NSInteger index;
     NSPoint p;
     if ([self annotateTakeMouseDown:event]) return;
-    if (![self locateViewPoint:point page:&index pagePoint:&p] || [self drawingMouseDown:event]) return;
+    if (![self locateViewPoint:point page:&index pagePoint:&p]) return;
+    [self.controller.host fillPrepareSaveWhenIdle];  // a press on a page while Fill & Sign shows: a change may follow
+    if ([self drawingMouseDown:event]) return;
     [self.controller.editor commitAndClose];
     [self.window makeFirstResponder:self];
     SPDFFillItem* item = [self itemAt:p page:index];

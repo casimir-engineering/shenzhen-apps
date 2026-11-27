@@ -5,8 +5,10 @@
 // save after opening, which reads every object of the file first. A key or click that came meanwhile waited, so five
 // quick Backspaces or a run of nudges stalled on every one. Now the save is owed (spdf_deferred_save.h) and written
 // once the changes rest: 0.35 s after the last one, 1 s after the first at the latest, and never while a mouse
-// button is down or a key is waiting (2 s at the very latest). The objects the first save would read are read
-// beforehand, in steps of a few milliseconds while Fill & Sign or Annotate shows and nothing else is happening.
+// button is down or a key is waiting (2 s at the very latest); a save that comes while another is being written or
+// Fill & Sign is busy waits 0.1 s and comes again. The objects the first save would read are read beforehand, in
+// steps of a few milliseconds when nothing else is happening, from the first change or the first press with a
+// drawing tool on (a palette only shown reads nothing).
 //
 // Whatever reads the file or lets the document go writes the owed save first, so nobody ever sees the file without a
 // change that is on screen:
@@ -18,8 +20,18 @@
 //     szpdf's own readings of a file ask the running readers first;
 //   - a menu command writes it before it runs, except Annotate's own edits (Undo, Delete, the Image menu...);
 //   - and spdf_close writes it, should a document go any other way.
-// A kill -9 loses the changes of the last half second or so, never a part of one (each save is atomic).
+// The save is not written into a file another app changed since (spdf_deferred_save_file_changed): the changes go to
+// a copy the tab follows (SPDFMacFillSaveCopy.mm). A save that fails is told once and stays owed: the next change,
+// leaving the document and quitting try again, and if it still fails when the document closes, the changes are kept
+// in a copy too.
+// A kill -9 loses the changes of the last half second or so. A save that rewrites the file (the first of a file that
+// can't take an increment) writes a new file and swaps it in, so a kill leaves the old file or the new one. Every
+// other save appends an increment to the file: a kill in the middle of that write leaves the earlier saves whole,
+// followed by an unfinished increment that a reader repairs past (or, when the reader finds it whole, sees as the
+// newest change); nothing is fsynced, so only a power cut right after a save can lose it.
 #import "SPDFMacFillSaving.h"
+#import "SPDFMacFillSaveCopy.h"
+#import "SPDFMacQuitFinishing.h"
 
 #import "SPDFMacAnnotateIntegrationPrivate.h"
 #import "SPDFMacEditedPageThumbnails.h"
@@ -42,6 +54,8 @@ static const NSTimeInterval kSPDFFillSaveNoLater = 2.0;  // even while the point
 @property(nonatomic) CFTimeInterval firstChange, lastChange;
 @property(nonatomic, strong) NSTimer* timer;
 @property(nonatomic) BOOL saving;
+@property(nonatomic) BOOL failed;          // the last save failed: workers' reads don't try again, a change does
+@property(nonatomic) spdf_document* toldFailure;  // the document whose failure the person was told (once)
 @property(nonatomic) spdf_document* preparedDoc;  // read ahead (or being read) for its first save
 @property(nonatomic, strong) NSTimer* prepareTimer;
 @property(nonatomic, strong) id menuObserver;
@@ -105,6 +119,8 @@ static BOOL SPDFFillMenuItemReadsFile(NSMenuItem* item) {
     [state.pages addIndexes:pages];
     [state.placeholdersRedrawn removeIndexes:pages];
     state.doc = _doc;
+    state.failed = NO;  // a new change: a save that failed is tried again with it
+    SPDFFillSaveCopyInstall();  // a save still failing when the document closes keeps the changes in a copy
     CFTimeInterval now = CACurrentMediaTime();
     if (!state.firstChange) state.firstChange = now;
     state.lastChange = now;
@@ -128,6 +144,7 @@ static BOOL SPDFFillMenuItemReadsFile(NSMenuItem* item) {
                                                                          }];
     }
     [self fillArmSaveTimerAt:MIN(now + kSPDFFillSaveRest, state.firstChange + kSPDFFillSaveLatest)];
+    [self fillPrepareSaveWhenIdle];  // what the first save reads, read ahead from the first change
 }
 
 - (void)fillArmSaveTimerAt:(CFTimeInterval)when {
@@ -161,40 +178,64 @@ static BOOL SPDFFillMenuItemReadsFile(NSMenuItem* item) {
 - (NSIndexSet*)fillSavePendingNow:(BOOL*)ok {
     SPDFFillSaveState* state = [self fillSaveState];
     *ok = YES;
-    if (!state.doc || state.saving || [self existingFillController].busy) return nil;  // a change saves it after
+    if (!state.doc) return nil;
+    if (state.saving || [self existingFillController].busy) {  // the save waits for them, and comes again
+        if (!state.timer) [self fillArmSaveTimerAt:CACurrentMediaTime() + 0.1];
+        return nil;
+    }
     spdf_document* doc = state.doc;
     NSIndexSet* pages = [state.pages copy];
     [state.timer invalidate];
     state.timer = nil;
+    // A document already let go wrote its save as it closed (spdf_close).
+    if (doc != _doc || !spdf_deferred_save_path(doc)) {
+        [state.pages removeAllIndexes];
+        state.doc = NULL;
+        state.firstChange = 0;
+        return nil;
+    }
+    NSString* path = [_path copy];
+    char err[1024] = {0};
+    state.saving = YES;
+    // Another app changed the file since it was read: the changes go to a copy the tab follows, never into it.
+    BOOL changed = spdf_deferred_save_file_changed(doc);
+    *ok = changed ? [self fillKeepChangesOfChangedFile:doc] : spdf_save_deferred(doc, err, sizeof(err));
+    state.saving = NO;
+    if (!*ok) {  // still owed: the next change, leaving the document or quitting tries again; told once
+        state.failed = YES;
+        state.firstChange = 0;
+        [self fillForgetShownPages:nil];
+        if (!changed && state.toldFailure != doc) {
+            state.toldFailure = doc;
+            [self showError:[NSString stringWithFormat:@"Couldn't save your changes to “%@”", path.lastPathComponent]
+                     detail:[NSString stringWithFormat:@"%s\n\nYour changes are still here. ShenzhenPDF tries again "
+                                                       @"with your next change and when you leave the document; if it "
+                                                       @"still can't when you close it, it keeps them in a copy.", err]];
+        }
+        return nil;
+    }
     [state.pages removeAllIndexes];
     state.doc = NULL;
     state.firstChange = 0;
-    // A document already let go wrote its save as it closed (spdf_close).
-    if (doc != _doc || !spdf_deferred_save_path(doc)) return nil;
-    char err[1024] = {0};
-    state.saving = YES;
-    *ok = spdf_save_deferred(doc, err, sizeof(err));
-    state.saving = NO;
-    if (!*ok) {
-        [self fillForgetShownPages:nil];
-        [self showError:@"Couldn't save what you filled in" detail:@(err)];
-        return nil;
-    }
+    state.failed = NO;
+    if (state.toldFailure == doc) state.toldFailure = NULL;
+    if (changed) return nil;  // the tab reopens on the copy
     [self refreshActiveTabCachedFileAttributesAfterSelfSave];
+    [self fillCollectionVersionOwedFor:path];  // whether or not any page is drawn again
     return pages;
 }
 
 - (BOOL)fillWritePendingSave {
     BOOL ok;
     NSIndexSet* pages = [self fillSavePendingNow:&ok];
-    if (pages) [self fillRedrawSavedPages:pages];
+    if (pages && !spdf_mac_quit_finishing()) [self fillRedrawSavedPages:pages];  // quitting: saved, nothing drawn
     return ok;
 }
 
 - (NSString*)fillPathAfterPendingSave:(NSString*)path {
     if (!NSThread.isMainThread) return path;
     SPDFFillSaveState* state = objc_getAssociatedObject(self, &kSPDFFillSaveStateKey);
-    if (!state.doc) return path;
+    if (!state.doc || state.failed) return path;  // a save that failed waits for the next change
     BOOL ok;
     NSIndexSet* pages = [self fillSavePendingNow:&ok];
     if (pages.count) [self fillRedrawBeforeNextFrame:pages];  // asked for in the middle of the reader's own work
@@ -202,14 +243,17 @@ static BOOL SPDFFillMenuItemReadsFile(NSMenuItem* item) {
 }
 
 // Drawn at the end of this turn, before the window's frame is committed (Core Animation's commit observer runs at
-// order 2000000): out of whatever reader method asked, yet never a frame late.
+// order 2000000): out of whatever reader method asked, yet never a frame late. Not when the document went meanwhile.
 - (void)fillRedrawBeforeNextFrame:(NSIndexSet*)pages {
     __weak ShenzhenMacDelegate* weakSelf = self;
+    spdf_document* doc = _doc;
+    NSString* path = [_path copy];
     CFRunLoopObserverRef observer = CFRunLoopObserverCreateWithHandler(
         NULL, kCFRunLoopBeforeWaiting | kCFRunLoopExit, false, 1000, ^(CFRunLoopObserverRef me, CFRunLoopActivity activity) {
           (void)activity;
           CFRunLoopRemoveObserver(CFRunLoopGetMain(), me, kCFRunLoopCommonModes);
-          [weakSelf fillRedrawSavedPages:pages];
+          ShenzhenMacDelegate* reader = weakSelf;
+          if (reader && reader->_doc == doc && [reader->_path isEqual:path]) [reader fillRedrawSavedPages:pages];
         });
     CFRunLoopAddObserver(CFRunLoopGetMain(), observer, kCFRunLoopCommonModes);
     CFRelease(observer);
@@ -285,10 +329,14 @@ static BOOL SPDFFillMenuItemReadsFile(NSMenuItem* item) {
         [self cacheActiveRenderedPagesForSelectedTab];
         [self renderVisiblePageCropsForCurrentViewportIfNeeded];
     }
-    // Collection keeps one version per burst of filling, not one per field. (A cancel by selector with a nil object
-    // cancelled nothing, since each request carried its path: a version was kept 5 s after every save.)
+}
+
+// Collection keeps one version per burst of filling, not one per field, 5 s after the last save of the file it was
+// saved to. (A cancel by selector with a nil object cancelled nothing, since each request carried its path: a version
+// was kept 5 s after every save.)
+- (void)fillCollectionVersionOwedFor:(NSString*)path {
     SPDFFillSaveState* state = [self fillSaveState];
-    NSString* path = [_path copy];
+    if (!path.length) return;
     if (state.collectionPath && ![state.collectionPath isEqual:path]) [self fillCollectionCatchUp:state.collectionPath];
     [state.collectionTimer invalidate];
     state.collectionPath = path;

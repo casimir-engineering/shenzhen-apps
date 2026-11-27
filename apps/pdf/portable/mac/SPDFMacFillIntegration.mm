@@ -8,6 +8,7 @@
 #import "SPDFMacFillController.h"
 #import "SPDFMacFillOverlayView.h"
 #import "SPDFMacFillPalette.h"
+#import "SPDFMacFillSaveCopy.h"
 #import "SPDFMacFillSaving.h"
 #import "SPDFMacFillShowFirst.h"
 #import "SPDFMacPageRendering.h"
@@ -302,12 +303,16 @@ void SPDFFillInstallMenuItems(NSMenu* editMenu, NSMenu* fileMenu, ShenzhenMacDel
 - (void)fillShowError:(NSString*)title detail:(NSString*)detail { [self showError:title detail:detail]; }
 - (void)fillStateDidChange {
     [self syncWorkspaceChrome];
-    [self fillPrepareSaveWhenIdle];
 }
 
 - (BOOL)fillIsEditedCopy {
     NSString* copies = [[self pathForStateFile:@"Edited Copies"] stringByAppendingString:@"/"];
     return _path.length && [_path.stringByStandardizingPath hasPrefix:copies.stringByStandardizingPath];
+}
+
+- (NSString*)fillEditedCopyNote {
+    if (![self fillIsEditedCopy] && ![self fillWillFillACopy]) return nil;
+    return SPDFFillIsCopyOfChangedFile(_path) ? SPDFAnnotateChangedCopyNote : SPDFAnnotateWritableCopyNote;
 }
 
 - (BOOL)fillWillFillACopy {

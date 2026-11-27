@@ -148,7 +148,7 @@ spdf_document* spdf_open_with_password(const char* path, const char* password, s
             opened->doc = doc;
             opened->password_protected = password_protected;
             opened->authentication = auth_result;
-            opened->progressive = opened_progressive;
+            spdf_note_opened(opened, path, opened_progressive); /* sets progressive; spdf_core_open_hooks.h */
             spdf_recolor_page_cache_reset(&opened->recolor_pages);
             opened->picture_document = spdf_recolor_path_is_picture(path) ? 1 : -1;
             opened->page_count = fz_count_pages(ctx, doc);
@@ -2137,7 +2137,7 @@ int spdf_save_document(spdf_document* doc, const char* path, char* err, size_t e
         }
         free(temp_path);
     }
-    return 1;
+    return spdf_note_saved(doc, path); /* 1; the file as saved (spdf_core_open_hooks.h) */
 }
 
 /* Tolerant UTF-8 scan shared by the script detectors: decodes the next code

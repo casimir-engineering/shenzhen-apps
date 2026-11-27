@@ -15,6 +15,9 @@ void spdf_mac_launch_began(void);            // applicationDidFinishLaunching st
 void spdf_mac_after_first_paint(dispatch_block_t block);
 void spdf_mac_first_paint_done(void); // runs the queued blocks; later blocks run on the next main-queue pass
 
+// Whether this process is finishing a quit (its last writes may be running): what they save is not drawn again.
+BOOL spdf_mac_quit_finishing(void);
+
 @interface ShenzhenMacDelegate (SPDFMacQuitFinishing)
 // Takes every window of this process off the screen and passes the focus on, as a finished quit would (once).
 - (void)hideWindowsForQuit;

@@ -43,6 +43,10 @@
 - (BOOL)fillIsEditedCopy;
 // The file can't be changed where it is: the first change moves the tab to the app's own copy.
 - (BOOL)fillWillFillACopy;
+// The palette's line when the document is (or the first change makes it) the app's own copy, saying why; else nil.
+- (NSString*)fillEditedCopyNote;
+// A press with a drawing tool: a change may follow, so the objects its save reads start being read ahead.
+- (void)fillPrepareSaveWhenIdle;
 // Keeps this much room above the first page, so the palette can be scrolled clear of it (0: none).
 - (void)fillSetPageTopReserve:(CGFloat)reserve;
 @end

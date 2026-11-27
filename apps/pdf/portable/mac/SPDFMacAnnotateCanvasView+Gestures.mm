@@ -103,6 +103,10 @@ static BOOL IsPixelOrShapeTool(SPDFAnnotateTool tool) {
         return;
     }
     [self takeKeys];
+    SPDFAnnotateTool tool = self.session.tool;
+    if (self.session.kind == SPDFAnnotateDocumentPDF && tool != SPDFAnnotateToolSelect &&
+        tool != SPDFAnnotateToolMagnifier && tool != SPDFAnnotateToolColorPicker)
+        [self.controller.host fillPrepareSaveWhenIdle];  // a drawing tool's press on a PDF: its save reads ahead
     [self beginGesture:event right:NO];
 }
 

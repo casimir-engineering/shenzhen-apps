@@ -22,6 +22,13 @@
 
 #include <stdint.h>
 
+/* A file as a document last left it: opened from it, or saved into it (spdf_core_open_hooks.h). */
+typedef struct spdf_file_seen {
+    long long size, mtime_sec, device, inode;
+    long mtime_nsec;
+    int known;
+} spdf_file_seen;
+
 typedef struct spdf_page_size_cache {
     float width;
     float height;
@@ -75,6 +82,8 @@ struct spdf_document {
     int rendering; /* inside a render: its page-size lookup asks for the bytes it waits on (see spdf_page_size) */
     char* deferred_save_path; /* a save owed to this path (spdf_deferred_save.h), written by spdf_close at the latest */
     int save_prepared_next;   /* the next object spdf_prepare_save_step reads */
+    char* opened_path;        /* the file it was opened from, and how it was then or after its last save there: an */
+    spdf_file_seen opened_file; /* increment is never appended to a file another app changed since */
 };
 
 /* Whether the person may annotate or fill in this PDF. The owner's restrictions only bind a PDF that needed a password
