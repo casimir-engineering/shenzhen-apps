@@ -192,10 +192,10 @@ void SPDFAnnotatePrepareInput(NSDictionary* op, SPDFMacAnnotateSession* session,
         if (preset) {  // a preset sets both sides; paper at ppi (300 unless given), the others in pixels
             int w = 0, h = 0;
             NSString* turn = op[@"orientation"];
-            spdf_paint_canvas_preset_pixels(preset, ppi, [turn isEqual:@"landscape"] ? SPDF_PAINT_LANDSCAPE
+            double at = spdf_paint_canvas_preset_pixels(preset, ppi, [turn isEqual:@"landscape"] ? SPDF_PAINT_LANDSCAPE
                                                           : [turn isEqual:@"portrait"] ? SPDF_PAINT_PORTRAIT : SPDF_PAINT_AS_LISTED, &w, &h);
             width = w, height = h;
-            if (ppi <= 0) ppi = preset->paper ? SPDF_PAINT_DEFAULT_PPI : 72;
+            ppi = preset->paper ? at : ppi > 0 ? ppi : 72;  // paper too large for the limits: fewer ppi, same size
         }
         SPDFDocumentTab* made = [reader annotateNewCanvasWidth:width height:height ppi:ppi background:background
                                                          front:[op[@"front"] boolValue]];

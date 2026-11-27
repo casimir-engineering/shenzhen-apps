@@ -18,10 +18,12 @@ static NSString* const kSettingsKey = @"new_canvas";  // kept with the tools' se
 @property(nonatomic, strong) NSTextField* height;
 @property(nonatomic, strong) NSPopUpButton* unit;
 @property(nonatomic, strong) NSComboBox* ppi;
+@property(nonatomic, strong) NSTextField* note;  // what Create makes instead, when the size is too large
 @property(nonatomic, copy) NSArray<NSValue*>* shown;  // the presets the search leaves (NULL pointer value: Custom)
 @property(nonatomic) const spdf_paint_canvas_preset* preset;  // the size chosen, NULL for a custom one
 @property(nonatomic) int orientation;
 @property(nonatomic) double pixelWidth, pixelHeight, resolution;
+@property(nonatomic) double paperResolution;  // a paper size's: the resolution, or lower when it had to be made smaller
 @property(nonatomic, copy) void (^create)(NSInteger, NSInteger, double);
 @end
 
@@ -35,11 +37,16 @@ static NSString* Number(double value) {
 
 #pragma mark - Units
 
-- (double)pixelsPerUnit {  // px, mm, cm, in
+- (BOOL)scaledPaper {
+    return self.preset && self.preset->paper && self.paperResolution < self.resolution - 0.001;
+}
+
+- (double)pixelsPerUnit {  // px, mm, cm, in; a paper size made smaller is shown at its own lower resolution
+    double ppi = [self scaledPaper] ? self.paperResolution : self.resolution;
     switch (self.unit.indexOfSelectedItem) {
-        case 1: return self.resolution / 25.4;
-        case 2: return self.resolution / 2.54;
-        case 3: return self.resolution;
+        case 1: return ppi / 25.4;
+        case 2: return ppi / 2.54;
+        case 3: return ppi;
         default: return 1;
     }
 }
@@ -48,13 +55,37 @@ static NSString* Number(double value) {
     double per = [self pixelsPerUnit];
     self.width.stringValue = Number(per == 1 ? self.pixelWidth : round(self.pixelWidth / per * 100) / 100);
     self.height.stringValue = Number(per == 1 ? self.pixelHeight : round(self.pixelHeight / per * 100) / 100);
+    [self showNote];
+}
+
+// What Create makes: the size within the limits, both sides smaller by one factor when it is too large, at a
+// resolution lowered by that factor so the printed size stays. YES when that is smaller than what is shown.
+- (BOOL)createdWidth:(long*)width height:(long*)height ppi:(double*)ppi {
+    double w = MAX(1, round(self.pixelWidth)), h = MAX(1, round(self.pixelHeight));
+    double factor = spdf_paint_fit_size(&w, &h);
+    *width = (long)w, *height = (long)h;
+    *ppi = [self scaledPaper] ? self.paperResolution : self.resolution * factor;
+    return factor < 1 || [self scaledPaper];
+}
+
+- (void)showNote {
+    long w = 0, h = 0;
+    double ppi = 0;
+    BOOL smaller = [self createdWidth:&w height:&h ppi:&ppi];
+    BOOL printed = (self.preset && self.preset->paper) || self.unit.indexOfSelectedItem > 0;
+    self.note.stringValue = !smaller ? @""
+                            : printed ? [NSString stringWithFormat:@"Too large for one canvas: Create makes it %ld × %ld px at "
+                                                                   @"%.0f ppi, the same printed size.", w, h, ppi]
+                                      : [NSString stringWithFormat:@"Too large for one canvas: Create makes it %ld × %ld px, "
+                                                                   @"the same shape.", w, h];
+    self.note.hidden = !smaller;
 }
 
 - (void)usePreset:(const spdf_paint_canvas_preset*)preset {
     self.preset = preset;
     if (!preset) return;
     int w = 0, h = 0;
-    spdf_paint_canvas_preset_pixels(preset, self.resolution, self.orientation, &w, &h);
+    self.paperResolution = spdf_paint_canvas_preset_pixels(preset, self.resolution, self.orientation, &w, &h);
     self.pixelWidth = w;
     self.pixelHeight = h;
     [self showSize];
@@ -62,15 +93,14 @@ static NSString* Number(double value) {
 
 - (NSString*)detailFor:(const spdf_paint_canvas_preset*)preset {  // turned only for the size chosen
     int w = 0, h = 0;
-    spdf_paint_canvas_preset_pixels(preset, self.resolution, preset == self.preset ? self.orientation : SPDF_PAINT_AS_LISTED,
-                                    &w, &h);
+    double ppi = spdf_paint_canvas_preset_pixels(preset, self.resolution,
+                                                 preset == self.preset ? self.orientation : SPDF_PAINT_AS_LISTED, &w, &h);
     NSString* size = [NSString stringWithFormat:@"%d × %d px", w, h];
     if (!strcmp(preset->group, preset->label)) return size;
     if (!preset->paper) return [NSString stringWithFormat:@"%s · %@", preset->group, size];
     BOOL turned = (w > h) != (preset->width > preset->height);
     double a = turned ? preset->height : preset->width, b = turned ? preset->width : preset->height;
-    return [NSString stringWithFormat:@"%s · %@ × %@ mm · %@ at %.0f ppi", preset->group, Number(a), Number(b), size,
-                                      self.resolution];
+    return [NSString stringWithFormat:@"%s · %@ × %@ mm · %@ at %.0f ppi", preset->group, Number(a), Number(b), size, ppi];
 }
 
 #pragma mark - The list
@@ -152,10 +182,11 @@ static NSString* Number(double value) {
 - (void)controlTextDidChange:(NSNotification*)note {
     if (note.object == self.search) return [self filter];
     if (note.object == self.ppi) return [self resolutionChanged];
+    [self becomeCustom];  // first: a paper size made smaller goes back to its size at the resolution shown
     double per = [self pixelsPerUnit];
     if (note.object == self.width) self.pixelWidth = round(self.width.doubleValue * per);
     if (note.object == self.height) self.pixelHeight = round(self.height.doubleValue * per);
-    [self becomeCustom];
+    [self showNote];
 }
 
 - (void)comboBoxSelectionDidChange:(NSNotification*)note {
@@ -174,10 +205,15 @@ static NSString* Number(double value) {
         self.pixelHeight = round(self.pixelHeight / old * ppi);
     }
     [self.table reloadData];
+    [self showNote];
 }
 
 - (void)becomeCustom {
     if (!self.preset) return;
+    if ([self scaledPaper]) {
+        self.pixelWidth = round(self.pixelWidth * self.resolution / self.paperResolution);
+        self.pixelHeight = round(self.pixelHeight * self.resolution / self.paperResolution);
+    }
     self.preset = NULL;
     [self filter];
 }
@@ -281,13 +317,18 @@ static NSString* Number(double value) {
     NSStackView* resolution = [NSStackView stackViewWithViews:@[ [NSTextField labelWithString:@"Resolution:"], _ppi,
                                                                  [NSTextField labelWithString:@"ppi"] ]];
     resolution.spacing = 6;
+    _note = [NSTextField wrappingLabelWithString:@""];
+    _note.textColor = SPDFCollectionColor(@"secondary");
+    _note.font = [NSFont systemFontOfSize:11];
+    _note.hidden = YES;
+    _note.translatesAutoresizingMaskIntoConstraints = NO;
     NSButton* ok = [NSButton buttonWithTitle:@"Create" target:self action:@selector(ok:)];
     ok.keyEquivalent = @"\r";
     NSButton* cancel = [NSButton buttonWithTitle:@"Cancel" target:self action:@selector(cancel:)];
     cancel.keyEquivalent = @"\033";
     NSStackView* buttons = [NSStackView new];
     [buttons setViews:@[ cancel, ok ] inGravity:NSStackViewGravityTrailing];
-    NSStackView* stack = [NSStackView stackViewWithViews:@[ heading, _search, scroll, size, resolution, buttons ]];
+    NSStackView* stack = [NSStackView stackViewWithViews:@[ heading, _search, scroll, size, resolution, _note, buttons ]];
     stack.orientation = NSUserInterfaceLayoutOrientationVertical;
     stack.alignment = NSLayoutAttributeLeading;
     stack.spacing = 12;
@@ -303,6 +344,7 @@ static NSString* Number(double value) {
         [_search.widthAnchor constraintEqualToAnchor:stack.widthAnchor constant:-40],
         [scroll.widthAnchor constraintEqualToAnchor:stack.widthAnchor constant:-40],
         [buttons.widthAnchor constraintEqualToAnchor:stack.widthAnchor constant:-40],
+        [_note.widthAnchor constraintEqualToAnchor:stack.widthAnchor constant:-40],
         [content.widthAnchor constraintEqualToConstant:440],
     ]];
 }
@@ -329,15 +371,14 @@ static NSString* Number(double value) {
 - (void)ok:(id)sender {
     (void)sender;
     [self.panel makeFirstResponder:nil];  // the field being typed in keeps its value
-    long w = lround(MAX(1, MIN(SPDF_PAINT_MAX_SIDE, self.pixelWidth)));
-    long h = lround(MAX(1, MIN(SPDF_PAINT_MAX_SIDE, self.pixelHeight)));
-    while ((double)w * h > SPDF_PAINT_MAX_PIXELS) h = (long)floor(SPDF_PAINT_MAX_PIXELS / (double)w);
-    [SPDFAnnotateSettings.shared setOptions:@{@"width" : @(w), @"height" : @(h), @"ppi" : @(self.resolution),
+    long w = 0, h = 0;
+    double ppi = self.resolution;
+    [self createdWidth:&w height:&h ppi:&ppi];  // too large: smaller by one factor, at fewer ppi (the note said so)
+    [SPDFAnnotateSettings.shared setOptions:@{@"width" : @(w), @"height" : @(h), @"ppi" : @(self.preset ? self.resolution : ppi),
                                               @"unit" : @(self.unit.indexOfSelectedItem), @"orientation" : @(self.orientation),
                                               @"preset" : self.preset ? @(self.preset->name) : @""}
                                     forTool:kSettingsKey];
     void (^create)(NSInteger, NSInteger, double) = self.create;
-    double ppi = self.resolution;
     [self close];
     if (create) create(w, h, ppi);
 }

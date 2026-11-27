@@ -115,9 +115,14 @@ const spdf_paint_canvas_preset* spdf_paint_canvas_presets(size_t* count);
 const char* spdf_paint_canvas_preset_names(void);
 /* By name or label, ignoring case, spaces and underscores ("A4", "full_hd"); NULL if none. */
 const spdf_paint_canvas_preset* spdf_paint_canvas_preset_named(const char* name);
-/* Its pixels at `ppi` (paper only; <= 0: SPDF_PAINT_DEFAULT_PPI), turned for `orientation` and held to the limits. */
-void spdf_paint_canvas_preset_pixels(const spdf_paint_canvas_preset* preset, double ppi, int orientation, int* width,
-                                     int* height);
+/* Its pixels at `ppi` (paper only; <= 0: SPDF_PAINT_DEFAULT_PPI), turned for `orientation`. Returns the resolution
+ * they are at: `ppi`, or lower when the size was over the limits and both sides were scaled down by one factor
+ * (spdf_paint_fit_size), so a paper size keeps its shape and its printed size. */
+double spdf_paint_canvas_preset_pixels(const spdf_paint_canvas_preset* preset, double ppi, int orientation, int* width,
+                                       int* height);
+/* A width and height held to SPDF_PAINT_MAX_SIDE a side and SPDF_PAINT_MAX_PIXELS in all, both scaled by one factor
+ * (whole pixels, at least 1); returns that factor, 1 when the size already fits. */
+double spdf_paint_fit_size(double* width, double* height);
 /* A picture as decoded by the frontend (SPDFMacAnnotateImageIO on the Mac): its pixels become the "Background" layer,
  * which every tool may change. dpi 0 means 72. has_alpha 0 tells the core the format has no alpha, so erasing and
  * lifting there leave Color 2 (§ 2 Eraser, Rectangular selection). */

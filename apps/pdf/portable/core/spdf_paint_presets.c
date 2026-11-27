@@ -77,21 +77,37 @@ const spdf_paint_canvas_preset* spdf_paint_canvas_preset_named(const char* name)
     return NULL;
 }
 
-void spdf_paint_canvas_preset_pixels(const spdf_paint_canvas_preset* preset, double ppi, int orientation, int* width,
-                                     int* height) {
+double spdf_paint_fit_size(double* width, double* height) {
+    double w = fmax(1, *width), h = fmax(1, *height);
+    double f = fmin(1, fmin(SPDF_PAINT_MAX_SIDE / fmax(w, h), sqrt((double)SPDF_PAINT_MAX_PIXELS / (w * h))));
+    if (f >= 1) return 1;
+    w = fmax(1, floor(w * f + 1e-6)); /* the long side at SPDF_PAINT_MAX_SIDE exactly, not a hair under */
+    h = fmax(1, floor(h * f + 1e-6));
+    while (w * h > (double)SPDF_PAINT_MAX_PIXELS) h--; /* rounding: never one pixel past the limit */
+    *width = w;
+    *height = h;
+    return f;
+}
+
+double spdf_paint_canvas_preset_pixels(const spdf_paint_canvas_preset* preset, double ppi, int orientation, int* width,
+                                       int* height) {
     double w = preset ? preset->width : SPDF_PAINT_DEFAULT_SIZE, h = preset ? preset->height : SPDF_PAINT_DEFAULT_SIZE;
+    if (ppi <= 0) ppi = SPDF_PAINT_DEFAULT_PPI;
     if (preset && preset->paper) {
-        double scale = (ppi > 0 ? ppi : SPDF_PAINT_DEFAULT_PPI) / 25.4;
-        w = round(w * scale);
-        h = round(h * scale);
+        w = round(w * ppi / 25.4);
+        h = round(h * ppi / 25.4);
     }
     if ((orientation == SPDF_PAINT_LANDSCAPE && w < h) || (orientation == SPDF_PAINT_PORTRAIT && w > h)) {
         double t = w;
         w = h;
         h = t;
     }
-    if (width) *width = (int)fmax(1, fmin(SPDF_PAINT_MAX_SIDE, w));
-    if (height) *height = (int)fmax(1, fmin(SPDF_PAINT_MAX_SIDE, h));
+    /* Too large (A0 at 600 ppi is 19866 x 28087): smaller by one factor, so the paper keeps its shape, at a resolution
+     * lowered by the same factor, so it keeps its printed size. */
+    ppi *= spdf_paint_fit_size(&w, &h);
+    if (width) *width = (int)w;
+    if (height) *height = (int)h;
+    return ppi;
 }
 
 const char* spdf_paint_canvas_preset_names(void) {
