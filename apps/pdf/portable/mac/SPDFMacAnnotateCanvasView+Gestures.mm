@@ -187,6 +187,14 @@ static BOOL IsPixelOrShapeTool(SPDFAnnotateTool tool) {
             return;
         }
         NSInteger handle = [self objectHandleAt:view];
+        if (handle >= 0 && !session.selectedObjects.count && !NSIsEmptyRect([self pixelSelectionViewRect])) {
+            // A pixel selection's handle: lifted into a picture now, then resized or turned live as any object.
+            __block NSNumber* lifted = nil;
+            [self operation:@{@"op": @"select.lift"} page:page done:^(NSDictionary* result) {
+                if ([result[@"ok"] boolValue] && [result[@"id"] isKindOfClass:NSNumber.class]) lifted = result[@"id"];
+            }];
+            if (lifted) session.selectedObjects = @[lifted];
+        }
         if (handle >= 0 && session.selectedObjects.count) {
             NSDictionary* object = nil;
             for (NSDictionary* candidate in [self objectsOnPage:page])

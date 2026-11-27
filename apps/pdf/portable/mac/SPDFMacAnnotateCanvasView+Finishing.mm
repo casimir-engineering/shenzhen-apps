@@ -147,7 +147,8 @@ static NSCursor* SPDFAnnotateResizeCursor(NSInteger handle) {
 - (BOOL)takesSelectPressAt:(NSPoint)viewPoint {
     SPDFMacAnnotateSession* session = self.session;
     if (session.kind != SPDFAnnotateDocumentPDF || session.tool != SPDFAnnotateToolSelect) return NO;
-    if (session.selectedObjects.count && [self objectHandleAt:viewPoint] >= 0) return YES;
+    if ((session.selectedObjects.count || !NSIsEmptyRect([self pixelSelectionViewRect])) && [self objectHandleAt:viewPoint] >= 0)
+        return YES;
     NSInteger page = -1;
     NSPoint point;
     if (![self canvasPointForViewPoint:viewPoint page:&page canvasPoint:&point]) return NO;

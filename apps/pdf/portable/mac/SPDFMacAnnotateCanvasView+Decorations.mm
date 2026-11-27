@@ -153,8 +153,22 @@ static void AddPath(CGContextRef context, NSBezierPath* path) {
 
 #pragma mark - Objects
 
+// A pixel selection, while a selection tool is chosen and no object is selected, has the objects' handles too: a
+// handle lifts it into a picture (select.lift) and resizes or turns it as one.
+- (NSRect)pixelSelectionViewRect {
+    SPDFAnnotateTool tool = self.session.tool;
+    if (self.session.selectedObjects.count || (tool != SPDFAnnotateToolSelect && tool != SPDFAnnotateToolRectSelect &&
+                                               tool != SPDFAnnotateToolFreeformSelect))
+        return NSZeroRect;
+    NSInteger page = [self currentPageForDecorations];
+    NSDictionary* box = [self selectionOnPage:page][@"bounds"];
+    if (![box isKindOfClass:NSDictionary.class]) return NSZeroRect;
+    NSRect rect = NSMakeRect([box[@"x"] doubleValue], [box[@"y"] doubleValue], [box[@"w"] doubleValue], [box[@"h"] doubleValue]);
+    return NSIsEmptyRect(rect) ? NSZeroRect : [self viewRectForCanvasRect:rect page:page];
+}
+
 - (NSRect)selectedObjectsViewRect {
-    if (!self.session.selectedObjects.count) return NSZeroRect;
+    if (!self.session.selectedObjects.count) return [self pixelSelectionViewRect];
     NSInteger page = [self currentPageForDecorations];
     // The objects' own boxes, so the handles sit on them (what they paint reaches further: a thick outline, a brush's
     // texture); a turned object's painted bounds, which hold it whole.
@@ -171,7 +185,7 @@ static void AddPath(CGContextRef context, NSBezierPath* path) {
 - (NSInteger)objectHandleAt:(NSPoint)p {
     NSRect box = [self selectedObjectsViewRect];
     if (NSIsEmptyRect(box)) return -1;
-    if (self.session.selectedObjects.count == 1) {
+    if (self.session.selectedObjects.count <= 1) {  // one object, or a pixel selection
         NSPoint rotation = NSMakePoint(NSMidX(box), NSMinY(box) - kRotationReach);
         if (hypot(p.x - rotation.x, p.y - rotation.y) <= kHandle) return 8;
     }
@@ -208,9 +222,9 @@ static void AddPath(CGContextRef context, NSBezierPath* path) {
     NSBezierPath* frame = [NSBezierPath bezierPathWithRect:NSInsetRect(box, -0.5, -0.5)];
     frame.lineWidth = 1;
     [accent setStroke];
-    [frame stroke];
+    if (self.session.selectedObjects.count) [frame stroke];  // a pixel selection keeps its marching ants
     if (self.gesture == SPDFAnnotateGestureMove) return;
-    if (self.session.selectedObjects.count == 1) {
+    if (self.session.selectedObjects.count <= 1) {
         NSPoint top = NSMakePoint(NSMidX(box), NSMinY(box));
         NSPoint knob = NSMakePoint(top.x, top.y - kRotationReach);
         NSBezierPath* stem = [NSBezierPath bezierPath];

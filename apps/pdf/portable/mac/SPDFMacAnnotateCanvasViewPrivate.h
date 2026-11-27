@@ -91,7 +91,8 @@ typedef NS_ENUM(NSInteger, SPDFAnnotateCanvasHandle) {
 - (void)drawCheckerboardInRect:(NSRect)rect;
 - (NSInteger)objectHandleAt:(NSPoint)viewPoint;  // -1, 0-7, 8 rotation
 - (SPDFAnnotateCanvasHandle)canvasHandleAt:(NSPoint)viewPoint;
-- (NSRect)selectedObjectsViewRect;
+- (NSRect)selectedObjectsViewRect;  // the selected objects' box, else a pixel selection's that shows handles
+- (NSRect)pixelSelectionViewRect;   // a pixel selection's box while it shows handles (a selection tool), else zero
 - (void)updateAntsTimer;
 - (NSRect)resizedRect;         // canvas units, from the handle being dragged
 - (CGFloat)rotationDelta;      // degrees, from the rotation handle being dragged

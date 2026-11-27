@@ -120,17 +120,10 @@ static NSMutableSet* SPDFOpenSheets;  // keeps each sheet alive while it shows
 
 #pragma mark - Resize and skew
 
-// The size the Image commands act on: the selection's or selected object's box, else the canvas.
-static NSSize SPDFAnnotateScopeSize(NSDictionary* state) {
-    NSDictionary* selection = [state[@"selection"] isKindOfClass:[NSDictionary class]] ? state[@"selection"] : nil;
-    NSDictionary* box = [selection[@"bounds"] isKindOfClass:[NSDictionary class]] ? selection[@"bounds"] : nil;
-    if (box && [box[@"w"] doubleValue] > 0) return NSMakeSize([box[@"w"] doubleValue], [box[@"h"] doubleValue]);
-    return NSMakeSize(MAX(1, [state[@"width"] doubleValue]), MAX(1, [state[@"height"] doubleValue]));
-}
-
 void SPDFAnnotateShowResizeSheet(NSWindow* window, SPDFMacFillController* controller) {
+    // The whole picture or canvas, by numbers (Paint's dialog): a selection or an object resizes by its handles.
     NSDictionary* state = SPDFAnnotateDocState(controller) ?: @{};
-    NSSize size = SPDFAnnotateScopeSize(state);
+    NSSize size = NSMakeSize(MAX(1, [state[@"width"] doubleValue]), MAX(1, [state[@"height"] doubleValue]));
     BOOL pdf = SPDFAnnotateCurrentKind(controller) == SPDFAnnotateDocumentPDF;
     SPDFAnnotateSheet* sheet = [[SPDFAnnotateSheet alloc] initWithTitle:@"Resize and skew"];
     NSSegmentedControl* by = [NSSegmentedControl segmentedControlWithLabels:@[ @"Percentage", pdf ? @"Points" : @"Pixels" ]
@@ -168,15 +161,15 @@ void SPDFAnnotateShowResizeSheet(NSWindow* window, SPDFMacFillController* contro
       double h = horizontal.doubleValue, v = vertical.doubleValue;
       BOOL ratio = keep.state == NSControlStateValueOn;
       if (by.selectedSegment == 0 && (h != 100 || v != 100)) {
-          if (ratio || h == v) [ops addObject:@{@"op" : @"image.resize", @"percent" : @(MIN(1000, MAX(1, h))), @"scope" : @"auto"}];
+          if (ratio || h == v) [ops addObject:@{@"op" : @"image.resize", @"percent" : @(MIN(1000, MAX(1, h))), @"scope" : @"image"}];
           else [ops addObject:@{@"op" : @"image.resize", @"width" : @(MAX(1, lround(size.width * h / 100))),
-                                @"height" : @(MAX(1, lround(size.height * v / 100))), @"keepRatio" : @NO, @"scope" : @"auto"}];
+                                @"height" : @(MAX(1, lround(size.height * v / 100))), @"keepRatio" : @NO, @"scope" : @"image"}];
       } else if (by.selectedSegment == 1 && (lround(h) != lround(size.width) || lround(v) != lround(size.height))) {
           [ops addObject:@{@"op" : @"image.resize", @"width" : @(MAX(1, lround(h))), @"height" : @(MAX(1, lround(v))),
-                           @"keepRatio" : @(ratio), @"scope" : @"auto"}];
+                           @"keepRatio" : @(ratio), @"scope" : @"image"}];
       }
       double sh = MIN(89, MAX(-89, skewH.doubleValue)), sv = MIN(89, MAX(-89, skewV.doubleValue));
-      if (sh != 0 || sv != 0) [ops addObject:@{@"op" : @"image.skew", @"horizontal" : @(sh), @"vertical" : @(sv), @"scope" : @"auto"}];
+      if (sh != 0 || sv != 0) [ops addObject:@{@"op" : @"image.skew", @"horizontal" : @(sh), @"vertical" : @(sv), @"scope" : @"image"}];
       if (ops.count) SPDFAnnotatePerform(controller, ops);
     };
     [sheet showOn:window];
