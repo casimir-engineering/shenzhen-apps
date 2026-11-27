@@ -15,8 +15,9 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// A durability batch: every 8 MiB or every second of received blocks.
-static const uint64_t SZFriendsBlockBatchBytes = 8ull << 20;
+// A durability batch: every 64 MiB or every second of received blocks, whichever comes first. WHY 64: each batch costs
+// an F_FULLFSYNC on the receive path, which waited on it every 8 MiB; the second still bounds what a crash loses.
+static const uint64_t SZFriendsBlockBatchBytes = 64ull << 20;
 static const NSTimeInterval SZFriendsBlockBatchInterval = 1.0;
 
 @implementation SZFriendsTransfers (Blocks)
@@ -331,35 +332,6 @@ static const NSTimeInterval SZFriendsBlockBatchInterval = 1.0;
     return taken;
 }
 
-- (BOOL)flushBlocks:(SZFriendsBlockDownload *)download transfer:(NSString *)transferID db:(SZFriendsStoreDB *)db
-              error:(NSError **)error {
-    if (download.unsynced.count == 0 || download->mapFD < 0) return YES;
-    // The blocks ordered before the bitmap that claims them, then both durable with one full flush; then the prefix
-    // committed for older helpers.
-    if (!SZFriendsOrderWrites(download->fd)) {
-        return SZFriendsFail(error, SZFriendsBlockError(SZFriendsStoreErrorDatabase, @"fsync failed"));
-    }
-    [download.unsynced enumerateIndexesUsingBlock:^(NSUInteger block, BOOL *stop) {
-        (void)stop;
-        [download.durable insert:(uint32_t)block];
-    }];
-    SZFriendsBlockGeometry geometry = download.assembly.geometry;
-    NSData *bitmap = download.durable.bitmap;
-    NSUInteger bitmapOffset = SZFriendsSidecarHeaderBytes + 32 * (NSUInteger)geometry.blocks;
-    if (!SZFriendsWriteAll(download->mapFD, bitmap.bytes, bitmap.length, bitmapOffset) ||
-        !SZFriendsMakeDurable(download->mapFD)) {
-        return SZFriendsFail(error, SZFriendsBlockError(SZFriendsStoreErrorDatabase, @"cannot write the map"));
-    }
-    [download.unreportedDurable addIndexes:download.unsynced];
-    [download.unsynced removeAllIndexes];
-    download.unsyncedBytes = 0;
-    download.firstUnsynced = nil;
-    uint64_t prefix = SZFriendsDurablePrefix(geometry, download.durable);
-    return [db transaction:^BOOL(NSError **inner) {
-        return SZFriendsTransferRowUpdate(db, transferID, @{@"verified_bytes" : @(prefix)}, inner);
-    } error:error];
-}
-
 - (SZFriendsBlockPartResult)acceptBlockPart:(NSData *)data
                                    atOffset:(uint64_t)offset
                                 forTransfer:(NSString *)transferID
@@ -400,14 +372,19 @@ static const NSTimeInterval SZFriendsBlockBatchInterval = 1.0;
                                           @"cannot write the staging file");
             return NO;
         }
+        [download.streamed advanceWithFile:download->fd geometry:download.assembly.geometry
+                                  complete:download.assembly.complete block:block fresh:blockData];
         [download.unsynced addIndex:block];
         download.unsyncedBytes += blockData.length;
         if (download.firstUnsynced == nil) download.firstUnsynced = [NSDate date];
         [download.unreportedComplete addIndex:block];
         result = SZFriendsBlockPartWritten;
-        if (download.unsyncedBytes >= SZFriendsBlockBatchBytes || download.assembly.complete.full) {
+        if (download.assembly.complete.full) {
             NSError *flushError = nil;
             if (![self flushBlocks:download transfer:transferID db:db error:&flushError]) failure = flushError;
+        } else if (download.unsyncedBytes >= SZFriendsBlockBatchBytes) {
+            [self settleBlockFlush:download transfer:transferID db:db wait:NO];
+            [self flushBlocksInBackground:download transfer:transferID];
         }
         return YES;
     } error:NULL];
@@ -427,8 +404,15 @@ static const NSTimeInterval SZFriendsBlockBatchInterval = 1.0;
                                                                           SZFriendsBlockDownload *download,
                                                                           BOOL *stop) {
             (void)stop;
-            if (download.firstUnsynced == nil) return;
-            if (!all && [now timeIntervalSinceDate:download.firstUnsynced] < SZFriendsBlockBatchInterval) return;
+            BOOL settled = download.flush != nil && [self settleBlockFlush:download transfer:transferID db:db wait:all];
+            if (download.firstUnsynced == nil) {
+                if (settled) [flushed addObject:transferID];
+                return;
+            }
+            if (!all && [now timeIntervalSinceDate:download.firstUnsynced] < SZFriendsBlockBatchInterval) {
+                if (settled) [flushed addObject:transferID];
+                return;
+            }
             if ([self flushBlocks:download transfer:transferID db:db error:NULL]) [flushed addObject:transferID];
         }];
         return YES;
@@ -441,7 +425,7 @@ static const NSTimeInterval SZFriendsBlockBatchInterval = 1.0;
     [self.store performOnWriter:^(SZFriendsStoreDB *_Nullable db) {
         (void)db;
         for (SZFriendsBlockDownload *download in self.receiver.blockDownloads.allValues) {
-            pending |= download.firstUnsynced != nil;
+            pending |= download.firstUnsynced != nil || download.flush != nil;
         }
     }];
     return pending;

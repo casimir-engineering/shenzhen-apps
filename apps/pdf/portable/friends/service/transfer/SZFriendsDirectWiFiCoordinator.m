@@ -71,7 +71,8 @@ static NSData *SZFriendsBoostBytes(NSString *hex) {
 }
 
 - (void)boostAllowDirectLane:(BOOL)allowed {
-    // AWDL already keeps direct Wi-Fi lanes on a Mac; the lane of a boost that ended is closed.
+    // The scheduler keeps the boost's lane while it runs; the lane of a boost that ended is closed.
+    [self.group boostAllowDirectWiFi:allowed];
     if (!allowed) [self.group boostCloseDirectLane];
 }
 
@@ -149,9 +150,13 @@ static NSData *SZFriendsBoostBytes(NSString *hex) {
         !SZFriendsBoostWorthIt(remaining, bluetoothRate, &estimate)) {
         return NO;
     }
+    // The owner's rule (ADR 0022): a Mac proposes only while it is on no Wi-Fi network; the friend's side says the
+    // same in its READY, or declines.
+    SZFriendsBoostConnectivity *connectivity = _wifi.connectivity;
+    if (!connectivity.allowsDirectWiFi) return NO;
     SZFriendsBoostEntry *entry = [self entryForKey:key transfer:transfer group:group];
     entry.estimate = estimate;
-    entry.boost = [SZFriendsBoost proposeTransfer:bytes abilities:self.abilities connectivity:_wifi.connectivity
+    entry.boost = [SZFriendsBoost proposeTransfer:bytes abilities:self.abilities connectivity:connectivity
                                        sortsFirst:sortsFirst driver:entry];
     return YES;
 }

@@ -40,6 +40,19 @@ static SZFriendsBoostConnectivity *HomeWiFi(void) {
     return c;
 }
 
+// A phone on its Wi-Fi with mobile data: the one device the owner's rule (ADR 0022) lets leave its Wi-Fi.
+static SZFriendsBoostConnectivity *PhoneOnWiFi(void) {
+    SZFriendsBoostConnectivity *c = HomeWiFi();
+    c.mobile = YES;
+    c.phone = YES;
+    return c;
+}
+
+// On no Wi-Fi network (a cable, or nothing): a Mac's only way to boost.
+static SZFriendsBoostConnectivity *OffWiFi(void) {
+    return [SZFriendsBoostConnectivity new];
+}
+
 static void TestDecisions(void) {
     const uint64_t MiB = 1 << 20;
     CHECK(!SZFriendsBoostWorthIt(4 * MiB, 0, NULL), @"4 MiB saves under 20 s");
@@ -62,16 +75,22 @@ static void TestDecisions(void) {
               SZFriendsBoostRoleFor(phone, phone, NO) == SZFriendsBoostRoleJoin,
           @"a tie goes by key order");
 
+    // The owner's rule (ADR 0022): on no Wi-Fi network, or a phone on mobile data.
+    SZFriendsBoostConnectivity *wired = HomeWiFi(), *macMobile = HomeWiFi();
+    wired.wired = macMobile.mobile = YES;
+    CHECK(OffWiFi().allowsDirectWiFi && PhoneOnWiFi().allowsDirectWiFi, @"off Wi-Fi, or a phone on mobile data");
+    CHECK(!HomeWiFi().allowsDirectWiFi && !wired.allowsDirectWiFi && !macMobile.allowsDirectWiFi,
+          @"any other device on a Wi-Fi network: never");
+
     SZFriendsBoostCost *cost = [SZFriendsBoostCost costForRole:SZFriendsBoostRoleJoin abilities:mac
-                                                  connectivity:HomeWiFi()];
-    CHECK(cost.asks && [cost.network isEqualToString:@"HomeWiFi"], @"a Mac on its only Wi-Fi is asked");
-    SZFriendsBoostConnectivity *wired = HomeWiFi();
-    wired.wired = YES;
+                                                  connectivity:PhoneOnWiFi()];
+    CHECK(cost.kind == SZFriendsBoostCostLeavesWiFi && cost.overMobile && cost.asks &&
+              [cost.network isEqualToString:@"HomeWiFi"],
+          @"a phone leaving its Wi-Fi is asked, never silently");
     cost = [SZFriendsBoostCost costForRole:SZFriendsBoostRoleJoin abilities:mac connectivity:wired];
-    CHECK(cost.kind == SZFriendsBoostCostLeavesWiFi && !cost.overMobile && !cost.asks, @"online by cable: not asked");
-    cost = [SZFriendsBoostCost costForRole:SZFriendsBoostRoleJoin abilities:mac
-                              connectivity:[SZFriendsBoostConnectivity new]];
-    CHECK(cost.kind == SZFriendsBoostCostNothing, @"on no Wi-Fi: nothing to lose");
+    CHECK(cost.asks, @"leaving a Wi-Fi network always asks");
+    cost = [SZFriendsBoostCost costForRole:SZFriendsBoostRoleJoin abilities:mac connectivity:OffWiFi()];
+    CHECK(cost.kind == SZFriendsBoostCostNothing && !cost.asks, @"on no Wi-Fi: nothing to lose, nobody asked");
 }
 
 static void TestLinkAndFrames(void) {
@@ -186,20 +205,24 @@ static void Settle(void) {
 
 static void TestNegotiation(void) {
     NSData *transfer = [NSMutableData dataWithLength:16];
-    SZFriendsBoostAbilities phone =
-        SZFriendsBoostCanHost | SZFriendsBoostCanJoin | SZFriendsBoostHostKeepsWiFi | SZFriendsBoostJoinKeepsWiFi;
-    // The phone proposes; the Mac, on its only Wi-Fi, asks; Go faster; the phone hosts, the Mac joins and dials.
+    SZFriendsBoostAbilities phone = SZFriendsBoostCanHost | SZFriendsBoostCanJoin;
+    SZFriendsBoostAbilities phoneAllowed = phone | SZFriendsBoostDirectWiFiAllowed;
+    // The phone, on its Wi-Fi with mobile data, proposes and asks its person; the Mac, on no Wi-Fi network, agrees
+    // without asking; Go faster; the phone hosts, the Mac joins and dials.
     Side *mac = [Side new], *android = [Side new];
     mac.other = android;
     android.other = mac;
-    android.boost = [SZFriendsBoost proposeTransfer:transfer abilities:phone connectivity:HomeWiFi() sortsFirst:YES
+    android.boost = [SZFriendsBoost proposeTransfer:transfer abilities:phone connectivity:PhoneOnWiFi() sortsFirst:YES
                                             driver:android];
-    mac.boost = [SZFriendsBoost proposedTransfer:transfer abilities:SZFriendsBoostCanJoin peer:phone
-                                    connectivity:HomeWiFi() sortsFirst:NO driver:mac now:0];
+    mac.boost = [SZFriendsBoost proposedTransfer:transfer abilities:SZFriendsBoostCanJoin peer:phoneAllowed
+                                    connectivity:OffWiFi() sortsFirst:NO driver:mac now:0];
     Settle();
-    CHECK(mac.boost.phase == SZFriendsBoostPhaseAsking && [mac.log containsObject:@"ask"], @"the Mac asks: %@", mac.log);
-    CHECK(![android.log containsObject:@"host"], @"nothing hosted before the Mac agrees");
-    [mac.boost answer:YES now:3];
+    CHECK(![mac.log containsObject:@"ask"] && mac.boost.phase == SZFriendsBoostPhaseAgreed,
+          @"the Mac, off Wi-Fi, is not asked: %@", mac.log);
+    CHECK(android.boost.phase == SZFriendsBoostPhaseAsking && [android.log containsObject:@"ask"],
+          @"the phone leaving its Wi-Fi asks: %@", android.log);
+    CHECK(![android.log containsObject:@"host"], @"nothing hosted before the phone's person agrees");
+    [android.boost answer:YES now:3];
     Settle();
     CHECK([android.log containsObject:@"host"] && mac.joined != nil, @"hosted and joined: %@ / %@", android.log, mac.log);
     CHECK([mac.log containsObject:@"dial c0a83101:50000"], @"the Mac dials the link: %@", mac.log);
@@ -216,15 +239,25 @@ static void TestNegotiation(void) {
     android = [Side new];
     mac.other = android;
     android.other = mac;
-    android.boost = [SZFriendsBoost proposeTransfer:transfer abilities:phone connectivity:HomeWiFi() sortsFirst:YES
+    android.boost = [SZFriendsBoost proposeTransfer:transfer abilities:phone connectivity:PhoneOnWiFi() sortsFirst:YES
                                             driver:android];
-    mac.boost = [SZFriendsBoost proposedTransfer:transfer abilities:SZFriendsBoostCanJoin peer:phone
-                                    connectivity:HomeWiFi() sortsFirst:NO driver:mac now:0];
+    mac.boost = [SZFriendsBoost proposedTransfer:transfer abilities:SZFriendsBoostCanJoin peer:phoneAllowed
+                                    connectivity:OffWiFi() sortsFirst:NO driver:mac now:0];
     Settle();
-    [mac.boost answer:NO now:1];
+    [android.boost answer:NO now:1];
     Settle();
     CHECK(mac.boost.declinedByPerson && android.boost.declinedByPerson && ![android.log containsObject:@"host"],
           @"Not now is final: %@", android.log);
+
+    // The rule: a Mac on its Wi-Fi declines, and so does a Mac whose friend's side did not allow it (an older helper).
+    Side *onWiFi = [Side new];
+    onWiFi.boost = [SZFriendsBoost proposedTransfer:transfer abilities:SZFriendsBoostCanJoin peer:phoneAllowed
+                                       connectivity:HomeWiFi() sortsFirst:NO driver:onWiFi now:0];
+    CHECK(onWiFi.boost.endReason == SZFriendsBoostReasonUnsupported, @"a Mac on Wi-Fi never boosts");
+    Side *older = [Side new];
+    older.boost = [SZFriendsBoost proposedTransfer:transfer abilities:SZFriendsBoostCanJoin peer:phone
+                                      connectivity:OffWiFi() sortsFirst:NO driver:older now:0];
+    CHECK(older.boost.endReason == SZFriendsBoostReasonUnsupported, @"a peer that did not say it allows it");
 }
 
 #pragma mark - Coming back
@@ -308,7 +341,7 @@ static void TestRejoin(void) {
 - (instancetype)init {
     if ((self = [super init])) {
         _log = [NSMutableArray array];
-        _network = @"HomeWiFi";
+        _network = nil; // on Ethernet, no Wi-Fi network: the owner's rule lets this Mac boost
     }
     return self;
 }
@@ -327,12 +360,12 @@ static void TestRejoin(void) {
     completion(YES);
 }
 - (void)rejoinNetwork:(NSString *)network leaving:(NSString *)joined completion:(void (^)(BOOL))completion {
-    [self.log addObject:[NSString stringWithFormat:@"rejoin %@ from %@", network, joined]];
+    [self.log addObject:[NSString stringWithFormat:@"rejoin %@ from %@", network ?: @"-", joined]];
     self.network = network;
     completion(YES);
 }
 - (void)checkOnline:(void (^)(BOOL))completion {
-    completion(self.network != nil && ![self.network hasPrefix:@"DIRECT-"]);
+    completion(![self.network hasPrefix:@"DIRECT-"]); // Ethernet, or the Wi-Fi it rejoined
 }
 @end
 
@@ -360,6 +393,9 @@ static void TestRejoin(void) {
 - (void)boostCloseDirectLane {
     [self.log addObject:@"close lane"];
 }
+- (void)boostAllowDirectWiFi:(BOOL)allowed {
+    (void)allowed;
+}
 @end
 
 static void Spin(void) {
@@ -375,9 +411,9 @@ static void TestCoordinator(void) {
     [[NSFileManager defaultManager] createDirectoryAtPath:home withIntermediateDirectories:YES attributes:nil error:NULL];
     NSString *record = [home stringByAppendingPathComponent:@"direct-wifi.json"];
     NSString *t = @"00112233445566778899aabbccddeeff";
-    SZFriendsBoostAbilities phone =
-        SZFriendsBoostCanHost | SZFriendsBoostCanJoin | SZFriendsBoostHostKeepsWiFi | SZFriendsBoostJoinKeepsWiFi;
+    SZFriendsBoostAbilities phone = SZFriendsBoostCanHost | SZFriendsBoostCanJoin | SZFriendsBoostDirectWiFiAllowed;
 
+    // This Mac is on Ethernet, on no Wi-Fi network: it agrees at once, with nothing to ask (ADR 0022).
     MockWiFi *wifi = [MockWiFi new];
     SZFriendsDirectWiFiCoordinator *mac = [[SZFriendsDirectWiFiCoordinator alloc] initWithWiFi:wifi recordPath:record
                                                                                         queue:dispatch_get_main_queue()];
@@ -385,12 +421,11 @@ static void TestCoordinator(void) {
     [mac group:@1 receivedFrame:PhoneSays([SZFriendsBoostMessage propose:phone], t) remaining:50 << 20 sortsFirst:NO
          group:group];
     SZFriendsBoostRow *row = [mac rowForTransfer:t];
-    CHECK(row.stage == SZFriendsBoostStageAsking && [row.network isEqualToString:@"HomeWiFi"] && row.leavesWiFi,
-          @"the question on the row");
-    CHECK(group.sent.count == 0, @"nothing sent before the person answers");
-    CHECK(![mac answerTransfer:@"ffffffffffffffffffffffffffffffff" goFaster:YES], @"another transfer: stale");
-    CHECK([mac answerTransfer:t goFaster:YES], @"Go faster");
-    CHECK(group.sent.lastObject.step == SZFriendsBoostStepReady, @"READY after Go faster");
+    CHECK(row.stage != SZFriendsBoostStageAsking && !row.leavesWiFi, @"no question on the row");
+    CHECK(group.sent.lastObject.step == SZFriendsBoostStepReady &&
+              (group.sent.lastObject.abilities & SZFriendsBoostDirectWiFiAllowed),
+          @"READY at once, saying this Mac allows it");
+    CHECK(![mac answerTransfer:t goFaster:YES], @"nothing to answer");
     SZFriendsBoostLink *link = [SZFriendsBoostLink random];
     [mac group:@1 receivedFrame:PhoneSays([SZFriendsBoostMessage ready:phone], t) remaining:0 sortsFirst:NO group:group];
     [mac group:@1
@@ -406,8 +441,8 @@ static void TestCoordinator(void) {
     CHECK([mac rowForTransfer:t].stage == SZFriendsBoostStageDirect, @"direct");
     [mac group:@1 transferEnded:t];
     Spin();
-    CHECK([wifi.log.lastObject isEqualToString:[@"rejoin HomeWiFi from " stringByAppendingString:link.network]],
-          @"back on HomeWiFi: %@", wifi.log);
+    CHECK([wifi.log.lastObject isEqualToString:[@"rejoin - from " stringByAppendingString:link.network]],
+          @"off the link, back on Ethernet only: %@", wifi.log);
     CHECK(group.sent.lastObject.step == SZFriendsBoostStepEnd && [group.log containsObject:@"close lane"],
           @"END sent, the lane closed");
     Spin();
@@ -429,22 +464,28 @@ static void TestCoordinator(void) {
            ![[NSFileManager defaultManager] fileExistsAtPath:record]),
           @"back after a crash: %@", afterCrash.log);
 
-    // Not now: declined to the phone, and a later PROPOSE for the same file is declined without asking.
+    // The owner's rule: a Mac on its Wi-Fi declines without asking, and so does any Mac to a phone that did not
+    // say it allows direct Wi-Fi (on Wi-Fi without mobile data, or a helper from before the rule).
     Group *second = [Group new];
-    SZFriendsDirectWiFiCoordinator *again = [[SZFriendsDirectWiFiCoordinator alloc] initWithWiFi:[MockWiFi new]
+    MockWiFi *homeWiFi = [MockWiFi new];
+    homeWiFi.network = @"HomeWiFi";
+    SZFriendsDirectWiFiCoordinator *onWiFi = [[SZFriendsDirectWiFiCoordinator alloc] initWithWiFi:homeWiFi
+                                                                                       recordPath:record
+                                                                                            queue:dispatch_get_main_queue()];
+    [onWiFi group:@2 receivedFrame:PhoneSays([SZFriendsBoostMessage propose:phone], t) remaining:50 << 20 sortsFirst:NO
+            group:second];
+    CHECK([onWiFi rowForTransfer:t].stage == SZFriendsBoostStageNone &&
+              second.sent.lastObject.reason == SZFriendsBoostReasonUnsupported && homeWiFi.log.count == 0,
+          @"on Wi-Fi: declined, nothing joined");
+    Group *third = [Group new];
+    SZFriendsDirectWiFiCoordinator *older = [[SZFriendsDirectWiFiCoordinator alloc] initWithWiFi:[MockWiFi new]
                                                                                       recordPath:record
                                                                                            queue:dispatch_get_main_queue()];
-    [again group:@2 receivedFrame:PhoneSays([SZFriendsBoostMessage propose:phone], t) remaining:50 << 20 sortsFirst:NO
-           group:second];
-    CHECK([again answerTransfer:t goFaster:NO], @"Not now");
-    CHECK(second.sent.lastObject.step == SZFriendsBoostStepDecline &&
-              second.sent.lastObject.reason == SZFriendsBoostReasonNotNow,
-          @"DECLINE not now");
-    [again group:@2 receivedFrame:PhoneSays([SZFriendsBoostMessage propose:phone], t) remaining:50 << 20 sortsFirst:NO
-           group:second];
-    CHECK([again rowForTransfer:t].stage == SZFriendsBoostStageNone && second.sent.lastObject.step ==
-                                                                           SZFriendsBoostStepDecline,
-          @"never asked again for that file");
+    SZFriendsBoostAbilities oldPhone = SZFriendsBoostCanHost | SZFriendsBoostCanJoin;
+    [older group:@3 receivedFrame:PhoneSays([SZFriendsBoostMessage propose:oldPhone], t) remaining:50 << 20
+          sortsFirst:NO group:third];
+    CHECK(third.sent.lastObject.reason == SZFriendsBoostReasonUnsupported,
+          @"a phone that did not say it allows it: declined");
     [[NSFileManager defaultManager] removeItemAtPath:home error:NULL];
 }
 

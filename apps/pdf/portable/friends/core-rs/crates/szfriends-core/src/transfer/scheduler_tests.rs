@@ -27,10 +27,10 @@ fn a_closed_lane_gives_its_blocks_back_at_once() {
     let mut s = Scheduler::new(Config::default());
     up(&mut s, 1, 0, RouteMethod::Lan);
     up(&mut s, 2, 1, RouteMethod::Lan);
-    s.add_transfer(7, Geometry::for_size(8 * MIB).unwrap());
-    s.want(7, &[(0, 8)], Duration::ZERO).unwrap();
+    s.add_transfer(7, Geometry::for_size(64 * MIB).unwrap());
+    s.want(7, &[(0, 64)], Duration::ZERO).unwrap();
     let first = sends(&s.take_actions());
-    assert_eq!(first.len(), 4, "two blocks per lane at first: {first:?}");
+    assert_eq!(first.len(), 16, "eight blocks per network lane at first: {first:?}");
     let on_two: Vec<u32> = first.iter().filter(|(l, _)| *l == 2).map(|(_, b)| *b).collect();
     s.lane_event(LaneEvent::Down { lane: 2 }, ms(5));
     let again = sends(&s.take_actions());
@@ -38,12 +38,12 @@ fn a_closed_lane_gives_its_blocks_back_at_once() {
     s.have(7, &[(0, 1)], ms(30)).unwrap();
     let next = sends(&s.take_actions());
     assert_eq!(next[0], (1, on_two[0]), "the lost lane's blocks first: {next:?}");
-    assert_eq!(s.open(7).0, 3, "lost blocks stay open (the receiver may hold parts)");
+    assert_eq!(s.open(7).0, 15, "lost blocks stay open (the receiver may hold parts)");
 }
 
 #[test]
 fn a_silent_lane_loses_its_blocks_and_is_closed_after_ten_seconds() {
-    let mut s = Scheduler::new(Config { direct_wifi_keeps_internet: true, ..Config::default() });
+    let mut s = Scheduler::new(Config { direct_wifi: true, ..Config::default() });
     up(&mut s, 1, 0, RouteMethod::Lan);
     up(&mut s, 2, 1, RouteMethod::PeerToPeerWifi);
     s.add_transfer(1, Geometry::for_size(64 * MIB).unwrap());
@@ -83,7 +83,7 @@ fn the_relay_only_when_nothing_else_works_and_bluetooth_only_beside_slow_lanes()
 }
 
 #[test]
-fn direct_wifi_that_would_cut_the_network_is_closed_unused() {
+fn direct_wifi_the_rule_does_not_allow_is_closed_unused() {
     let mut s = Scheduler::new(Config::default());
     up(&mut s, 1, 0, RouteMethod::Relay);
     up(&mut s, 2, 1, RouteMethod::PeerToPeerWifi);
@@ -94,11 +94,22 @@ fn direct_wifi_that_would_cut_the_network_is_closed_unused() {
     assert!(sends(&actions).iter().all(|(l, _)| *l == 1));
     assert!(actions.contains(&Action::Lane(LaneRequest::Open { route: RouteMethod::Bluetooth })));
     assert!(!actions.contains(&Action::Lane(LaneRequest::Open { route: RouteMethod::PeerToPeerWifi })));
-    let mut awdl = Scheduler::new(Config { direct_wifi_keeps_internet: true, ..Config::default() });
+    let mut awdl = Scheduler::new(Config { direct_wifi: true, ..Config::default() });
     up(&mut awdl, 1, 0, RouteMethod::Relay);
     awdl.add_transfer(1, Geometry::for_size(512 * MIB).unwrap());
     awdl.want(1, &[(0, 512)], Duration::ZERO).unwrap();
     assert!(awdl.take_actions().contains(&Action::Lane(LaneRequest::Open { route: RouteMethod::PeerToPeerWifi })));
+    // Beside a LAN, never asked for (ADR 0022: no direct Wi-Fi for speed, whatever the LAN measures).
+    let mut lan = Scheduler::new(Config { direct_wifi: true, ..Config::default() });
+    up(&mut lan, 1, 0, RouteMethod::Lan);
+    lan.add_transfer(1, Geometry::for_size(512 * MIB).unwrap());
+    lan.want(1, &[(0, 512)], Duration::ZERO).unwrap();
+    assert!(!lan.take_actions().contains(&Action::Lane(LaneRequest::Open { route: RouteMethod::PeerToPeerWifi })));
+    // A device joined a Wi-Fi network: the rule says no now, and the lane closes.
+    up(&mut awdl, 2, 1, RouteMethod::PeerToPeerWifi);
+    awdl.take_actions();
+    awdl.set_direct_wifi(false);
+    assert!(awdl.take_actions().contains(&Action::Lane(LaneRequest::Close { lane: 2 })));
 }
 
 #[test]
@@ -114,8 +125,8 @@ fn a_boost_the_person_agreed_to_keeps_its_direct_lane_until_it_ends() {
     assert!(first.iter().any(|(l, _)| *l == 2), "the direct lane carries blocks: {first:?}");
     s.allow_direct_wifi(false);
     assert!(s.take_actions().contains(&Action::Lane(LaneRequest::Close { lane: 2 })), "the boost ended");
-    // Already allowed by the platform (AWDL): ending a boost closes nothing.
-    let mut awdl = Scheduler::new(Config { direct_wifi_keeps_internet: true, ..Config::default() });
+    // Already allowed by the owner's rule: ending a boost closes nothing.
+    let mut awdl = Scheduler::new(Config { direct_wifi: true, ..Config::default() });
     up(&mut awdl, 2, 1, RouteMethod::PeerToPeerWifi);
     awdl.allow_direct_wifi(false);
     assert!(awdl.take_actions().is_empty());
@@ -125,14 +136,14 @@ fn a_boost_the_person_agreed_to_keeps_its_direct_lane_until_it_ends() {
 fn a_block_that_failed_is_wanted_again_alone_and_goes_first() {
     let mut s = Scheduler::new(Config::default());
     up(&mut s, 1, 0, RouteMethod::Lan);
-    s.add_transfer(1, Geometry::for_size(4 * MIB).unwrap());
-    s.want(1, &[(0, 4)], Duration::ZERO).unwrap();
-    assert_eq!(sends(&s.take_actions()), vec![(1, 0), (1, 1)]);
+    s.add_transfer(1, Geometry::for_size(16 * MIB).unwrap());
+    s.want(1, &[(0, 16)], Duration::ZERO).unwrap();
+    assert_eq!(sends(&s.take_actions()), (0..8).map(|b| (1, b)).collect::<Vec<_>>(), "eight on a network lane");
     s.want(1, &[(0, 1)], ms(10)).unwrap();
     let actions = s.take_actions();
     assert_eq!(actions[0], Action::Cancel { lane: 1, transfer: 1, block: 0 });
     assert_eq!(sends(&actions), vec![(1, 0)]);
-    assert_eq!(s.want(1, &[(3, 2)], ms(10)), Err(SchedulerError::OutOfRange));
+    assert_eq!(s.want(1, &[(15, 2)], ms(10)), Err(SchedulerError::OutOfRange));
     assert_eq!(s.have(9, &[(0, 1)], ms(10)), Err(SchedulerError::UnknownTransfer));
 }
 
@@ -145,4 +156,53 @@ fn finish_time_fills_the_lanes_like_water() {
     let t = s.finish_time(&[1, 2], 60_000_000);
     assert!((t - 1.005).abs() < 1e-9, "{t}");
     assert!(s.finish_time(&[], 1).is_infinite());
+}
+
+/// ADR 0018 § 7.2: a LAN lane that falls under half its peak while it has blocks to move gets a lane beside it on
+/// another interface; that lane is kept only if the group then moves 10 % more.
+#[test]
+fn a_degraded_lane_gets_a_lane_beside_it_kept_only_if_it_helps() {
+    use std::collections::VecDeque;
+    let mut s = Scheduler::new(Config::default());
+    up(&mut s, 1, 0, RouteMethod::Lan);
+    s.add_transfer(1, Geometry::for_size(2048 * MIB).unwrap());
+    s.want(1, &[(0, 2048)], Duration::ZERO).unwrap();
+    let mut queue: VecDeque<u32> = VecDeque::new();
+    let mut requests: Vec<(Duration, LaneRequest)> = Vec::new();
+    let mut lane_two_up = false;
+    let mut t = 0u64;
+    loop {
+        let now = ms(t);
+        for a in s.take_actions() {
+            match a {
+                Action::Send { lane, block, .. } => {
+                    s.sent(lane, 1, block, now);
+                    queue.push_back(block);
+                }
+                Action::Lane(request) => requests.push((now, request)),
+                Action::Cancel { block, .. } => queue.retain(|b| *b != block),
+            }
+        }
+        let asked = requests.iter().any(|(_, r)| matches!(r, LaneRequest::OpenBeside { .. }));
+        if asked && !lane_two_up {
+            lane_two_up = true;
+            s.lane_event(LaneEvent::Up { lane: 2, index: 1, route: RouteMethod::Lan }, now);
+            continue;
+        }
+        if t >= 20_000 {
+            break;
+        }
+        // 40 MB/s for 4 s (one MiB every 25 ms), then 10 MB/s whatever the lanes: one slow path.
+        t += if t < 4_000 { 25 } else { 100 };
+        let Some(block) = queue.pop_front() else { break };
+        s.have(1, &[(block, 1)], ms(t)).unwrap();
+    }
+    let (asked_at, _) = requests
+        .iter()
+        .find(|(_, r)| *r == LaneRequest::OpenBeside { route: RouteMethod::Lan, beside: 1 })
+        .unwrap_or_else(|| panic!("a LAN lane beside the degraded one: {requests:?}"));
+    assert!(*asked_at >= ms(6_000) && *asked_at <= ms(9_000), "3 s under half its peak: {asked_at:?}");
+    let verdicts = s.take_verdicts();
+    assert!(verdicts.iter().any(|v| v.lane == 2 && !v.kept), "judged useless: {verdicts:?}");
+    assert!(requests.iter().any(|(_, r)| *r == LaneRequest::Close { lane: 2 }), "and closed: {requests:?}");
 }

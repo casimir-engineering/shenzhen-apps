@@ -58,6 +58,10 @@ typedef NS_ENUM(uint8_t, SZFriendsHandshakePattern) {
 // authenticated, so a newcomer evicting the oldest such connection cannot cut off a friend whose handshake is
 // already past message 1. May be told more than once; only the first counts.
 - (void)sessionDidAuthenticate;
+// ADR 0018 § 7.2: the transport's own counters, for a lane that degrades: bytes sent and retransmitted since the last
+// call (the first: since the stream was ready), and the interface it runs on (an nw_interface_t; nil when unknown).
+// `done` runs once, on any queue.
+- (void)collectTransportHealth:(void (^)(uint64_t sent, uint64_t retransmitted, id _Nullable interface))done;
 @end
 
 #pragma mark - Limits (ADR 0001 § Wire format, § Files)
@@ -102,6 +106,9 @@ extern const uint16_t SZFriendsFastTransfersMinor;      // 4
 typedef NS_OPTIONS(uint32_t, SZFriendsCapabilities) {
     SZFriendsCapabilityFastTransfers = 1u << 0, // blocks, the tree, WANT and HAVE (ADR 0018)
     SZFriendsCapabilityAESLanes = 1u << 1,      // reserved for AES-GCM lanes (ADR 0018 § 9.2): never sent yet
+    // An AES session (ADR 0018 § 9.2 (c)): set with hardware AES; a fast session whose two sides set it runs
+    // AES-256-GCM from the second transport message in each direction (szfriends_cipher_aes_from_second).
+    SZFriendsCapabilityAESSession = 1u << 7,
     SZFriendsCapabilityCompressedParts = 1u << 2, // compressed PARTs (ADR 0018 § 9.4): never sent yet
     // Pieces (field 47) in WANT and HAVE (ADR 0018 § 3): sent only to a peer that sets it; to one that does not, a
     // partly received block is wanted whole and the sender schedules whole blocks.
@@ -109,14 +116,23 @@ typedef NS_OPTIONS(uint32_t, SZFriendsCapabilities) {
     // Bit 4 is the Rust core's LZ4 parts, never set here. Bit 5: the Wi-Fi Direct boost (ADR 0019): BOOST may go to a
     // peer that sets it, on a fast session; the helper sets it where it can join a direct link (a Mac).
     SZFriendsCapabilityDirectWiFiBoost = 1u << 5,
+    // Bit 6: direct Wi-Fi allowed on this device when the handshake was made, under the owner's rule (ADR 0022: on no
+    // Wi-Fi network, or a phone on mobile data). Unlike the others it says how the device is now, so each new channel
+    // reads it afresh (SZFriendsSetDirectWiFiAllowedHere). A session or lane on peer-to-peer Wi-Fi stays open only
+    // when both sides set it (-directWiFiAllowed), apart from a boost's lane.
+    SZFriendsCapabilityDirectWiFiAllowed = 1u << 6,
 };
 // What a new channel sets: fast transfers, unless the helper switched them off (settings key transfers.fast, read as
-// it starts) or SZFRIENDS_TEST_FAST_TRANSFERS=0 plays a released helper in a test home.
+// it starts) or SZFRIENDS_TEST_FAST_TRANSFERS=0 plays a released helper in a test home; with them, an AES session
+// where this Mac has hardware AES, unless SZFRIENDS_TEST_AES_SESSION=0.
 SZFriendsCapabilities SZFriendsDefaultCapabilities(void);
 void SZFriendsSetFastTransfersEnabled(BOOL enabled);
 // ADR 0019: new channels also set SZFriendsCapabilityDirectWiFiBoost (with fast transfers) once the helper can join a
 // link (a person's own home on a Mac, with CoreWLAN); off at first, and in every test home.
 void SZFriendsSetDirectWiFiBoostEnabled(BOOL enabled);
+// ADR 0022: new channels set SZFriendsCapabilityDirectWiFiAllowed while this is YES (the nearby service's policy:
+// this Mac is on no Wi-Fi network). NO at first.
+void SZFriendsSetDirectWiFiAllowedHere(BOOL allowed);
 // Liveness while a transfer runs (ADR 0018 § 7, -setLivenessKeepalive:watch:): PING after this long without sending
 // anything, and a session that heard nothing for the silence limit closes (SZFriendsSessionErrorSilent) and is
 // redialed. A route that goes out of range stays open to TCP and L2CAP for minutes; this is what notices it.
@@ -331,8 +347,15 @@ typedef BOOL (^SZFriendsRemoteKeyPolicy)(NSData *_Nullable remoteIdentityKey, SZ
 @property(nonatomic, readonly) BOOL fastTransfers;
 // Both sides set capability bit 3 on a fast session: Pieces go to this peer (ADR 0018 § 3).
 @property(nonatomic, readonly) BOOL pieces;
+// Both sides set capability bit 7 on a fast session: the transport is AES-256-GCM from its second message each way
+// (ADR 0018 § 9.2 (c)).
+@property(nonatomic, readonly) BOOL aesSession;
 // Both sides set capability bit 5 on a fast session: BOOST may go either way (ADR 0019).
 @property(nonatomic, readonly) BOOL directWiFiBoost;
+// Both handshakes set SZFriendsCapabilityDirectWiFiAllowed (any minor): this session may run on peer-to-peer Wi-Fi.
+@property(nonatomic, readonly) BOOL directWiFiAllowed;
+// The stream's counters and interface (SZFriendsByteStream's -collectTransportHealth:); zeros and nil when it has none.
+- (void)collectTransportHealth:(void (^)(uint64_t sent, uint64_t retransmitted, id _Nullable interface))done;
 // Responder: the Lane field of IK message 1, unchecked (the helper checks it against its live sessions); nil when none.
 @property(nonatomic, readonly, nullable) NSData *presentedLane;
 @end

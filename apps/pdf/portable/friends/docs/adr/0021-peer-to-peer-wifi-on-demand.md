@@ -1,6 +1,8 @@
 # ADR 0021: Peer-to-peer Wi-Fi on demand
 
-Status: Proposed (lead decision 2026-11-18; owner review pending). Date: 2026-11-18.
+Status: Proposed (lead decision 2026-11-18); § 2 superseded by [ADR 0022](0022-direct-wifi-only-off-wifi.md) (the
+owner's rule, 2026-11-27): AWDL is on exactly while the Mac is on no Wi-Fi network, both 25 MB/s triggers are gone,
+and a session or lane on awdl needs the friend's handshake to allow it too. § 1, § 3 and § 4 stand. Date: 2026-11-18.
 Amends ADR 0004 § Decision (the network adapter browses and listens with peer-to-peer Wi-Fi all the time) and ADR 0018
 § 6 and § 9.7 (the AWDL lane beside a LAN below 25 MB/s, which never opened). Keeps ADR 0011 § Route rank and the
 session race as they are. Areas: the Mac helper's network adapter (`service/discovery/SZFriendsNetworkAdapter*`), the

@@ -21,6 +21,9 @@
                        return weakSession.channel.queuedBulkFrames;
                    }];
     blocks.pieces = session.channel.pieces;
+    // The test peer plays two devices that both allow direct Wi-Fi (ADR 0022): the bench's peer-to-peer Wi-Fi cases
+    // keep their lanes.
+    blocks.directWiFi = YES;
     __weak SZFriendsBlockExchange *weakBlocks = blocks;
     session.channel.onWritten = ^{
         [weakBlocks written:SZFriendsHeadLane];

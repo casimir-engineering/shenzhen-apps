@@ -109,8 +109,8 @@ NSData *SZFriendsTreeRootOfLeaves(SZFriendsBlockGeometry geometry, NSData *leave
     return SZFriendsTreeRoot(geometry, SZFriendsTreeTop(leaves));
 }
 
-// Blocks read and hashed together: enough to keep every core busy, bounded in memory.
-static const uint64_t SZFriendsHashBatchBytes = 64ull << 20;
+// Blocks read and hashed together: enough to keep every core busy, bounded in memory (two such buffers).
+static const uint64_t SZFriendsHashBatchBytes = 32ull << 20;
 
 static BOOL SZFriendsReadFully(int fd, uint8_t *buffer, size_t length, uint64_t offset) {
     size_t done = 0;
@@ -127,26 +127,35 @@ BOOL SZFriendsHashFileTree(int fd, SZFriendsBlockGeometry geometry, NSData **lea
     NSMutableData *leaves = [NSMutableData dataWithLength:(NSUInteger)geometry.blocks * 32];
     uint64_t blockBytes = 1ull << geometry.shift;
     uint32_t perBatch = (uint32_t)MAX(1, SZFriendsHashBatchBytes / blockBytes);
-    uint8_t *buffer = malloc((size_t)MIN((uint64_t)perBatch * blockBytes, MAX(geometry.size, (uint64_t)1)));
-    if (buffer == NULL) return NO;
+    size_t bufferBytes = (size_t)MIN((uint64_t)perBatch * blockBytes, MAX(geometry.size, (uint64_t)1));
+    // Two buffers: the digest, the slowest part (one thread), takes one batch while the next is read and its
+    // leaves hashed into the other, so it never waits for the disk or for the leaves.
+    uint8_t *buffers[2] = {malloc(bufferBytes), malloc(bufferBytes)};
+    if (buffers[0] == NULL || buffers[1] == NULL) {
+        free(buffers[0]);
+        free(buffers[1]);
+        return NO;
+    }
     crypto_generichash_state state;
     crypto_generichash_init(&state, NULL, 0, 32);
     crypto_generichash_state *digest = digestOut ? &state : NULL;
     dispatch_queue_t digestQueue = dispatch_queue_create("szfriends.tree.digest", DISPATCH_QUEUE_SERIAL);
+    dispatch_group_t pending[2] = {dispatch_group_create(), dispatch_group_create()};
     uint8_t *leafBytes = leaves.mutableBytes;
     BOOL ok = YES;
-    for (uint32_t first = 0; ok && first < geometry.blocks; first += perBatch) {
+    unsigned turn = 0;
+    for (uint32_t first = 0; ok && first < geometry.blocks; first += perBatch, turn ^= 1) {
         uint32_t count = MIN(perBatch, geometry.blocks - first);
         uint64_t offset = (uint64_t)first << geometry.shift;
         uint64_t length = MIN((uint64_t)count * blockBytes, geometry.size - offset);
+        uint8_t *buffer = buffers[turn];
+        dispatch_group_wait(pending[turn], DISPATCH_TIME_FOREVER); // the digest is done with this buffer
         if (length > 0 && !SZFriendsReadFully(fd, buffer, (size_t)length, offset)) {
             ok = NO;
             break;
         }
-        // The digest of this batch on its own thread while every core hashes its leaves.
-        dispatch_group_t group = dispatch_group_create();
         if (digest) {
-            dispatch_group_async(group, digestQueue, ^{
+            dispatch_group_async(pending[turn], digestQueue, ^{
                 crypto_generichash_update(digest, buffer, (unsigned long long)length);
             });
         }
@@ -155,9 +164,11 @@ BOOL SZFriendsHashFileTree(int fd, SZFriendsBlockGeometry geometry, NSData **lea
             size_t size = (size_t)MIN(blockBytes, length - MIN(start, length));
             SZFriendsTreeLeaf(first + (uint32_t)i, buffer + start, size, leafBytes + ((size_t)first + i) * 32);
         });
-        dispatch_group_wait(group, DISPATCH_TIME_FOREVER);
     }
-    free(buffer);
+    dispatch_group_wait(pending[0], DISPATCH_TIME_FOREVER);
+    dispatch_group_wait(pending[1], DISPATCH_TIME_FOREVER);
+    free(buffers[0]);
+    free(buffers[1]);
     if (!ok) return NO;
     *leavesOut = leaves;
     if (digestOut) {

@@ -3,7 +3,6 @@
 #import "service/transfer/SZFriendsSchedulerInternal.h"
 
 const double SZFriendsBluetoothHelpsBelow = 4e6;
-const double SZFriendsDirectWiFiHelpsBelow = 25e6;
 
 @implementation SZFriendsScheduleAction
 + (instancetype)kind:(SZFriendsScheduleKind)kind lane:(SZFriendsLaneID)lane transfer:(SZFriendsTransferKey)transfer
@@ -58,23 +57,29 @@ const double SZFriendsDirectWiFiHelpsBelow = 25e6;
 - (BOOL)reaches:(double)now {
     return !closing && !unused && now - heardAt < self.unheardAfter;
 }
-static void SZFPrune(NSMutableArray<NSArray<NSNumber *> *> *samples, double now) {
-    while (samples.count && now - samples.firstObject[0].doubleValue > SZFSampleWindow) [samples removeObjectAtIndex:0];
+// The best of the samples of the last SZFSampleWindow seconds, the newest `value` included: the highest when `highest`,
+// else the lowest. A sliding window's monotonic queue: a sample that a newer one equals or beats can never be the best
+// again and goes at once, so each sample is added and removed once (a fast route samples hundreds of times a second).
+static double SZFWindowBest(NSMutableData *samples, double value, double now, BOOL highest) {
+    SZFSample *kept = samples.mutableBytes;
+    NSUInteger count = samples.length / sizeof(SZFSample);
+    while (count > 0 && (highest ? kept[count - 1].value <= value : kept[count - 1].value >= value)) count--;
+    samples.length = count * sizeof(SZFSample);
+    SZFSample sample = {now, value};
+    [samples appendBytes:&sample length:sizeof sample];
+    kept = samples.mutableBytes;
+    count++;
+    NSUInteger old = 0;
+    while (old < count && now - kept[old].at > SZFSampleWindow) old++;
+    if (old > 0) [samples replaceBytesInRange:NSMakeRange(0, old * sizeof(SZFSample)) withBytes:NULL length:0];
+    return count > old ? ((const SZFSample *)samples.bytes)[0].value : value;
 }
 - (void)sampleRate:(double)value now:(double)now {
-    [rates addObject:@[ @(now), @(MIN(value, 1e11)) ]];
-    SZFPrune(rates, now);
-    double best = 1e3;
-    for (NSArray *sample in rates) best = MAX(best, [sample[1] doubleValue]);
-    rate = best;
+    rate = MAX(1e3, SZFWindowBest(rates, MIN(value, 1e11), now, YES));
     measured = YES;
 }
 - (void)sampleRTT:(double)value now:(double)now {
-    [rtts addObject:@[ @(now), @(value) ]];
-    SZFPrune(rtts, now);
-    double best = value;
-    for (NSArray *sample in rtts) best = MIN(best, [sample[1] doubleValue]);
-    rtt = best;
+    rtt = SZFWindowBest(rtts, value, now, NO);
 }
 - (NSArray<NSNumber *> *)holdSeqs {
     return [holds.allKeys sortedArrayUsingSelector:@selector(compare:)];
@@ -83,16 +88,37 @@ static void SZFPrune(NSMutableArray<NSArray<NSNumber *> *> *samples, double now)
 
 @implementation SZFriendsScheduler
 
-- (instancetype)initWithPhone:(BOOL)phone directWiFiKeepsInternet:(BOOL)keepsInternet {
+- (instancetype)initWithPhone:(BOOL)phone directWiFi:(BOOL)directWiFi {
     if ((self = [super init])) {
         _phone = phone;
-        _keepsInternet = keepsInternet;
+        _directWiFi = directWiFi;
         _lanes = [NSMutableDictionary dictionary];
         _transfers = [NSMutableArray array];
         _actions = [NSMutableArray array];
         _requested = [NSMutableDictionary dictionary];
     }
     return self;
+}
+
+- (void)setDirectWiFi:(BOOL)directWiFi {
+    _directWiFi = directWiFi;
+    [self closeDirectWiFiUnlessAllowed];
+}
+
+- (void)allowDirectWiFi:(BOOL)allowed {
+    _boostDirectWiFi = allowed;
+    [self closeDirectWiFiUnlessAllowed];
+}
+
+- (void)closeDirectWiFiUnlessAllowed {
+    if (_directWiFi || _boostDirectWiFi) return;
+    for (NSNumber *laneID in [self laneIDs]) {
+        SZFLane *lane = _lanes[laneID];
+        if (lane->route != SZFriendsRouteMethodPeerToPeerWiFi || lane->index == 0 || lane->closing) continue;
+        lane->closing = YES;
+        [_actions addObject:[SZFriendsScheduleAction kind:SZFriendsScheduleCloseLane lane:laneID.unsignedLongLongValue
+                                                transfer:0 block:0 route:SZFriendsRouteMethodNone]];
+    }
 }
 
 - (NSArray<SZFriendsScheduleAction *> *)takeActions {
@@ -126,18 +152,21 @@ static void SZFPrune(NSMutableArray<NSArray<NSNumber *> *> *samples, double now)
         lane->index = event.index;
         lane->route = event.route;
         SZFTypical(event.route, &lane->rate, &lane->rtt);
-        lane->rates = [NSMutableArray array];
-        lane->rtts = [NSMutableArray array];
+        lane->rates = [NSMutableData data];
+        lane->rtts = [NSMutableData data];
         lane->deliveredAt = lane->progressAt = lane->heardAt = now;
         lane->holds = [NSMutableDictionary dictionary];
+        lane->lowSince = lane->lossySince = lane->unofferedSince = -1;
         // The first session is wherever the route racer put it; only a lane can be refused.
-        lane->unused = event.route == SZFriendsRouteMethodPeerToPeerWiFi && !_keepsInternet && event.index != 0;
+        lane->unused = event.route == SZFriendsRouteMethodPeerToPeerWiFi && !_directWiFi && !_boostDirectWiFi &&
+                       event.index != 0;
         lane->closing = lane->unused;
         if (lane->unused) {
             [_actions addObject:[SZFriendsScheduleAction kind:SZFriendsScheduleCloseLane lane:event.lane transfer:0
                                                         block:0 route:SZFriendsRouteMethodNone]];
         }
         _lanes[@(event.lane)] = lane;
+        [self healthLaneUp:event.lane route:event.route now:now];
     } else {
         SZFLane *gone = _lanes[@(event.lane)];
         if (gone) {
@@ -259,6 +288,7 @@ static BOOL SZFRangesFit(NSData *ranges, uint32_t blocks) {
                     continue;
                 }
                 lane->delivered += p->bytes;
+                [self noteAcked:p->lane bytes:p->bytes now:now];
                 double elapsed = MAX(now - p->deliveredAt, 0.0001);
                 [lane sampleRate:(double)(lane->delivered - p->delivered) / elapsed now:now];
                 if (p->hasSent) [lane sampleRTT:MAX(now - p->sentAt, 0) now:now];
@@ -268,6 +298,7 @@ static BOOL SZFRangesFit(NSData *ranges, uint32_t blocks) {
             }
         }
     }
+    [self watchHealthSoon:now];
     [self fill:now];
     return YES;
 }
@@ -307,6 +338,7 @@ static BOOL SZFRangesFit(NSData *ranges, uint32_t blocks) {
 - (void)cpuBound:(SZFriendsLaneID)laneID now:(double)now {
     SZFLane *lane = _lanes[@(laneID)];
     if (lane == nil) return;
+    [self noteCPUBound:laneID now:now];
     NSUInteger onRoute = 0;
     for (SZFLane *other in _lanes.allValues) onRoute += other->route == lane->route;
     if (SZFriendsOneLaneOnly(lane->route) || onRoute >= SZFriendsLanesPerRoute ||
@@ -334,6 +366,7 @@ static BOOL SZFRangesFit(NSData *ranges, uint32_t blocks) {
                                                         route:SZFriendsRouteMethodNone]];
         }
     }
+    [self watchHealth:now];
     [self fill:now];
 }
 

@@ -54,6 +54,9 @@ SZFriendsBoostRole SZFriendsBoostRoleFor(SZFriendsBoostAbilities local, SZFriend
 }
 
 @implementation SZFriendsBoostConnectivity
+- (BOOL)allowsDirectWiFi {
+    return !self.onWiFi || (self.phone && self.mobile);
+}
 @end
 
 @implementation SZFriendsBoostCost
@@ -76,7 +79,7 @@ SZFriendsBoostRole SZFriendsBoostRoleFor(SZFriendsBoostAbilities local, SZFriend
 }
 
 - (BOOL)asks {
-    return _kind == SZFriendsBoostCostLeavesInternet;
+    return _kind != SZFriendsBoostCostNothing;
 }
 
 @end
@@ -230,7 +233,7 @@ static NSData *SZFriendsBoostByte(uint8_t value) {
     case SZFriendsBoostStepReady:
         if (f[@(SZFriendsFieldAbilities)].length != 1) return nil;
         message = [self step:((const uint8_t *)step.bytes)[0]];
-        message->_abilities = byte(@(SZFriendsFieldAbilities), 0) & 0x0f;
+        message->_abilities = byte(@(SZFriendsFieldAbilities), 0) & 0x1f; // unknown bits ignored
         break;
     case SZFriendsBoostStepHost: {
         NSString *network = [[NSString alloc] initWithData:f[@(SZFriendsFieldNetwork)] ?: [NSData data]
@@ -280,7 +283,9 @@ static NSData *SZFriendsBoostByte(uint8_t value) {
                           driver:(id<SZFriendsBoostDriver>)driver {
     if ((self = [super init])) {
         _transfer = [transfer copy];
-        _local = abilities;
+        // The rule's bit says how this device is now, whatever came with the abilities.
+        _local = (abilities & ~SZFriendsBoostDirectWiFiAllowed) |
+                 (connectivity.allowsDirectWiFi ? SZFriendsBoostDirectWiFiAllowed : 0);
         _connectivity = connectivity;
         _sortsFirst = sortsFirst;
         _driver = driver;
@@ -299,7 +304,7 @@ static NSData *SZFriendsBoostByte(uint8_t value) {
                          driver:(id<SZFriendsBoostDriver>)driver {
     SZFriendsBoost *boost = [[self alloc] initWithTransfer:transfer abilities:abilities connectivity:connectivity
                                                 sortsFirst:sortsFirst driver:driver];
-    [driver boostSend:[SZFriendsBoostMessage propose:abilities]];
+    [driver boostSend:[SZFriendsBoostMessage propose:boost->_local]];
     return boost;
 }
 
@@ -317,7 +322,9 @@ static NSData *SZFriendsBoostByte(uint8_t value) {
 }
 
 - (void)peerSaid:(SZFriendsBoostAbilities)peer now:(NSTimeInterval)now {
-    SZFriendsBoostRole role = (_local & (SZFriendsBoostCanHost | SZFriendsBoostCanJoin))
+    // The owner's rule (ADR 0022): both devices allow direct Wi-Fi now, or there is no boost.
+    BOOL allowed = (_local & SZFriendsBoostDirectWiFiAllowed) && (peer & SZFriendsBoostDirectWiFiAllowed);
+    SZFriendsBoostRole role = (allowed && (_local & (SZFriendsBoostCanHost | SZFriendsBoostCanJoin)))
                                   ? SZFriendsBoostRoleFor(_local, peer, _sortsFirst)
                                   : SZFriendsBoostRoleNone;
     if (role == SZFriendsBoostRoleNone) {

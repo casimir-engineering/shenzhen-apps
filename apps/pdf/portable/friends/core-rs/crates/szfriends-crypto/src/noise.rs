@@ -7,7 +7,9 @@
 //! - The key material each pattern needs is checked up front: XX needs a static key, IK one on both sides and the
 //!   responder's on the initiator, and NN refuses any, so an NN session can never reveal a static key by mistake.
 //! - A handshake that has returned an error is dead and refuses every later call.
-//! - Transport plaintext is one frame, at most 65,519 bytes; nonces never wrap (`snow` refuses 2^64-1).
+//! - Transport plaintext is one frame, at most 65,519 bytes; nonces never wrap (2^64-1 is refused).
+//! - A session whose two sides set capability bit 7 runs AES-256-GCM from its second message in each direction
+//!   (ADR 0018 § 9.2 (c), [`Transport::aes_from_second_message`]).
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -19,8 +21,11 @@ use snow::types::{Cipher, Dh, Hash, Random};
 use subtle::ConstantTimeEq;
 use zeroize::{Zeroize, Zeroizing};
 
-use szfriends_wire::consts::{FRAME_PLAINTEXT_MAX, NOISE_MESSAGE_MAX, NOISE_TAG_LEN};
+use szfriends_wire::consts::NOISE_MESSAGE_MAX;
 use szfriends_wire::{NoiseCipher, Pattern};
+
+mod transport;
+pub use transport::{Transport, AES_SESSION_LABEL};
 
 pub const DH_LEN: usize = 32;
 pub const HASH_LEN: usize = 64;
@@ -193,6 +198,7 @@ impl std::fmt::Debug for HandshakeKeys {
 pub struct Handshake {
     state: Option<snow::HandshakeState>,
     pattern: Pattern,
+    cipher: NoiseCipher,
     dh_count: Arc<AtomicUsize>,
 }
 
@@ -239,7 +245,7 @@ impl Handshake {
             builder = builder.fixed_ephemeral_key_for_testing_only(ephemeral.as_ref());
         }
         let state = if initiator { builder.build_initiator() } else { builder.build_responder() };
-        Ok(Self { state: Some(state.map_err(map_error)?), pattern, dh_count })
+        Ok(Self { state: Some(state.map_err(map_error)?), pattern, cipher, dh_count })
     }
 
     pub fn pattern(&self) -> Pattern {
@@ -311,155 +317,14 @@ impl Handshake {
 
     /// Split(), after the last message.
     pub fn into_transport(mut self) -> Result<Transport, NoiseError> {
-        let state = self.state.take().ok_or(NoiseError::State)?;
+        let mut state = self.state.take().ok_or(NoiseError::State)?;
         if !state.is_handshake_finished() {
             return Err(NoiseError::State);
         }
-        Ok(Transport { state: state.into_stateless_transport_mode().map_err(map_error)?, sending: 0, receiving: 0 })
-    }
-}
-
-/// The two CipherStates after Split(), oriented so `encrypt` uses this side's sending key. The nonces are counted here
-/// (snow's stateless transport takes them explicitly), so a batch of messages can be sealed or opened on several cores
-/// at once ([`Transport::encrypt_many`], [`Transport::decrypt_many`]) with exactly the nonces one at a time would use.
-pub struct Transport {
-    state: snow::StatelessTransportState,
-    sending: u64,
-    receiving: u64,
-}
-
-impl std::fmt::Debug for Transport {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Transport")
-            .field("sending_nonce", &self.sending)
-            .field("receiving_nonce", &self.receiving)
-            .finish()
-    }
-}
-
-/// A batch goes to other cores only when it is worth a thread: at least two messages and this many bytes.
-const PARALLEL_MIN_BYTES: usize = 96 * 1024;
-/// Threads for one batch at most, the caller's included.
-const PARALLEL_THREADS: usize = 4;
-
-/// Runs `work` over `items` in order, on up to [`PARALLEL_THREADS`] threads when the batch is large enough.
-fn map_batch<T: Sync, R: Send>(items: &[T], bytes: usize, work: impl Fn(usize, &T) -> R + Sync) -> Vec<R> {
-    let threads = std::thread::available_parallelism().map_or(1, |n| n.get()).min(PARALLEL_THREADS).min(items.len());
-    if threads < 2 || bytes < PARALLEL_MIN_BYTES {
-        return items.iter().enumerate().map(|(n, item)| work(n, item)).collect();
-    }
-    let per = items.len().div_ceil(threads);
-    std::thread::scope(|scope| {
-        let work = &work;
-        let mut chunks = items.chunks(per).enumerate();
-        let (_, first) = chunks.next().expect("at least one item");
-        let handles: Vec<_> = chunks
-            .map(|(c, chunk)| {
-                scope.spawn(move || {
-                    chunk.iter().enumerate().map(|(n, item)| work(c * per + n, item)).collect::<Vec<R>>()
-                })
-            })
-            .collect();
-        let mut out: Vec<R> = first.iter().enumerate().map(|(n, item)| work(n, item)).collect();
-        for handle in handles {
-            out.extend(handle.join().expect("cipher thread"));
-        }
-        out
-    })
-}
-
-impl Transport {
-    fn seal(&self, nonce: u64, plaintext: &[u8]) -> Result<Vec<u8>, NoiseError> {
-        if plaintext.len() > FRAME_PLAINTEXT_MAX {
-            return Err(NoiseError::Size);
-        }
-        let mut out = vec![0u8; plaintext.len() + NOISE_TAG_LEN];
-        let length = self.state.write_message(nonce, plaintext, &mut out).map_err(map_error)?;
-        out.truncate(length);
-        Ok(out)
-    }
-
-    fn open(&self, nonce: u64, message: &[u8]) -> Result<Vec<u8>, NoiseError> {
-        if message.len() > NOISE_MESSAGE_MAX || message.len() < NOISE_TAG_LEN {
-            return Err(NoiseError::Size);
-        }
-        let mut out = vec![0u8; message.len()];
-        let length = self.state.read_message(nonce, message, &mut out).map_err(map_error)?;
-        out.truncate(length);
-        Ok(out)
-    }
-
-    /// One frame's plaintext, at most 65,519 bytes, to one transport message.
-    pub fn encrypt(&mut self, plaintext: &[u8]) -> Result<Vec<u8>, NoiseError> {
-        let message = self.seal(self.sending, plaintext)?;
-        self.sending += 1;
-        Ok(message)
-    }
-
-    /// Several frames to their messages, in order, with the nonces one call each would use; on several cores when the
-    /// batch is large (ADR 0018 § 9.2: a lane's parts are sealed in batches). All or nothing: on an error no nonce is
-    /// used.
-    pub fn encrypt_many(&mut self, plaintexts: &[&[u8]]) -> Result<Vec<Vec<u8>>, NoiseError> {
-        let bytes = plaintexts.iter().map(|p| p.len()).sum();
-        let first = self.sending;
-        let sealed = map_batch(plaintexts, bytes, |n, plaintext| self.seal(first + n as u64, plaintext));
-        let sealed: Vec<Vec<u8>> = sealed.into_iter().collect::<Result<_, _>>()?;
-        self.sending += sealed.len() as u64;
-        Ok(sealed)
-    }
-
-    /// Any failure closes the session: there is no resynchronisation.
-    pub fn decrypt(&mut self, message: &[u8]) -> Result<Vec<u8>, NoiseError> {
-        let plaintext = self.open(self.receiving, message)?;
-        self.receiving += 1;
-        Ok(plaintext)
-    }
-
-    /// Several messages in order, opened on several cores when the batch is large, as one [`Transport::decrypt`] each
-    /// would: the results stop after the first failure, or after the first plaintext `stop` names (a REKEY, after
-    /// which the next message is under the new key and must wait for [`Transport::rekey_incoming`]). Only the
-    /// messages returned used a nonce; the caller feeds the rest again.
-    pub fn decrypt_many(
-        &mut self,
-        messages: &[&[u8]],
-        stop: impl Fn(&[u8]) -> bool,
-    ) -> Vec<Result<Vec<u8>, NoiseError>> {
-        let bytes = messages.iter().map(|m| m.len()).sum();
-        let first = self.receiving;
-        let opened = map_batch(messages, bytes, |n, message| self.open(first + n as u64, message));
-        let mut out = Vec::with_capacity(opened.len());
-        for result in opened {
-            let ends = match &result {
-                Ok(plaintext) => {
-                    self.receiving += 1;
-                    stop(plaintext)
-                }
-                Err(_) => true,
-            };
-            out.push(result);
-            if ends {
-                break;
-            }
-        }
-        out
-    }
-
-    /// After sending REKEY: `k = first 32 bytes of ENCRYPT(k, 2^64-1, empty, zeros)`; the nonce is kept.
-    pub fn rekey_outgoing(&mut self) {
-        self.state.rekey_outgoing();
-    }
-
-    /// Right after decrypting the peer's REKEY.
-    pub fn rekey_incoming(&mut self) {
-        self.state.rekey_incoming();
-    }
-
-    pub fn sending_nonce(&self) -> u64 {
-        self.sending
-    }
-
-    pub fn receiving_nonce(&self) -> u64 {
-        self.receiving
+        let (first, second) = state.dangerously_get_raw_split();
+        let (first, second) = (Zeroizing::new(first), Zeroizing::new(second));
+        let (send, receive) = if state.is_initiator() { (first, second) } else { (second, first) };
+        Transport::from_split(self.cipher, send, receive)
     }
 }
 

@@ -50,6 +50,8 @@ NS_ASSUME_NONNULL_BEGIN
         check.geometry = download.assembly.geometry;
         check.root = download.assembly.root;
         check.digest = record.contentDigest ?: [NSData data];
+        check.streamed = download.streamed;
+        check.complete = [download.assembly.complete copy];
         download.checking = YES;
         return YES;
     } error:error];

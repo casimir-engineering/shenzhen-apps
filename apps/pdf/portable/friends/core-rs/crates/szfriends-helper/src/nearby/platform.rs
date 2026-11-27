@@ -44,6 +44,11 @@ pub trait PlatformDiscovery: Send + Sync {
         let _ = (name, dial);
         false
     }
+    /// This device's side of the owner's direct Wi-Fi rule now (ADR 0022: on a Wi-Fi network, a phone on mobile
+    /// data); `None` where the platform cannot say, which never allows direct Wi-Fi.
+    fn wifi_standing(&self) -> Option<szfriends_core::nearby::WifiStanding> {
+        None
+    }
 }
 
 /// Our registered entries and whether each is the public one.

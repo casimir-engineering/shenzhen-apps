@@ -18,8 +18,17 @@ use crate::transfer::sidecar::{BlockMap, Header, SenderTree, HEADER_BYTES};
 use crate::transfer::tree::{self, read_exact_at, write_all_at};
 use crate::transfer::{AssemblyError, BlockAssembly, BlockSet, Geometry, PartOutcome};
 
-/// A durability batch (ADR 0018 § 4): every 8 MiB or every second of received blocks.
-const BATCH_BYTES: u64 = 8 << 20;
+/// A durability batch (ADR 0018 § 4): every 64 MiB or every second of received blocks, whichever comes first. WHY 64:
+/// each batch's flushes waited on the disk while parts queued behind it; the second still bounds what a crash loses.
+const BATCH_BYTES: u64 = 64 << 20;
+/// Blocks queued for the streamed digest at most.
+const DIGEST_BACKLOG: usize = 32;
+/// Read back for one fresh block at most (blocks that completed out of order). More (a resumed download's whole
+/// prefix, a previous version's blocks reused) would hold the store for seconds, past the sessions' silence limit:
+/// streaming stops instead, and the check before saving hashes the file whole, on a thread of its own.
+const DIGEST_CATCH_UP_BYTES: u64 = 256 << 20;
+/// How often a batch running in the background is looked at while nothing else settles it.
+const BATCH_POLL: Duration = Duration::from_millis(10);
 const BATCH_INTERVAL: Duration = Duration::from_secs(1);
 
 /// Block ranges `(first, count)`.
@@ -44,14 +53,15 @@ pub enum BlockPart {
 /// covers the disk, so the two together prove the file on disk has the offered digest.
 #[derive(Debug)]
 struct StreamedDigest {
-    sender: Option<std::sync::mpsc::Sender<Vec<u8>>>,
+    sender: Option<std::sync::mpsc::SyncSender<Vec<u8>>>,
     handle: Option<std::thread::JoinHandle<[u8; 32]>>,
     next: u32,
 }
 
 impl StreamedDigest {
     fn new() -> Self {
-        let (sender, receiver) = std::sync::mpsc::channel::<Vec<u8>>();
+        // At most this many blocks wait for the digest: a receiver faster than BLAKE2b waits rather than holding the file.
+        let (sender, receiver) = std::sync::mpsc::sync_channel::<Vec<u8>>(DIGEST_BACKLOG);
         let handle = std::thread::Builder::new()
             .name("szfriends-digest".into())
             .spawn(move || {
@@ -69,14 +79,20 @@ impl StreamedDigest {
     }
 
     /// Feeds every block from `next` that is complete: `fresh` (just completed, still in memory) when it is the next,
-    /// the others read back from `file`.
+    /// the others read back from `file` ([`DIGEST_CATCH_UP_BYTES`] at most with a fresh one).
     fn advance(&mut self, file: &File, geometry: &Geometry, complete: &BlockSet, fresh: Option<(u32, &[u8])>) {
         let Some(sender) = &self.sender else { return };
+        let mut read = 0u64;
         while complete.contains(self.next) {
             let data = match fresh {
                 Some((block, data)) if block == self.next => data.to_vec(),
                 _ => {
                     let (offset, length) = geometry.span(self.next);
+                    read += length as u64;
+                    if fresh.is_some() && read > DIGEST_CATCH_UP_BYTES {
+                        self.sender = None; // the check before saving reads the file whole instead
+                        return;
+                    }
                     let mut buffer = vec![0u8; length];
                     if read_exact_at(file, &mut buffer, offset).is_err() {
                         self.sender = None; // the check before saving reads the file whole instead
@@ -181,6 +197,17 @@ pub(crate) struct BlockDownload {
     first_unsynced: Option<Instant>,
     unreported_complete: Vec<u32>,
     unreported_durable: Vec<u32>,
+    /// The durability batch running on a thread of its own, until settled ([`Store::flush_blocks`]).
+    flush: Option<BackgroundFlush>,
+}
+
+/// A durability batch off the store's thread, so parts arriving meanwhile are not held up by the disk: the blocks it
+/// makes durable and the bytes they hold. Until settled they are neither unsynced nor durable.
+#[derive(Debug)]
+struct BackgroundFlush {
+    blocks: Vec<u32>,
+    bytes: u64,
+    handle: std::thread::JoinHandle<std::io::Result<()>>,
 }
 
 fn open_rw(path: &Path, create: bool) -> std::io::Result<File> {
@@ -392,6 +419,7 @@ impl Store {
                 unsynced: Vec::new(),
                 unsynced_bytes: 0,
                 first_unsynced: None,
+                flush: None,
                 unreported_complete: Vec::new(),
                 unreported_durable: Vec::new(),
             },

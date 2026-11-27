@@ -28,6 +28,9 @@ szfriends-vectors = { path = "crates/szfriends-vectors" }
 # it enables ring, a second crypto library with its own C and assembly build for every target.
 snow = { version = "0.10", default-features = false, features = [
     "default-resolver", "use-chacha20poly1305", "use-blake2", "use-curve25519", "use-getrandom", "use-aes-gcm",
+    # The raw Split() keys: a session switches its transport to AES-256-GCM after its first message (ADR 0018
+    # § 9.2 (c)).
+    "risky-raw-split",
 ] }
 curve25519-dalek = { version = "4.1.3", default-features = false, features = [
     "alloc", "zeroize", "precomputed-tables",

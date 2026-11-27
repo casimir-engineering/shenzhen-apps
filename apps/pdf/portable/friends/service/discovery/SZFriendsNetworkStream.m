@@ -4,7 +4,9 @@
 
 #include <dns_sd.h>
 
-static const uint32_t kReceiveMaximum = 65536;
+// Up to 1 MiB per delivery: a fast route then costs a sixteenth of the callbacks of 64 KiB ones, and each delivery
+// holds several whole transport messages the channel reads in place.
+static const uint32_t kReceiveMaximum = 1u << 20;
 // After a local close, the FIN normally goes out at once; this bounds how long a peer that stopped reading can
 // keep the connection (and its buffers) alive.
 static const NSTimeInterval kGracefulCloseTimeout = 5;
@@ -35,15 +37,18 @@ NSError *SZFriendsErrorFromNetworkError(nw_error_t error) {
     return SZFriendsDiscoveryMakeError(SZFriendsDiscoveryErrorCancelled, @"connection ended");
 }
 
-static NSData *CopyDispatchData(dispatch_data_t content) {
-    NSMutableData *data = [NSMutableData dataWithCapacity:dispatch_data_get_size(content)];
-    dispatch_data_apply(content, ^bool(dispatch_data_t region, size_t offset, const void *buffer, size_t size) {
-        (void)region;
-        (void)offset;
-        [data appendBytes:buffer length:size];
-        return true;
-    });
-    return data;
+// The delivery as NSData without a copy when it is one region (a map of several regions is one copy), kept alive by
+// the map for as long as the NSData lives.
+static NSData *DataFromDispatchData(dispatch_data_t content) {
+    const void *bytes = NULL;
+    size_t size = 0;
+    dispatch_data_t map = dispatch_data_create_map(content, &bytes, &size);
+    return [[NSData alloc] initWithBytesNoCopy:(void *)bytes
+                                        length:size
+                                   deallocator:^(void *unused, NSUInteger length) {
+                                       (void)unused, (void)length;
+                                       (void)map;
+                                   }];
 }
 
 @implementation SZFriendsNetworkStream {
@@ -57,6 +62,8 @@ static NSData *CopyDispatchData(dispatch_data_t content) {
     BOOL _closedLocally; // -close or -cancel: the owner knows, so onClose is not called
     BOOL _hasPendingClose;
     NSError *_pendingCloseError;
+    nw_interface_t _pathInterface; // the interface the connected path took (ADR 0018 § 7.2)
+    nw_data_transfer_report_t _report; // counting since ready, or since the last -collectTransportHealth:
 }
 
 @synthesize onData = _onData;
@@ -108,6 +115,7 @@ static NSData *CopyDispatchData(dispatch_data_t content) {
         if (_isReady) break;
         _isReady = YES;
         [self classifyPath];
+        _report = nw_connection_create_new_data_transfer_report(_connection);
         [self finishReady:nil];
         break;
     case nw_connection_state_waiting:
@@ -139,6 +147,7 @@ static NSData *CopyDispatchData(dispatch_data_t content) {
     __block NSString *name = nil;
     nw_path_enumerate_interfaces(path, ^bool(nw_interface_t interface) {
         name = @(nw_interface_get_name(interface));
+        self->_pathInterface = interface;
         return false; // the first interface is the one the connection uses
     });
     if (name) _pathRoute = SZFriendsRouteForInterfaceName(name);
@@ -184,7 +193,7 @@ static NSData *CopyDispatchData(dispatch_data_t content) {
                               }
                               if (!strongSelf || strongSelf->_closed) return;
                               if (content && dispatch_data_get_size(content) > 0) {
-                                  NSData *data = CopyDispatchData(content);
+                                  NSData *data = DataFromDispatchData(content);
                                   dispatch_async(strongSelf->_callbackQueue, ^{
                                       if (strongSelf.onData) strongSelf.onData(data);
                                   });
@@ -216,7 +225,12 @@ static NSData *CopyDispatchData(dispatch_data_t content) {
 
 - (void)writeData:(NSData *)data completion:(void (^)(NSError *))completion {
     void (^done)(NSError *) = [completion copy];
-    dispatch_data_t content = dispatch_data_create(data.bytes, data.length, NULL, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
+    // Without a copy: the bytes stay with an immutable NSData until the connection is done with them (a mutable one
+    // is copied once here, so a caller reusing it cannot change what is sent).
+    NSData *held = [data copy];
+    dispatch_data_t content = dispatch_data_create(held.bytes, held.length, NULL, ^{
+        (void)held;
+    });
     __weak SZFriendsNetworkStream *weakSelf = self;
     nw_connection_send(_connection, content, NW_CONNECTION_DEFAULT_STREAM_CONTEXT, false, ^(nw_error_t error) {
         SZFriendsNetworkStream *strongSelf = weakSelf;
@@ -252,6 +266,26 @@ static NSData *CopyDispatchData(dispatch_data_t content) {
                        self->_connectionQueue, ^{
                            nw_connection_cancel(connection);
                        });
+    });
+}
+
+// TCP bytes sent and retransmitted on all the connection's paths since the last reading (the first: since it was
+// ready). A report counts from when it is made until it is collected, so one stays open between readings: each reading
+// collects it and opens the next.
+- (void)collectTransportHealth:(void (^)(uint64_t, uint64_t, id))done {
+    void (^answer)(uint64_t, uint64_t, id) = [done copy];
+    dispatch_async(_connectionQueue, ^{
+        if (!self->_isReady || self->_closed) return answer(0, 0, nil);
+        nw_interface_t interface = self->_pathInterface;
+        nw_data_transfer_report_t report = self->_report;
+        self->_report = nw_connection_create_new_data_transfer_report(self->_connection);
+        if (report == nil) return answer(0, 0, interface);
+        nw_data_transfer_report_collect(report, self->_connectionQueue, ^(nw_data_transfer_report_t collected) {
+            uint64_t sent = nw_data_transfer_report_get_sent_transport_byte_count(collected, NW_ALL_PATHS);
+            uint64_t again =
+                nw_data_transfer_report_get_sent_transport_retransmitted_byte_count(collected, NW_ALL_PATHS);
+            answer(sent, again, interface);
+        });
     });
 }
 

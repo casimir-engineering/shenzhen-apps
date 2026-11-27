@@ -442,14 +442,14 @@ impl LaneProfile {
 }
 
 impl Scenario {
-    /// `{"name", "mib": size in MiB, "seed", "limit_s", "phone", "direct_wifi_keeps_internet", "unit_kib": 256 for
+    /// `{"name", "mib": size in MiB, "seed", "limit_s", "phone", "direct_wifi", "unit_kib": 256 for
     /// slices, "lanes": [...]}`.
     pub fn from_json(value: &Value) -> Option<Self> {
         let flag = |k: &str| value.get(k).and_then(Value::as_bool).unwrap_or(false);
         Some(Self {
             name: value.get("name")?.as_str()?.to_owned(),
             size: (value.get("mib")?.as_f64()? * (1u64 << 20) as f64) as u64,
-            config: Config { phone: flag("phone"), direct_wifi_keeps_internet: flag("direct_wifi_keeps_internet") },
+            config: Config { phone: flag("phone"), direct_wifi: flag("direct_wifi") },
             lanes: value.get("lanes")?.as_array()?.iter().map(LaneProfile::from_json).collect::<Option<_>>()?,
             seed: value.get("seed").and_then(Value::as_u64).unwrap_or(1),
             limit: Duration::from_secs(value.get("limit_s").and_then(Value::as_u64).unwrap_or(3600)),

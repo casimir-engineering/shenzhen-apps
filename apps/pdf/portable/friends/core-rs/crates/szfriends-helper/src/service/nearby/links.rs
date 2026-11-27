@@ -80,6 +80,11 @@ pub struct LinkMeta {
     pub race_name: Option<String>,
     /// The reason we closed it with, if we did (for the log).
     pub our_close: Option<u8>,
+    /// Closed under the owner's rule (direct Wi-Fi not allowed by both): no failure of the person's.
+    pub rule_closed: bool,
+    /// Its TCP socket, while the link runs, and the kernel's counters last read (`tcp_health.rs`).
+    pub tcp_fd: Option<i32>,
+    pub tcp_counters: Option<super::super::tcp_health::Counters>,
 }
 
 impl LinkMeta {
@@ -205,6 +210,9 @@ impl State {
             self.nearby.dialing.remove(&key);
         }
         self.trace_up(id);
+        if self.direct_wifi_refuses(id) {
+            return self.close_under_rule(id); // the owner's rule (direct_wifi.rs)
+        }
         let session = self.sessions.map.get(&id).expect("looked up");
         let (initiator, pattern) = (session.channel.is_initiator(), session.channel.pattern());
         let meta = session.meta.clone();

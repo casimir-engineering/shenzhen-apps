@@ -81,6 +81,12 @@ impl BoostArea {
     pub fn available(&self) -> bool {
         self.platform.is_some()
     }
+
+    /// A boost's link is being set up or carries its lane: lanes on the peer-to-peer Wi-Fi route are the boost's,
+    /// judged by BOOST's Abilities rather than the handshakes' bit 6 (the joining side is on the link's network).
+    pub(crate) fn linking(&self) -> bool {
+        self.boosts.values().any(|l| matches!(l.boost.phase(), Phase::Hosting | Phase::Joining | Phase::Direct))
+    }
 }
 
 fn transfer_bytes(transfer: &str) -> Option<[u8; 16]> {
@@ -290,6 +296,11 @@ impl State {
             }
             let Some(session) = self.sessions.map.get(&head) else { continue };
             if !session.channel.direct_wifi_boost() {
+                continue;
+            }
+            // The owner's rule (ADR 0022): only from a device on no Wi-Fi network, or a phone on mobile data. The
+            // friend's side says so in its READY, or declines.
+            if !self.boost.platform.as_ref().is_some_and(|p| p.connectivity().allows_direct_wifi()) {
                 continue;
             }
             let conversation = session.conversation.clone();

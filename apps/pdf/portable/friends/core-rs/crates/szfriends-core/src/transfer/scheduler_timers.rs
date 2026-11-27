@@ -30,6 +30,7 @@ impl Scheduler {
                 self.actions.push(Action::Lane(LaneRequest::Close { lane: id }));
             }
         }
+        self.watch_health(now);
         self.fill(now);
     }
 

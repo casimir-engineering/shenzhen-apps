@@ -78,6 +78,7 @@ static NSString *AdmissionKey(nw_connection_t connection) {
         _peerToPeerInterfaces = [NSMutableDictionary dictionary];
         _seenOnLAN = [NSMutableSet set];
         _hasNetwork = YES; // until the path monitor says otherwise
+        _onWiFi = YES;      // likewise: no direct Wi-Fi before it has spoken
         _connecting = [NSMutableSet set];
         _retiringListeners = [NSMutableArray array];
         _admission = [[SZFriendsAdmissionController alloc] initWithClock:nil];
@@ -445,7 +446,13 @@ static NSString *AdmissionKey(nw_connection_t connection) {
         });
         return;
     }
-    nw_connection_t connection = nw_connection_create(endpoint, [self parametersForRoute:route interface:interface]);
+    nw_parameters_t parameters = [self parametersForRoute:route interface:interface];
+    NSArray *avoid = nil; // a lane beside a degraded one avoids its interface (ADR 0018 § 7.2)
+    @synchronized(self) { avoid = peerToPeer ? nil : _avoidNext[endpointID], [_avoidNext removeObjectForKey:endpointID]; }
+    if (avoid && [avoid[1] timeIntervalSinceNow] > 0 && !_options.loopbackOnly) {
+        nw_parameters_prohibit_interface(parameters, avoid[0]);
+    }
+    nw_connection_t connection = nw_connection_create(endpoint, parameters);
     SZFriendsNetworkStream *stream = [[SZFriendsNetworkStream alloc] initWithConnection:connection
                                                                         connectionQueue:_queue];
     [_connecting addObject:stream];

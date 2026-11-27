@@ -306,13 +306,13 @@ impl State {
     /// The scheduler of a first session sending by blocks, made the first time, with what its group did since.
     pub(crate) fn schedule(&mut self, head: u64, route: RouteMethod) -> &mut Schedule {
         let now = szfriends_core::session::monotonic_now();
+        let direct_wifi = self.direct_wifi_with(head);
         let groups = &mut self.sessions.groups;
         if !groups.schedules.contains_key(&head) {
             let config = Config {
                 phone: cfg!(any(target_os = "android", target_os = "ios")),
-                // AWDL keeps a Mac or an iPhone on its Wi-Fi network beside a direct link; elsewhere direct Wi-Fi
-                // would take the device off it.
-                direct_wifi_keeps_internet: cfg!(any(target_os = "macos", target_os = "ios")),
+                // The owner's rule for this friend (ADR 0022), kept up to date by direct_wifi_tick.
+                direct_wifi,
             };
             let mut scheduler = Scheduler::new(config);
             // The lanes live now; what the group reports after this goes to the scheduler as it happens.
@@ -357,24 +357,25 @@ impl State {
         }
     }
 
-    /// The scheduler asked for a lane on `route`: dialed to where the friend's device is seen on it, if anywhere.
-    pub(crate) fn open_lane(&mut self, head: u64, route: RouteMethod) {
+    /// The scheduler asked for a lane on `route`: dialed to where the friend's device is seen on it, if anywhere; false
+    /// when none was dialed.
+    pub(crate) fn open_lane(&mut self, head: u64, route: RouteMethod) -> bool {
         if !self.lanes || matches!(route, RouteMethod::Relay | RouteMethod::Internet | RouteMethod::None) {
-            return; // online lanes are data channels in the peer connection: not built yet
+            return false; // online lanes are data channels in the peer connection: not built yet
         }
-        let Some(session) = self.sessions.map.get(&head) else { return };
+        let Some(session) = self.sessions.map.get(&head) else { return false };
         let (Some(conversation), Some(remote_static)) =
             (session.conversation.clone(), session.channel.remote_static().copied())
         else {
-            return;
+            return false;
         };
-        let Some(group) = self.sessions.groups.by_head.get(&head) else { return };
+        let Some(group) = self.sessions.groups.by_head.get(&head) else { return false };
         let identity = *group.lanes.identity();
         let now = unix_now();
         let relayed = session.meta.race_route(&session.channel) == RouteMethod::Relay;
         let redial = if relayed { super::nearby::RELAY_PROBE_SECONDS } else { REDIAL_SECONDS };
         if group.dialed.get(&route).is_some_and(|at| now - at < redial) {
-            return;
+            return false;
         }
         let sighting = self
             .nearby
@@ -385,12 +386,12 @@ impl State {
             .flat_map(|c| c.sightings.iter())
             .find(|s| s.route == route && method_for(route) == Some(s.method))
             .map(|s| (s.endpoint.clone(), s.method));
-        let Some((endpoint, method)) = sighting else { return };
-        let Some(person) = self.store.person_with_conversation(&conversation).ok().flatten() else { return };
+        let Some((endpoint, method)) = sighting else { return false };
+        let Some(person) = self.store.person_with_conversation(&conversation).ok().flatten() else { return false };
         let provisional = self.sessions.groups.provisional();
         let group = self.sessions.groups.by_head.get_mut(&head).expect("looked up");
         group.dialed.insert(route, now);
-        let Some((_, token)) = group.lanes.reserve(provisional, route) else { return };
+        let Some((_, token)) = group.lanes.reserve(provisional, route) else { return false };
         let mut options = self.ik_options(&person, route);
         options.remote_static = Some(remote_static);
         options.expected_identity = Some(identity);
@@ -416,7 +417,9 @@ impl State {
         self.sessions.groups.head_of.insert(provisional, head);
         if !self.dial(plan.clone(), 0.0) {
             self.lane_dial_failed(&plan);
+            return false;
         }
+        true
     }
 
     /// Whether a file moves by blocks within this session's group, and whether the peer owes us something: the

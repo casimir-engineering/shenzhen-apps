@@ -143,7 +143,9 @@ fn every_scenario_meets_its_expectations() {
         for request in expect["requests"].as_array().into_iter().flatten() {
             let request = request.as_str().unwrap();
             let made = out.requests.iter().any(|(_, r)| match r {
-                LaneRequest::Open { route } => request == format!("open {}", route_name(*route)),
+                LaneRequest::Open { route } | LaneRequest::OpenBeside { route, .. } => {
+                    request == format!("open {}", route_name(*route))
+                }
                 LaneRequest::Close { .. } => request == "close",
             });
             if !made {

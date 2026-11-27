@@ -350,6 +350,8 @@ static void TestTheGroupOutlivesItsFirstSession(void) {
     SZFriendsBlockExchange *receiver =
         [[SZFriendsBlockExchange alloc] initWithTransfers:receiving conversationID:@"ken" route:SZFriendsRouteMethodLAN
                                                      send:Into(head, NO) queued:nil];
+    // The lane is direct Wi-Fi, which the owner's rule allows here: both devices off Wi-Fi (ADR 0022).
+    sender.directWiFi = receiver.directWiFi = YES;
     NSData *h = SZFTBytes(5, 64);
     [sender formGroupWithHandshakeHash:h initiator:YES];
     [receiver formGroupWithHandshakeHash:h initiator:NO];

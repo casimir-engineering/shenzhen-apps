@@ -57,7 +57,7 @@ fn real_bytes_arrive_through_the_assembly_with_corrupt_blocks_wanted_again() {
         cut,
     ];
     let mut sc = scenario("bytes", 24 * MIB + 12_345, lanes);
-    sc.config.direct_wifi_keeps_internet = true;
+    sc.config.direct_wifi = true;
     let out = run_with_bytes(&sc, &[0, 5, 24]);
     assert!(out.verified, "{out:?}");
     // A damaged copy can also be lost with its lane, or overtaken by a clean second copy.

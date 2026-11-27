@@ -88,6 +88,40 @@ static void szfriends_noise_nonce(uint64_t n, uint8_t nonce[crypto_aead_chacha20
     }
 }
 
+// AESGCM nonce (spec § 12.4): 32 bits of zeros, then the 64-bit counter big-endian.
+static void szfriends_noise_aes_nonce(uint64_t n, uint8_t nonce[crypto_aead_aes256gcm_NPUBBYTES]) {
+    int i;
+    memset(nonce, 0, 4);
+    for (i = 0; i < 8; i++) {
+        nonce[4 + i] = (uint8_t)(n >> (8 * (7 - i)));
+    }
+}
+
+const uint8_t szfriends_noise_aes_session_label[24] = {'S', 'Z', 'F', 'r', 'i', 'e', 'n', 'd', 's', ' ', 'A', 'E',
+                                                        'S', ' ', 's', 'e', 's', 's', 'i', 'o', 'n', ' ', 'v', '1'};
+
+int szfriends_cipher_aes_from_second(szfriends_cipher_state *cs) {
+    if (!cs->has_key || cs->aes || cs->n > 0 || !crypto_aead_aes256gcm_is_available()) {
+        return SZFRIENDS_NOISE_ERR_STATE;
+    }
+    cs->aes_from_second = 1;
+    return SZFRIENDS_NOISE_OK;
+}
+
+// The switch, just before the first message at n 1 or later: whatever k is then (after a REKEY at n 0, the new one).
+static void szfriends_cipher_switch_if_due(szfriends_cipher_state *cs) {
+    uint8_t key[SZFRIENDS_NOISE_KEYLEN];
+    if (!cs->aes_from_second || cs->n < 1) {
+        return;
+    }
+    crypto_generichash(key, sizeof key, szfriends_noise_aes_session_label, sizeof szfriends_noise_aes_session_label,
+                       cs->k, sizeof cs->k);
+    memcpy(cs->k, key, sizeof key);
+    sodium_memzero(key, sizeof key);
+    cs->aes = 1;
+    cs->aes_from_second = 0;
+}
+
 void szfriends_cipher_init(szfriends_cipher_state *cs, const uint8_t *key) {
     sodium_memzero(cs, sizeof *cs);
     if (key != NULL) {
@@ -117,9 +151,16 @@ int szfriends_cipher_encrypt(szfriends_cipher_state *cs, const uint8_t *ad, size
     if (in_length > SIZE_MAX - SZFRIENDS_NOISE_TAGLEN || out_capacity < in_length + SZFRIENDS_NOISE_TAGLEN) {
         return SZFRIENDS_NOISE_ERR_ARGUMENT;
     }
-    szfriends_noise_nonce(cs->n, nonce);
-    crypto_aead_chacha20poly1305_ietf_encrypt(out, &written, in, (unsigned long long)in_length, ad,
-                                              (unsigned long long)ad_length, NULL, nonce, cs->k);
+    szfriends_cipher_switch_if_due(cs);
+    if (cs->aes) {
+        szfriends_noise_aes_nonce(cs->n, nonce);
+        crypto_aead_aes256gcm_encrypt(out, &written, in, (unsigned long long)in_length, ad,
+                                      (unsigned long long)ad_length, NULL, nonce, cs->k);
+    } else {
+        szfriends_noise_nonce(cs->n, nonce);
+        crypto_aead_chacha20poly1305_ietf_encrypt(out, &written, in, (unsigned long long)in_length, ad,
+                                                  (unsigned long long)ad_length, NULL, nonce, cs->k);
+    }
     cs->n++;
     *out_length = (size_t)written;
     return SZFRIENDS_NOISE_OK;
@@ -149,10 +190,19 @@ int szfriends_cipher_decrypt(szfriends_cipher_state *cs, const uint8_t *ad, size
     if (out_capacity < in_length - SZFRIENDS_NOISE_TAGLEN) {
         return SZFRIENDS_NOISE_ERR_ARGUMENT;
     }
-    szfriends_noise_nonce(cs->n, nonce);
-    if (crypto_aead_chacha20poly1305_ietf_decrypt(out, &written, NULL, in, (unsigned long long)in_length, ad,
-                                                  (unsigned long long)ad_length, nonce, cs->k) != 0) {
-        return SZFRIENDS_NOISE_ERR_DECRYPT;
+    szfriends_cipher_switch_if_due(cs);
+    if (cs->aes) {
+        szfriends_noise_aes_nonce(cs->n, nonce);
+        if (crypto_aead_aes256gcm_decrypt(out, &written, NULL, in, (unsigned long long)in_length, ad,
+                                          (unsigned long long)ad_length, nonce, cs->k) != 0) {
+            return SZFRIENDS_NOISE_ERR_DECRYPT;
+        }
+    } else {
+        szfriends_noise_nonce(cs->n, nonce);
+        if (crypto_aead_chacha20poly1305_ietf_decrypt(out, &written, NULL, in, (unsigned long long)in_length, ad,
+                                                      (unsigned long long)ad_length, nonce, cs->k) != 0) {
+            return SZFRIENDS_NOISE_ERR_DECRYPT;
+        }
     }
     cs->n++;
     *out_length = (size_t)written;
@@ -169,8 +219,14 @@ int szfriends_cipher_rekey(szfriends_cipher_state *cs) {
         return SZFRIENDS_NOISE_ERR_STATE;
     }
     memset(zeros, 0, sizeof zeros);
-    szfriends_noise_nonce(UINT64_MAX, nonce);
-    crypto_aead_chacha20poly1305_ietf_encrypt(output, &written, zeros, sizeof zeros, NULL, 0, NULL, nonce, cs->k);
+    if (cs->aes) {
+        szfriends_noise_aes_nonce(UINT64_MAX, nonce);
+        crypto_aead_aes256gcm_encrypt(output, &written, zeros, sizeof zeros, NULL, 0, NULL, nonce, cs->k);
+    } else {
+        szfriends_noise_nonce(UINT64_MAX, nonce);
+        crypto_aead_chacha20poly1305_ietf_encrypt(output, &written, zeros, sizeof zeros, NULL, 0, NULL, nonce,
+                                                  cs->k);
+    }
     memcpy(cs->k, output, SZFRIENDS_NOISE_KEYLEN);
     sodium_memzero(output, sizeof output);
     return SZFRIENDS_NOISE_OK;

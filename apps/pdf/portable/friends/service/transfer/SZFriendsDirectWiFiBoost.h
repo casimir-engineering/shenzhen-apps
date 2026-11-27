@@ -1,7 +1,9 @@
 // The Wi-Fi Direct boost (ADR 0019) in the Mac helper: the same decisions, negotiation and way back as the Rust core's
 // transfer::boost, which both helpers must agree with frame for frame (fixtures/vectors/transfer/frames.json, boost_*).
 // A Mac can only join a link (CoreWLAN; it has no Wi-Fi Direct hosting), so here it is always the joining side, and
-// two Macs (or a Mac and an iPhone) never boost: they have AWDL.
+// two Macs (or a Mac and an iPhone) never boost: they have AWDL. Only under the owner's rule (ADR 0022): each device
+// is on no Wi-Fi network, or is a phone on mobile data, and both say so (SZFriendsBoostDirectWiFiAllowed). A Mac is
+// never a phone, so a Mac boosts only while it is on no Wi-Fi network, and then it never leaves one.
 //
 // Pure apart from SZFriendsDirectWiFiCoordinator, which runs boosts for the nearby service against an
 // id<SZFriendsWiFiJoining> (CoreWLAN in the helper, a mock in tests: no test ever touches the Mac's real Wi-Fi) and
@@ -43,6 +45,9 @@ typedef NS_OPTIONS(uint8_t, SZFriendsBoostAbilities) {
     SZFriendsBoostCanJoin = 1u << 1,
     SZFriendsBoostHostKeepsWiFi = 1u << 2,
     SZFriendsBoostJoinKeepsWiFi = 1u << 3,
+    // The owner's rule allows direct Wi-Fi on this device now (ADR 0022); set from the connectivity when a boost
+    // starts. A peer that never sets it (a helper before ADR 0022) is declined as unsupported.
+    SZFriendsBoostDirectWiFiAllowed = 1u << 4,
 };
 typedef NS_ENUM(NSInteger, SZFriendsBoostRole) {
     SZFriendsBoostRoleNone = 0,
@@ -55,14 +60,17 @@ SZFriendsBoostRole SZFriendsBoostRoleFor(SZFriendsBoostAbilities local, SZFriend
 
 typedef NS_ENUM(NSInteger, SZFriendsBoostCostKind) {
     SZFriendsBoostCostNothing = 0,
-    SZFriendsBoostCostLeavesWiFi,     // stays online another way: no question, the note says so
-    SZFriendsBoostCostLeavesInternet, // its only way online: the person is asked
+    SZFriendsBoostCostLeavesWiFi,     // stays online another way (a phone's mobile data): asked, the note says so
+    SZFriendsBoostCostLeavesInternet, // its only way online: asked (the owner's rule never gets here)
 };
 @interface SZFriendsBoostConnectivity : NSObject
 @property(nonatomic) BOOL onWiFi;
 @property(nonatomic, copy, nullable) NSString *wifiName; // shown on this device only, never sent
 @property(nonatomic) BOOL wired;
 @property(nonatomic) BOOL mobile;
+@property(nonatomic) BOOL phone; // only a phone's mobile data lets it leave its Wi-Fi (never on a Mac)
+// The owner's rule on this device's side: on no Wi-Fi network, or a phone on mobile data.
+@property(nonatomic, readonly) BOOL allowsDirectWiFi;
 @end
 @interface SZFriendsBoostCost : NSObject
 + (instancetype)costForRole:(SZFriendsBoostRole)role
@@ -71,7 +79,7 @@ typedef NS_ENUM(NSInteger, SZFriendsBoostCostKind) {
 @property(nonatomic, readonly) SZFriendsBoostCostKind kind;
 @property(nonatomic, readonly, copy, nullable) NSString *network;
 @property(nonatomic, readonly) BOOL overMobile; // LeavesWiFi only: online over mobile data, not a cable
-@property(nonatomic, readonly) BOOL asks;
+@property(nonatomic, readonly) BOOL asks; // any device that would leave its Wi-Fi: never silently
 @end
 
 #pragma mark - The link and the frames
@@ -258,6 +266,9 @@ typedef NS_ENUM(NSInteger, SZFriendsBoostStage) {
 - (BOOL)boostSendFrame:(SZFriendsFrame *)frame;
 - (void)boostDialAddress:(NSData *)address port:(uint16_t)port;
 - (void)boostCloseDirectLane;
+// The scheduler keeps the boost's direct Wi-Fi lane while allowed, whatever the owner's rule says of the group's own
+// handshakes (the boost judged both sides by BOOST's Abilities).
+- (void)boostAllowDirectWiFi:(BOOL)allowed;
 @end
 
 @interface SZFriendsDirectWiFiCoordinator : NSObject

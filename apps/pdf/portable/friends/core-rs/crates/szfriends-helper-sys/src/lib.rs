@@ -16,9 +16,12 @@
 //! - [`known_folders`]: the person's Downloads folder (`SHGetKnownFolderPath`), where received files go.
 //!
 //! The decisions over these facts are pure functions in `szfriends-contract::pipe`. Everywhere, [`local_time`]: the
-//! computer's own time zone for the words about time. Otherwise Linux needs no `unsafe` (rustix covers it).
+//! computer's own time zone for the words about time; [`tcp_info`]: a TCP connection's counters from the kernel.
+//! Otherwise Linux needs no `unsafe` (rustix covers it).
 
 pub mod local_time;
+/// A TCP connection's sent and retransmitted counters (Unix).
+pub mod tcp_info;
 #[cfg(windows)]
 mod windows;
 

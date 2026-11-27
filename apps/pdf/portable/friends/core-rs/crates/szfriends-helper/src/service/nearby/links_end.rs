@@ -60,7 +60,12 @@ impl State {
             }
         }
         if let Some(conversation) = &conversation {
-            if !meta.probe && !meta.superseded && end_counts(error.as_ref()) && (meta.live || initiator) {
+            if !meta.probe
+                && !meta.superseded
+                && !meta.rule_closed
+                && end_counts(error.as_ref())
+                && (meta.live || initiator)
+            {
                 self.note_failure(conversation, meta.live_at);
             }
             if was_adopted {

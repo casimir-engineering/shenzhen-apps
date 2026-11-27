@@ -1,7 +1,10 @@
 // Nearby on the network for the core (ADR 0015 § 9): each entry the core registers is an NWListener of its own,
-// advertised under the core's name with its TXT, and NWBrowser finds others; both include peer-to-peer Wi-Fi, which
-// only these APIs reach. Connections in either direction cross into the core as streams. Browsing is what asks for
-// Local Network access, and the core browses only once the person opened Friends.
+// advertised under the core's name with its TXT, and NWBrowser finds others. Both include peer-to-peer Wi-Fi (AWDL),
+// which only these APIs reach, only under the owner's rule (ADR 0022): while this phone is on no Wi-Fi network, or
+// is on mobile data too. The path monitor follows that, and the listeners and the browser are made again with or
+// without it when it changes; the core closes what still runs on peer-to-peer Wi-Fi once it is no. Connections in
+// either direction cross into the core as streams. Browsing is what asks for Local Network access, and the core
+// browses only once the person opened Friends.
 
 import Foundation
 import Network
@@ -36,11 +39,40 @@ final class NetworkDiscovery {
   private var browser: NWBrowser?
   private var channel: Channel?
   private var endpoints: [String: NWEndpoint] = [:]
+  private var services: [String: NWListener.Service] = [:]
+  /// Entries the core withdrew: still accepting, but off the air, also when their listener is made again.
+  private var withdrawn: Set<String> = []
+  private let monitor = NWPathMonitor()
+  /// The owner's rule on this phone, from the path monitor: no until it first answers.
+  private var peerToPeer = false
+
+  init() {
+    monitor.pathUpdateHandler = { [weak self] path in self?.pathChanged(path) }
+    monitor.start(queue: queue)
+  }
 
   private func parameters() -> NWParameters {
     let parameters = NWParameters.tcp
-    parameters.includePeerToPeer = true
+    parameters.includePeerToPeer = peerToPeer
     return parameters
+  }
+
+  /// On the queue. On a Wi-Fi network (not AWDL itself) with no mobile data: no peer-to-peer Wi-Fi.
+  private func pathChanged(_ path: NWPath) {
+    let interfaces = path.availableInterfaces
+    let wifi = interfaces.contains { $0.type == .wifi && !$0.name.hasPrefix("awdl") && !$0.name.hasPrefix("llw") }
+    let allowed = !wifi || interfaces.contains { $0.type == .cellular }
+    guard allowed != peerToPeer else { return }
+    peerToPeer = allowed
+    for name in Array(listeners.keys) {
+      listeners.removeValue(forKey: name)?.cancel()
+      guard let service = services[name], let listener = try? NWListener(using: parameters()) else { continue }
+      listener.service = withdrawn.contains(name) ? nil : service
+      listener.newConnectionHandler = { [weak self] connection in self?.accepted(connection, entry: name) }
+      listeners[name] = listener
+      listener.start(queue: queue)
+    }
+    if browser != nil, channel != nil { startBrowser() }
   }
 
   private func send(_ event: NetworkEvent) {
@@ -54,6 +86,8 @@ final class NetworkDiscovery {
     for pair in txt where pair.count == 2 { fields[pair[0]] = pair[1] }
     let service = NWListener.Service(name: name, type: type, domain: nil, txtRecord: NWTXTRecord(fields))
     let listener: NWListener? = try queue.sync {
+      services[name] = service
+      withdrawn.remove(name)
       if let listener = listeners[name] {
         listener.service = service
         return nil
@@ -70,11 +104,18 @@ final class NetworkDiscovery {
 
   /// Off the air; still accepting until `unregister`, for someone who found it a moment ago.
   func withdraw(name: String) {
-    queue.async { self.listeners[name]?.service = nil }
+    queue.async {
+      self.withdrawn.insert(name)
+      self.listeners[name]?.service = nil
+    }
   }
 
   func unregister(name: String) {
-    queue.async { self.listeners.removeValue(forKey: name)?.cancel() }
+    queue.async {
+      self.services[name] = nil
+      self.withdrawn.remove(name)
+      self.listeners.removeValue(forKey: name)?.cancel()
+    }
   }
 
   private func accepted(_ connection: NWConnection, entry: String) {
@@ -89,39 +130,49 @@ final class NetworkDiscovery {
 
   func browse(type: String, channel: Channel) {
     queue.async {
-      self.browser?.cancel()
       self.serviceType = type
       self.channel = channel
-      let browser = NWBrowser(for: .bonjourWithTXTRecord(type: type, domain: nil), using: self.parameters())
-      browser.stateUpdateHandler = { [weak self] state in
-        switch state {
-        case .ready:
-          self?.send(NetworkEvent(kind: "ready"))
-        case let .waiting(error), let .failed(error):
-          if case let .dns(code) = error, code == policyDenied {
-            self?.send(NetworkEvent(kind: "denied"))
-          } else {
-            self?.send(NetworkEvent(kind: "failed", why: "\(error)"))
-          }
+      self.startBrowser()
+    }
+  }
+
+  /// On the queue: a browser for the service type, with or without peer-to-peer Wi-Fi as the rule says now. What the
+  /// old one found is lost first: the new one reports again what it still sees, and a device seen only on peer-to-peer
+  /// Wi-Fi then is not left behind as a sighting.
+  private func startBrowser() {
+    self.browser?.cancel()
+    for name in endpoints.keys.sorted() { send(NetworkEvent(kind: "lost", name: name)) }
+    endpoints.removeAll()
+    let type = self.serviceType
+    let browser = NWBrowser(for: .bonjourWithTXTRecord(type: type, domain: nil), using: self.parameters())
+    browser.stateUpdateHandler = { [weak self] state in
+      switch state {
+      case .ready:
+        self?.send(NetworkEvent(kind: "ready"))
+      case let .waiting(error), let .failed(error):
+        if case let .dns(code) = error, code == policyDenied {
+          self?.send(NetworkEvent(kind: "denied"))
+        } else {
+          self?.send(NetworkEvent(kind: "failed", why: "\(error)"))
+        }
+      default:
+        break
+      }
+    }
+    browser.browseResultsChangedHandler = { [weak self] _, changes in
+      for change in changes {
+        switch change {
+        case let .added(result), let .changed(_, result, _):
+          self?.found(result)
+        case let .removed(result):
+          self?.lost(result)
         default:
           break
         }
       }
-      browser.browseResultsChangedHandler = { [weak self] _, changes in
-        for change in changes {
-          switch change {
-          case let .added(result), let .changed(_, result, _):
-            self?.found(result)
-          case let .removed(result):
-            self?.lost(result)
-          default:
-            break
-          }
-        }
-      }
-      browser.start(queue: self.queue)
-      self.browser = browser
     }
+    browser.start(queue: self.queue)
+    self.browser = browser
   }
 
   private func found(_ result: NWBrowser.Result) {
@@ -183,6 +234,8 @@ final class NetworkDiscovery {
       self.browser = nil
       for listener in self.listeners.values { listener.cancel() }
       self.listeners.removeAll()
+      self.services.removeAll()
+      self.withdrawn.removeAll()
       self.endpoints.removeAll()
       self.channel = nil
     }

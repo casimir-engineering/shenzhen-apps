@@ -69,7 +69,8 @@ pub fn installed() -> Option<Arc<dyn DirectWifi>> {
 }
 
 /// A test home's pretend radio: `$SZFRIENDS_TEST_DIRECT_WIFI` lists what it can do (`host`, `join`, `keeps`: both keep
-/// the Wi-Fi), `$SZFRIENDS_TEST_WIFI` names the Wi-Fi network it is on (none when unset), and
+/// the Wi-Fi; `phone`: it is a phone, whose mobile data counts under the owner's rule), `$SZFRIENDS_TEST_WIFI` names
+/// the Wi-Fi network it is on (none when unset), and
 /// `$SZFRIENDS_TEST_ONLINE_ALSO` says `mobile` or `ethernet`. `$SZFRIENDS_TEST_REJOIN=fail` makes getting back fail.
 pub const ENV_TEST_DIRECT_WIFI: &str = "SZFRIENDS_TEST_DIRECT_WIFI";
 pub const ENV_TEST_WIFI: &str = "SZFRIENDS_TEST_WIFI";
@@ -81,6 +82,7 @@ pub const TEST_LOG: &str = "direct-wifi-test.log";
 #[derive(Debug)]
 pub struct TestDirectWifi {
     abilities: Abilities,
+    phone: bool,
     wifi: Mutex<Option<String>>,
     also: Option<String>,
     rejoin_fails: bool,
@@ -93,11 +95,17 @@ impl TestDirectWifi {
         let spec = std::env::var(ENV_TEST_DIRECT_WIFI).ok()?;
         let has = |word: &str| spec.split(',').any(|w| w.trim() == word);
         let keeps = has("keeps");
-        let abilities =
-            Abilities { host: has("host"), join: has("join"), host_keeps_wifi: keeps, join_keeps_wifi: keeps };
+        let abilities = Abilities {
+            host: has("host"),
+            join: has("join"),
+            host_keeps_wifi: keeps,
+            join_keeps_wifi: keeps,
+            ..Abilities::default()
+        };
         let home = std::env::var(ENV_TEST_WIFI).ok().filter(|n| !n.is_empty());
         Some(Self {
             abilities,
+            phone: has("phone"),
             wifi: Mutex::new(home),
             also: std::env::var(ENV_TEST_ONLINE_ALSO).ok(),
             rejoin_fails: std::env::var(ENV_TEST_REJOIN).is_ok_and(|v| v == "fail"),
@@ -128,6 +136,7 @@ impl DirectWifi for TestDirectWifi {
             wifi_name: wifi,
             wired: self.also.as_deref() == Some("ethernet"),
             mobile: self.also.as_deref() == Some("mobile"),
+            phone: self.phone,
         }
     }
 
@@ -136,7 +145,11 @@ impl DirectWifi for TestDirectWifi {
     }
 
     fn device(&self) -> BoostDevice {
-        BoostDevice::Computer
+        if self.phone {
+            BoostDevice::Phone
+        } else {
+            BoostDevice::Computer
+        }
     }
 
     fn host(&self, link: &Link, done: Done<Result<IpAddr, String>>) {

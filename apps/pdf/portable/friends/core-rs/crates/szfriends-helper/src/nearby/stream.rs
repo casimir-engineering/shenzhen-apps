@@ -61,6 +61,17 @@ pub enum LinkStream {
     Online(szfriends_online::transport::ChannelStream),
 }
 
+impl LinkStream {
+    /// The socket of a TCP stream, for its kernel counters (`service/tcp_health.rs`); valid while the link runs.
+    pub fn tcp_fd(&self) -> Option<i32> {
+        match self {
+            #[cfg(unix)]
+            Self::Tcp(stream) => Some(std::os::fd::AsRawFd::as_raw_fd(stream)),
+            _ => None,
+        }
+    }
+}
+
 impl From<TcpStream> for LinkStream {
     fn from(stream: TcpStream) -> Self {
         Self::Tcp(stream)

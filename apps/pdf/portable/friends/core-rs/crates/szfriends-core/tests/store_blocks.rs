@@ -83,8 +83,13 @@ fn a_download_by_blocks_resumes_exactly_what_is_missing_and_checks_before_publis
         let leaves = hashed.leaves.concat();
         assert!(!store.block_hashes(id, &conversation, 0, &leaves[..32 * 5]).unwrap());
         assert!(store.block_hashes(id, &conversation, 5, &leaves[32 * 5..]).unwrap());
-        // Out of order; block 3 arrives corrupted and is wanted again alone.
-        for block in [7, 0, 1, 2, 4, 5, 6, 8, 9, 10, 11] {
+        // Out of order; block 3 arrives corrupted and is wanted again alone. The first eight blocks are made durable
+        // by a batch of their own (20 MiB never fill a 64 MiB one), the last three are not.
+        for block in [7, 0, 1, 2, 4, 5, 6, 8] {
+            assert_eq!(send_block(&mut store, id, &conversation, &data, &geometry, block), BlockPart::Written(block));
+        }
+        assert_eq!(store.flush_due_blocks(true).unwrap(), vec![id.to_owned()]);
+        for block in [9, 10, 11] {
             assert_eq!(send_block(&mut store, id, &conversation, &data, &geometry, block), BlockPart::Written(block));
         }
         let mut bad = data.clone();
@@ -93,7 +98,7 @@ fn a_download_by_blocks_resumes_exactly_what_is_missing_and_checks_before_publis
         assert_eq!(store.block_part(id, &conversation, 0, &data[..10]).unwrap(), BlockPart::Late);
         let (complete, durable) = store.take_block_have(id);
         assert_eq!(complete, vec![(0, 3), (4, 8)]);
-        assert_eq!(durable, vec![(0, 3), (4, 5)], "the first 8 MiB batch made durable");
+        assert_eq!(durable, vec![(0, 3), (4, 5)], "the first batch made durable");
         assert_eq!(store.transfer(id).unwrap().unwrap().verified_bytes, 3 << 20, "the contiguous durable prefix");
         conversation
         // Dropped without a flush: blocks 9 to 11 were never made durable.

@@ -32,7 +32,7 @@ NS_ASSUME_NONNULL_BEGIN
 @interface SZFSimScenario : NSObject
 @property(nonatomic, copy) NSString *name;
 @property(nonatomic) uint64_t size;
-@property(nonatomic) BOOL phone, directWiFiKeepsInternet;
+@property(nonatomic) BOOL phone, directWiFi;
 @property(nonatomic, strong) NSArray<SZFSimLaneProfile *> *lanes;
 @property(nonatomic) uint64_t seed;
 @property(nonatomic) double limit;

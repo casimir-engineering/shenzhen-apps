@@ -22,7 +22,9 @@ final class DirectWifi {
   /// On Wi-Fi, on mobile data, on a cable, as the system's path monitor says (no traffic of ours).
   func connectivity() -> (onWifi: Bool, mobile: Bool, wired: Bool) {
     let path = queue.sync { self.path ?? monitor.currentPath }
-    let interfaces = path.availableInterfaces.map(\.type)
+    // AWDL is not a Wi-Fi network of the phone's own.
+    let own = path.availableInterfaces.filter { !$0.name.hasPrefix("awdl") && !$0.name.hasPrefix("llw") }
+    let interfaces = own.map(\.type)
     return (interfaces.contains(.wifi), interfaces.contains(.cellular), interfaces.contains(.wiredEthernet))
   }
 

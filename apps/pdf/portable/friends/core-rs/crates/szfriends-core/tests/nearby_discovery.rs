@@ -5,7 +5,7 @@
 use szfriends_core::crypto::presence;
 use szfriends_core::nearby::callbacks::{window, TagMatcher};
 use szfriends_core::nearby::merger::{Merger, BLUETOOTH_SIGHTING_LIFE_SECONDS, BONJOUR_REMOVAL_GRACE_SECONDS};
-use szfriends_core::nearby::p2p_wifi::P2pWifi;
+use szfriends_core::nearby::p2p_wifi::{P2pWifi, WifiStanding};
 use szfriends_core::nearby::racer::{self, Decision, Racer};
 use szfriends_core::nearby::{Method, RouteMethod, Sighting, Tag};
 
@@ -160,24 +160,34 @@ fn dialed(racer: &mut Racer, merger: &Merger) -> Vec<String> {
 }
 
 #[test]
-fn peer_to_peer_wifi_only_where_it_keeps_the_wifi_connection() {
+fn peer_to_peer_wifi_only_while_this_side_allows_direct_wifi() {
     let merger = every_route();
-    let mut racer = Racer::default();
-    racer.set_p2p_wifi(P2pWifi::ConcurrentWithStation);
-    assert_eq!(dialed(&mut racer, &merger), ["lan1", "awdl1", "inet1", "bt1", "relay1"]);
-    for capability in [P2pWifi::DropsStation, P2pWifi::Unsupported, P2pWifi::Unknown] {
+    let off_wifi = WifiStanding { on_wifi: false, phone_on_mobile: false };
+    let on_wifi = WifiStanding { on_wifi: true, phone_on_mobile: false };
+    let phone = WifiStanding { on_wifi: true, phone_on_mobile: true };
+    for standing in [off_wifi, phone] {
         let mut racer = Racer::default();
-        racer.set_p2p_wifi(capability);
-        assert_eq!(dialed(&mut racer, &merger), ["lan1", "inet1", "bt1", "relay1"], "{capability:?}");
+        racer.set_p2p_wifi(P2pWifi::Supported);
+        racer.set_wifi_standing(standing);
+        assert_eq!(dialed(&mut racer, &merger), ["lan1", "awdl1", "inet1", "bt1", "relay1"], "{standing:?}");
     }
+    let mut on = Racer::default();
+    on.set_p2p_wifi(P2pWifi::Supported);
+    on.set_wifi_standing(on_wifi);
+    assert_eq!(dialed(&mut on, &merger), ["lan1", "inet1", "bt1", "relay1"], "on Wi-Fi");
+    let mut unknown = Racer::default();
+    unknown.set_p2p_wifi(P2pWifi::Supported);
+    assert_eq!(dialed(&mut unknown, &merger), ["lan1", "inet1", "bt1", "relay1"], "standing not known yet");
+    let mut unsupported = Racer::default();
+    unsupported.set_p2p_wifi(P2pWifi::Unsupported);
+    unsupported.set_wifi_standing(off_wifi);
+    assert_eq!(dialed(&mut unsupported, &merger), ["lan1", "inet1", "bt1", "relay1"], "no route here");
     // Without LAN the next route in the owner's order leads.
     let mut no_lan = Merger::new(matcher());
     no_lan.add_sighting(sighting(Method::Network, RouteMethod::PeerToPeerWifi, "awdl1", Some(tag()), NOW));
     no_lan.add_sighting(sighting(Method::Bluetooth, RouteMethod::Bluetooth, "bt1", Some(tag()), NOW));
     no_lan.add_sighting(sighting(Method::Network, RouteMethod::Internet, "inet1", Some(tag()), NOW));
-    let mut racer = Racer::default();
-    racer.set_p2p_wifi(P2pWifi::DropsStation);
-    assert_eq!(dialed(&mut racer, &no_lan), ["inet1", "bt1"]);
+    assert_eq!(dialed(&mut on, &no_lan), ["inet1", "bt1"]);
     assert_eq!(Racer::default().p2p_wifi(), P2pWifi::PLATFORM);
 }
 

@@ -34,7 +34,6 @@ const SZFriendsLaneID SZFriendsHeadLane = 0;
         _pieceBytes = [NSMutableDictionary dictionary];
         _early = [NSMutableDictionary dictionary];
         _pieceLane = [NSMutableDictionary dictionary];
-        _directWiFiKeepsInternet = YES;
         _clock = ^double {
             return (double)clock_gettime_nsec_np(CLOCK_MONOTONIC) / 1e9;
         };
@@ -170,9 +169,22 @@ static NSInteger SZFLeavesRank(SZFriendsRouteMethod route) {
     [self runActions];
 }
 
+- (void)setDirectWiFi:(BOOL)directWiFi {
+    if (_directWiFi == directWiFi) return;
+    _directWiFi = directWiFi;
+    [_scheduler setDirectWiFi:directWiFi];
+}
+
+- (void)setBoostDirectWiFi:(BOOL)boostDirectWiFi {
+    if (_boostDirectWiFi == boostDirectWiFi) return;
+    _boostDirectWiFi = boostDirectWiFi;
+    [_scheduler allowDirectWiFi:boostDirectWiFi];
+}
+
 - (SZFriendsScheduler *)scheduler {
     if (_scheduler) return _scheduler;
-    _scheduler = [[SZFriendsScheduler alloc] initWithPhone:NO directWiFiKeepsInternet:_directWiFiKeepsInternet];
+    _scheduler = [[SZFriendsScheduler alloc] initWithPhone:NO directWiFi:_directWiFi];
+    if (_boostDirectWiFi) [_scheduler allowDirectWiFi:YES];
     double now = self.clock();
     // Seeded with the sessions live now (without a group, the head alone): their events may have gone by already.
     [_group takeEvents];
@@ -199,8 +211,14 @@ static NSInteger SZFLeavesRank(SZFriendsRouteMethod route) {
             }
             break;
         case SZFriendsScheduleOpenLane:
-            if (_group != nil && self.onOpenLane) self.onOpenLane(action.route);
+        case SZFriendsScheduleOpenLaneBeside: {
+            BOOL beside = action.kind == SZFriendsScheduleOpenLaneBeside && self.onOpenLaneBeside;
+            BOOL dialed = _group != nil && (beside ? self.onOpenLaneBeside(action.route, action.lane)
+                                                   : self.onOpenLane && self.onOpenLane(action.route));
+            // Nothing dialed: a trial waiting for that lane is not held for it (scheduler_health.rs).
+            if (!dialed) [_scheduler laneRefused:action.route];
             break;
+        }
         case SZFriendsScheduleCloseLane:
             if (action.lane != _control && self.onCloseLane) self.onCloseLane(action.lane);
             break;
@@ -433,6 +451,15 @@ static NSInteger SZFLeavesRank(SZFriendsRouteMethod route) {
 
 - (uint64_t)acknowledgedBytesOfTransfer:(NSString *)transferID {
     return _senders[transferID].serve.acknowledgedBytes;
+}
+
+- (void)lane:(SZFriendsLaneID)lane retransmitted:(double)share {
+    [_scheduler retransmits:lane share:share now:self.clock()];
+    [self pump];
+}
+
+- (NSArray<SZFriendsLaneVerdict *> *)takeVerdicts {
+    return _scheduler ? [_scheduler takeVerdicts] : @[];
 }
 
 - (double)rateOfRoute:(SZFriendsRouteMethod)route {

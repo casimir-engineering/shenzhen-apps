@@ -53,7 +53,9 @@ handshake range 0 to 4). The handshake's capability bits (field 26, u32be, none 
 - bit 2 `compressed parts` (§ 9.4): this side reads zstd PARTs (Codec 1);
 - bit 3 `pieces`: Pieces (field 47) in WANT and HAVE (§ 3). Sent only to a peer that sets it, so development builds
   from before pieces keep working with whole blocks: to such a peer a partly received block is wanted whole;
-- bit 4 `LZ4 parts` (§ 9.4): this side reads LZ4 PARTs (Codec 2).
+- bit 4 `LZ4 parts` (§ 9.4): this side reads LZ4 PARTs (Codec 2);
+- bit 7 `AES session` (§ 9.2 (c)): this side has hardware AES and runs a session's transport on AES-256-GCM after
+  its first message. (Bit 5 is ADR 0019's, bit 6 ADR 0022's.)
 
 A session uses anything below only when its negotiated minor is 4 or more **and** both sides set bit 0. Otherwise
 everything stays exactly as ADR 0001 has it: OFFER with the BLAKE2b digest, CHUNK in order, PROGRESS, DONE, ACK, one
@@ -141,9 +143,13 @@ that goes past it is closed. That bounds what a peer can make a receiver hold wh
 ### 4. Resume: a block map that survives restarts, sleep and route changes
 
 The receiver keeps, beside `received/.partial/<id>`, a sidecar `<id>.map`: magic and version, shift, block count,
-TreeRoot, the checked leaves and a bitmap of durable blocks. A durability batch (every 8 MiB or 1 s of received
-blocks) writes the blocks (`pwrite`), orders them before the map (`F_BARRIERFSYNC` on macOS and iOS, `fsync` elsewhere),
-writes the changed bitmap bytes, then makes both durable with one `F_FULLFSYNC` (`fsync` elsewhere). The row's
+TreeRoot, the checked leaves and a bitmap of durable blocks. A durability batch (every 64 MiB or 1 s of received
+blocks, whichever comes first; 8 MiB until 2026-11-27) writes the blocks (`pwrite`), orders them before the map
+(`F_BARRIERFSYNC` on macOS and iOS, `fsync` elsewhere), writes the changed bitmap bytes, then makes both durable with
+one `F_FULLFSYNC` (`fsync` elsewhere). The flushes run on a thread of their own, on duplicates of both descriptors,
+against a bitmap that claims only that batch's blocks, while parts keep arriving; its blocks count once it settles,
+and the last batch and the publish check wait for it and flush in place (measured 2026-11-27: on the receive path
+the flushes took a sixth of a 2 GiB loopback transfer's time). The row's
 `verified_bytes` keeps meaning the contiguous durable prefix and is committed as today, so an older helper that meets
 the same partial file after a downgrade resumes from that prefix and loses only the blocks beyond it. After an unclean
 exit the receiver re-checks every block the map claims before trusting it (2 GiB re-hashes in well under a second on
@@ -178,8 +184,12 @@ that side's word for the leaves, the BLAKE2b content check at publish (§ 5) rem
 ### 5. Publishing
 
 When every block is durable the receiver reads the file back through the descriptor that wrote it (as the security
-review required) and computes the tree on all cores and the BLAKE2b content digest on one more, in the same pass, then
-publishes only if the root and the offered Digest both match. Checking the Digest too means a sender cannot make a
+review required) and computes the tree on all cores, then publishes only if the root and the offered Digest both
+match. The BLAKE2b content digest is computed while the blocks arrive, on a thread of its own: blocks go in in order,
+each as it completes when it is the next one, later blocks that completed earlier read back from the staging file. It
+covers the bytes as they arrived and were checked against their leaves, and the tree read back covers the disk, so
+the two together prove the file on disk has the offered digest (both helpers since 2026-11-27; after a restart, or
+when streaming stopped, the read-back hashes the digest too, in the same pass). Checking the Digest too means a sender cannot make a
 file's recorded identity differ from its bytes. It costs about 1.4 s per 2 GiB, in parallel with the tree, and the
 person sees "Finishing…" for files whose check takes longer than a second (PROTOCOL.md § Fast transfers).
 
@@ -229,7 +239,12 @@ smallest time from a block's last part to its HAVE in the last 10 s) and its byt
 a HAVE). The next missing block goes to the lane expected to finish it first: (in flight + block) / rate, plus its
 round-trip time. Faster lanes get proportionally more, a slow lane gets a block only when it would still beat the fast
 one, and the last blocks never wait behind Bluetooth. Each lane keeps about twice its bandwidth-delay product in
-flight: rate × round-trip time × 2, at least two blocks, at most 32 MiB (8 MiB on phones), within § 3's limit.
+flight: rate × round-trip time × 2, at most 32 MiB (8 MiB on phones), within § 3's limit. On network routes (LAN,
+direct Wi-Fi, Internet) that is plus one slice, and at least eight slices before anything is measured; on Bluetooth
+and the relay at least two (amended 2026-11-27). Why: the rate is the peak of what the lane delivered, and with a cap
+of exactly twice what it delivered the cap could only confirm the rate it had: a lane that started at two slices on a
+Wi-Fi with a 12 to 20 ms round trip, or that dipped once and measured its round trip with full queues, stayed below
+what the route carries. One slice of headroom lets the window grow until the path, not the cap, is the limit.
 
 **Congestion control is the transport's.** Every lane rides something that already has it: TCP (CUBIC by default on
 macOS, Linux, Windows, Android, iOS), SCTP in usrsctp, L2CAP credits. A second loop of our own on top would fight it;
@@ -237,7 +252,12 @@ what the application decides is only how much to keep in flight, sized from meas
 them, so the pipe stays full without queueing seconds of data in which a message would wait and from which a lost
 lane's blocks would have to be taken back. Parallel TCP lanes on one route take several shares of a shared
 bottleneck, which is unfair to the person's own other traffic, so § 6 allows them only when this computer, not the
-network, is the limit, and never on the relay.
+network, is the limit, and never on the relay; and, since 2026-11-27 with the owner's approval of the speed work
+(§ 7.2), on a lossy LAN: one second connection when the first retransmits 2 % or more of what it sends and moves under
+70 % of its peak for 3 s, kept only when the group then moves 10 % more. Why: on a lossy Wi-Fi one TCP connection
+halves its window at every loss and spends its time climbing back, while two lose and recover apart, so together they
+keep more of the link busy (what LocalSend gets from its parallel connections); on a clean link a second connection
+only splits the same bandwidth and is closed again by the 10 % rule.
 
 **Losing a lane.** When a lane closes, every block assigned to it and not in a HAVE goes back to the front of the
 missing set and is assigned at once to the remaining lanes; parts of it that did arrive stay where they are and the
@@ -248,6 +268,20 @@ without a byte from the peer. So losing Bluetooth range costs at most about 2 s 
 the transfer. **Endgame:** when nothing is left unassigned, blocks still in flight on a lane that would finish later than
 another lane could are sent there too; the first complete copy wins and the other is dropped. The waste is bounded by
 one lane's window.
+
+**§ 7.2: A lane that degrades** (2026-11-27, `transfer/scheduler_health.rs`, `SZFriendsScheduler+Health.m`). A
+network lane whose acknowledged rate over the last second stays under half its 10 s peak for 3 s, while it had blocks
+to move (at least half its cap in flight, its encrypting thread not the limit), gives its blocks to the others: its peak
+is forgotten, so its cap and expected finish follow what it moves now, and what it holds beyond a second of that, not
+yet sent, goes back (resuming is exact, so only what was in flight is sent again). Then the scheduler tries one
+alternative the owner's rules allow, in this order: a LAN lane on another interface than the degraded one's (Ethernet
+beside Wi-Fi; the Mac helper prohibits the degraded lane's interface for that dial, the Rust helper dials the route
+again), an Internet lane (a punched connection, where the helper has one; the Rust helper has none yet and drops the
+ask), Bluetooth only while the group moves under 4 MB/s; never the relay (ADR 0020). One trial at a time: from 2 s
+after the new lane comes up to 7 s, the group's acknowledged rate must beat the rate before it by 10 %, or the lane is
+closed; a route tried is not tried again for a minute. The helpers read each LAN lane's retransmissions from the
+kernel (Network.framework's data-transfer report on the Mac, `TCP_CONNECTION_INFO` on macOS and iOS and `TCP_INFO`
+on Linux and Android in the Rust helper) and log each verdict.
 
 **Liveness on every session, old peers included.** While a transfer runs on a session, each side sends PING (a frame
 every minor knows and ignores) after 1 s without sending anything, so the other side always hears something. A
@@ -317,7 +351,14 @@ Each with its cost and benefit; the journal keeps the full list, including those
    `fixtures/vectors/transfer-more/aes_lane.json`. With either cipher a session seals the bulk frames it may send and
    opens the complete messages a read delivered in batches, on up to four cores (§ 6's "lanes on several cores" within
    one lane), with the nonces one at a time would use; a batch stops at a REKEY. AEGIS-128L (21 GB/s) is not a Noise
-   cipher and is not adopted.
+   cipher and is not adopted. (c) Adopted 2026-11-27 (capability bit 7): first sessions too, without changing their
+   handshake. When both sides of a fast session set bit 7 (which a side sets only with hardware AES, as bit 1), each
+   direction's first transport message (the initiator's HELLO) stays ChaChaPoly under the Split() key and every later
+   one is AES-256-GCM with Noise's AESGCM nonces under `BLAKE2b-256(key: k, "SZFriends AES session v1")`, k being that
+   direction's key just before its message 1 (after a REKEY sent as message 0, the new one); the nonce counter goes
+   on, and REKEY afterwards rekeys the AES key as Noise's REKEY does. A side that sets bit 7 but cannot switch closes
+   the session. Released helpers set no bit 7 and keep ChaChaPoly throughout; `SZFRIENDS_TEST_AES_SESSION=0` plays
+   them. Measured on loopback (2 GiB): CPU per GB down by about one second on each side of a Mac pair.
 3. **Batching (adopted).** Files sent together are staged together: one transaction, fsync per file and one
    F_FULLFSYNC for the batch (on Apple storage it flushes the whole drive cache, 3.6 ms each here), and the receiver
    publishes a batch the same way. Their OFFERs go back to back and a receiver accepting them answers them back to back,
@@ -356,6 +397,8 @@ Each with its cost and benefit; the journal keeps the full list, including those
    lane is opened beside a LAN lane only when the LAN lane is below 25 MB/s. Wi-Fi Aware on iPhone and Android is noted
    for later. On the Mac this lane never opened until ADR 0021, which also keeps AWDL itself off unless a transfer
    wants the lane (or there is no network), and closes the lane when it does not raise the group's rate by 10 %.
+   Superseded by ADR 0022 (the owner's rule): direct Wi-Fi only when neither device is on a Wi-Fi network (or a phone
+   on mobile data), never beside a LAN for speed; the 25 MB/s threshold is gone.
 8. **Larger Bluetooth packets (adopted, WP3).** Parts of 16 KiB instead of 4 KiB chunks, a 64 KiB write budget,
    Android's high connection priority and LE 2M PHY requested while a transfer runs, BlueZ the same; CoreBluetooth picks
    its own connection interval. Overhead falls from about 1 % to 0.25 % and writes from 256 to 64 per MiB. The window no

@@ -53,6 +53,12 @@ void SZFriendsSetDirectWiFiBoostEnabled(BOOL enabled) {
     SZFriendsDirectWiFiBoostOn = enabled;
 }
 
+static _Atomic BOOL SZFriendsDirectWiFiAllowedOn = NO;
+
+void SZFriendsSetDirectWiFiAllowedHere(BOOL allowed) {
+    SZFriendsDirectWiFiAllowedOn = allowed;
+}
+
 void SZFriendsSetFastTransfersEnabled(BOOL enabled) {
     SZFriendsFastTransfersOff = !enabled;
 }
@@ -60,8 +66,12 @@ void SZFriendsSetFastTransfersEnabled(BOOL enabled) {
 SZFriendsCapabilities SZFriendsDefaultCapabilities(void) {
     const char *test = getenv("SZFRIENDS_TEST_FAST_TRANSFERS");
     if (SZFriendsFastTransfersOff || (test != NULL && strcmp(test, "0") == 0)) return 0;
+    const char *aes = getenv("SZFRIENDS_TEST_AES_SESSION");
+    BOOL aesSession = crypto_aead_aes256gcm_is_available() && !(aes != NULL && strcmp(aes, "0") == 0);
     return SZFriendsCapabilityFastTransfers | SZFriendsCapabilityPieces |
-           (SZFriendsDirectWiFiBoostOn ? SZFriendsCapabilityDirectWiFiBoost : 0);
+           (SZFriendsDirectWiFiBoostOn ? SZFriendsCapabilityDirectWiFiBoost : 0) |
+           (SZFriendsDirectWiFiAllowedOn ? SZFriendsCapabilityDirectWiFiAllowed : 0) |
+           (aesSession ? SZFriendsCapabilityAESSession : 0);
 }
 
 NSData *SZFriendsLaneToken(NSData *handshakeHash, uint8_t index) {

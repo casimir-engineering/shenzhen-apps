@@ -52,8 +52,6 @@ pub type TransferKey = u64;
 pub const SAMPLE_WINDOW: Duration = Duration::from_secs(10);
 /// Bluetooth adds to the other lanes only while they measure less than this together.
 pub const BLUETOOTH_HELPS_BELOW: f64 = 4e6;
-/// A direct Wi-Fi lane is asked for beside the LAN only while the LAN lanes measure less than this together.
-pub const DIRECT_WIFI_HELPS_BELOW: f64 = 25e6;
 /// A silent lane: no block completed and no write finished for this long, or 3 round trips if longer.
 pub const SILENT_AFTER: Duration = Duration::from_secs(1);
 pub const SILENT_AFTER_BLUETOOTH: Duration = Duration::from_secs(2);
@@ -62,6 +60,8 @@ pub const UNHEARD_AFTER: Duration = Duration::from_millis(2_500);
 pub const UNHEARD_AFTER_BLUETOOTH: Duration = Duration::from_millis(3_500);
 /// A silent lane is closed after this long without a byte from the peer.
 pub const CLOSE_SILENT_AFTER: Duration = Duration::from_secs(10);
+/// Units (blocks, or slices with pieces) a network lane may hold before its rate is measured (ADR 0018 § 7).
+pub const NETWORK_FLOOR_UNITS: u64 = 8;
 /// A lane slower than this many seconds per block holds one block at a time.
 const SLOW_BLOCK_SECONDS: f64 = 1.0;
 /// In flight per lane at most.
@@ -84,10 +84,12 @@ const SLOWER_LANE_SECONDS: f64 = 1.0;
 pub struct Config {
     /// Phones keep at most 8 MiB in flight per lane.
     pub phone: bool,
-    /// Direct Wi-Fi leaves this device on its Wi-Fi network (AWDL on Macs and iPhones). Without it, direct Wi-Fi is
-    /// never asked for and a direct Wi-Fi lane that comes up anyway is closed unused: a transfer never costs a device
-    /// its Internet connection without its person's word ([`Scheduler::allow_direct_wifi`], ADR 0019's boost).
-    pub direct_wifi_keeps_internet: bool,
+    /// Direct Wi-Fi is allowed for this group under the owner's rule (ADR 0022, `nearby::p2p_wifi`): neither device
+    /// is on a Wi-Fi network, or the one that is is a phone on mobile data; both said so. Then a direct Wi-Fi lane is
+    /// asked for where the group has no LAN lane. Without it, direct Wi-Fi is never asked for and a direct Wi-Fi lane
+    /// that comes up anyway is closed unused, except a boost's ([`Scheduler::allow_direct_wifi`], ADR 0019). It
+    /// changes as the devices move ([`Scheduler::set_direct_wifi`]).
+    pub direct_wifi: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -187,6 +189,8 @@ struct Lane {
     unused: bool,
     /// Placements in the order they were assigned: seq → (transfer, block).
     holds: BTreeMap<u64, (TransferKey, u32)>,
+    /// Whether it degraded (scheduler_health.rs).
+    health: health::Health,
 }
 
 /// The scheduler of one group: every transfer this side sends to that device, over every lane of the group.
@@ -202,6 +206,9 @@ pub struct Scheduler {
     /// ADR 0019: a direct Wi-Fi lane this device's person agreed to (the boost) is kept even where direct Wi-Fi costs
     /// the Internet connection.
     direct_wifi_allowed: bool,
+    /// Degraded lanes and the alternative being tried (scheduler_health.rs).
+    group: health::GroupHealth,
+    verdicts: Vec<Verdict>,
 }
 
 impl Scheduler {
@@ -214,14 +221,27 @@ impl Scheduler {
             requested: BTreeMap::new(),
             seq: 0,
             direct_wifi_allowed: false,
+            group: health::GroupHealth::default(),
+            verdicts: Vec::new(),
         }
     }
 
-    /// ADR 0019's boost: while `allowed`, a direct Wi-Fi lane is kept where [`Config::direct_wifi_keeps_internet`]
-    /// would close it; when the boost ends, such lanes close at once (their blocks go back to the others).
+    /// ADR 0019's boost: while `allowed`, a direct Wi-Fi lane is kept where [`Config::direct_wifi`] would close it;
+    /// when the boost ends, such lanes close at once (their blocks go back to the others).
     pub fn allow_direct_wifi(&mut self, allowed: bool) {
         self.direct_wifi_allowed = allowed;
-        if allowed || self.config.direct_wifi_keeps_internet {
+        self.close_direct_wifi_unless_allowed();
+    }
+
+    /// The owner's rule's answer for this group changed (a device joined or left a Wi-Fi network): while it says no,
+    /// direct Wi-Fi lanes other than a boost's close at once.
+    pub fn set_direct_wifi(&mut self, allowed: bool) {
+        self.config.direct_wifi = allowed;
+        self.close_direct_wifi_unless_allowed();
+    }
+
+    fn close_direct_wifi_unless_allowed(&mut self) {
+        if self.direct_wifi_allowed || self.config.direct_wifi {
             return;
         }
         let closing: Vec<LaneId> = self
@@ -258,7 +278,7 @@ impl Scheduler {
                 let (rate, rtt) = typical(route);
                 // The first session is wherever the route racer put it; only a lane can be refused.
                 let unused = route == RouteMethod::PeerToPeerWifi
-                    && !self.config.direct_wifi_keeps_internet
+                    && !self.config.direct_wifi
                     && !self.direct_wifi_allowed
                     && index != 0;
                 if unused {
@@ -284,8 +304,10 @@ impl Scheduler {
                         closing: unused,
                         unused,
                         holds: BTreeMap::new(),
+                        health: health::Health::default(),
                     },
                 );
+                self.health_lane_up(lane, route, now);
             }
             LaneEvent::Down { lane } => {
                 if let Some(gone) = self.lanes.remove(&lane) {
@@ -370,6 +392,7 @@ impl Scheduler {
         if ranges.iter().any(|&(first, count)| u64::from(first) + u64::from(count) > u64::from(blocks)) {
             return Err(SchedulerError::OutOfRange);
         }
+        let mut acked: Vec<(LaneId, u64)> = Vec::new();
         for &(first, count) in ranges {
             for block in first..first + count {
                 let transfer = &mut self.transfers[at];
@@ -398,6 +421,7 @@ impl Scheduler {
                         continue;
                     }
                     lane.delivered += p.bytes;
+                    acked.push((p.lane, p.bytes));
                     let elapsed = now.saturating_sub(p.delivered_at).max(Duration::from_micros(100));
                     lane.sample_rate(now, (lane.delivered - p.delivered) as f64 / elapsed.as_secs_f64());
                     if let Some(sent) = p.sent_at {
@@ -411,6 +435,10 @@ impl Scheduler {
                 }
             }
         }
+        for (lane, bytes) in acked {
+            self.note_acked(lane, bytes, now);
+        }
+        self.watch_health_soon(now);
         self.fill(now);
         Ok(())
     }
@@ -447,6 +475,7 @@ impl Scheduler {
     /// `lane`'s encrypting thread is busy all the time while its socket has room: this computer, not the path, limits
     /// it. One more lane on its route is asked for (never on the relay or Bluetooth).
     pub fn cpu_bound(&mut self, lane: LaneId, now: Duration) {
+        self.note_cpu_bound(lane, now);
         let Some(route) = self.lanes.get(&lane).map(|l| l.route) else { return };
         let on_route = self.lanes.values().filter(|l| l.route == route).count();
         if one_lane_only(route) || on_route >= LANES_PER_ROUTE || self.unassigned_bytes() < 8 << 20 {
@@ -458,6 +487,10 @@ impl Scheduler {
 
 #[path = "scheduler_decisions.rs"]
 mod decisions;
+
+#[path = "scheduler_health.rs"]
+mod health;
+pub use health::Verdict;
 
 #[cfg(test)]
 #[path = "scheduler_tests.rs"]

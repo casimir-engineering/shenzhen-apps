@@ -102,7 +102,12 @@ impl SecureChannel {
         };
         self.handshake_hash = handshake.handshake_hash();
         match handshake.into_transport() {
-            Ok(transport) => self.transport = Some(transport),
+            Ok(mut transport) => {
+                if self.aes_session() {
+                    transport.aes_from_second_message();
+                }
+                self.transport = Some(transport);
+            }
             Err(_) => {
                 self.fail(SessionError::HandshakeFailed, now);
                 return;
