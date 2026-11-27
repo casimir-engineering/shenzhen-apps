@@ -74,11 +74,20 @@ pub const LAN_SLOW: RouteProfile = RouteProfile {
     loss_per_million: 0,
 };
 
+/// Home Wi-Fi at the owner's 40 MB/s with a 20 ms round trip, for the CPU path at a realistic delay; on demand only.
+pub const WIFI20: RouteProfile = RouteProfile {
+    name: "wifi20",
+    class: "lan",
+    bytes_per_second: Some(40_000_000),
+    one_way_ms: 10,
+    loss_per_million: 0,
+};
+
 pub const ROUTES: [RouteProfile; 7] = [LOOPBACK, LAN, P2P_WIFI, INTERNET, INTERNET_LOSSY, RELAY, BLUETOOTH];
 
 impl RouteProfile {
     pub fn named(name: &str) -> Option<Self> {
-        ROUTES.iter().copied().chain([LAN_SLOW]).find(|r| r.name == name)
+        ROUTES.iter().copied().chain([LAN_SLOW, WIFI20]).find(|r| r.name == name)
     }
 
     pub fn tamper(&self) -> Tamper {

@@ -6,7 +6,7 @@
 //!
 //! `make friends-transfer-bench` builds and runs it; on demand only, no suite runs it. Choose with:
 //!   BENCH_PAIRS        rust-rust,rust-objc,objc-rust,objc-objc (default: all; objc ones need SZFRIENDS_OBJC_PEER)
-//!   BENCH_ROUTES       loopback,lan,p2p_wifi,internet,internet_lossy,relay,bluetooth (default: all)
+//!   BENCH_ROUTES       loopback,lan,p2p_wifi,internet,internet_lossy,relay,bluetooth (default: all); also wifi20
 //!   BENCH_SIZES        1m,4m,16m,100m,2g,small (default: 1m,100m,2g,small)
 //!   BENCH_LOSS         lan-cut,lan-silence,bluetooth-cut,bluetooth-silence (default: all; "none" for none)
 //!   BENCH_MULTI        several routes at once between the same two peers, the first carrying the session and the
