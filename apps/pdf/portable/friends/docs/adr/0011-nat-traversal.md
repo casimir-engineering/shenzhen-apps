@@ -196,7 +196,8 @@ EndpointIndependent. Two causes, both fixed:
   interface beneath it (`IP_BOUND_IF`/`IPV6_BOUND_IF` through libjuice's `%<interface>` bind address), the one with
   a scoped default route of its own (`SZFriendsOnlineInterfaceAroundTunnel`), and offers that interface's host
   addresses. STUN then learns the network's own public address, and the path avoids the proxy's extra hop and UDP
-  handling. A VPN that forbids it (includeAllNetworks) leaves no scoped route, so nothing changes there.
+  handling. A VPN that forbids it (includeAllNetworks) drops those packets; the direct attempt then fails and the relay, which
+  follows the VPN, carries the session (not measured: the owner's VPNs allow it).
 
 *The privacy trade-off, accepted by the owner for this purpose only:* the friend (or the person's own device) on the
 other end learns the network's public address and the Mac's addresses on that interface, which the tunnel would
