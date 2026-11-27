@@ -145,6 +145,11 @@ impl BlockCopy {
     }
 
     /// The shift to ask with: the announced tree's, else this build's for the size.
+    /// The file's size in bytes.
+    pub fn size(&self) -> u64 {
+        self.size
+    }
+
     pub fn shift(&self) -> u8 {
         self.header.map_or_else(|| Geometry::for_size(self.size).map_or(20, |g| g.shift), |h| h.geometry.shift)
     }

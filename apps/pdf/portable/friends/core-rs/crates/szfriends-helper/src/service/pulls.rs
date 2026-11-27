@@ -60,6 +60,8 @@ pub struct PullCopy {
     holders: BTreeMap<u64, Holder>,
     /// Blocks asked of a holder before the planner knew the tree, one each, so every holder sends its tree.
     probes: u32,
+    /// When the pull started, for the log's rate.
+    pub(crate) started: std::time::Instant,
 }
 
 /// The pull running now (one file at a time, as the requesters copy).
@@ -274,6 +276,7 @@ impl State {
             root: None,
             holders: BTreeMap::new(),
             probes: 0,
+            started: std::time::Instant::now(),
         });
     }
 

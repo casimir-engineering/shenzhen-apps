@@ -157,7 +157,14 @@ impl State {
                 )
             })
             .collect();
-        crate::log!("pulled a file from {} holders, blocks each: {}", current.holders.len(), shares.join(", "));
+        let seconds = current.started.elapsed().as_secs_f64().max(0.001);
+        let megabytes = current.copy.size() as f64 / 1e6;
+        crate::log!(
+            "pulled a file from {} holders, blocks each: {}; {megabytes:.1} MB in {seconds:.1} s, {:.2} MB/s",
+            current.holders.len(),
+            shares.join(", "),
+            megabytes / seconds
+        );
         match current.copy.finish() {
             Some(path) => {
                 let adopted = match &current.origin {

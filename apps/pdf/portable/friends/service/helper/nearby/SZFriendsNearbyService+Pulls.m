@@ -51,6 +51,7 @@ static double SZFriendsPullNow(void) {
 @property(nonatomic) uint8_t shift;
 @property(nonatomic, strong) NSMutableArray<SZFriendsPullHolder *> *holders;
 @property(nonatomic) uint32_t probes; // blocks asked before the tree was known, one per holder
+@property(nonatomic) double startedAt; // monotonic seconds, for the log's rate
 @end
 @implementation SZFriendsPullCopy
 @end
@@ -208,6 +209,7 @@ static uint32_t SZFriendsNthBlock(NSData *ranges, uint32_t n) {
     current.own = own;
     current.friendConversation = again ? conversation : (own.outgoing ? nil : own.conversationID);
     current.size = again ? again.size : own.size;
+    current.startedAt = SZFriendsPullNow();
     NSString *partial = [self.services.transfers.receivedDirectory stringByAppendingPathComponent:@".partial"];
     [NSFileManager.defaultManager createDirectoryAtPath:partial withIntermediateDirectories:YES
                                              attributes:@{NSFilePosixPermissions : @0700} error:NULL];
@@ -423,8 +425,13 @@ static uint32_t SZFriendsNthBlock(NSData *ranges, uint32_t n) {
         [shares addObject:[NSString stringWithFormat:@"%@ %u%@", holder.sync ? @"own device" : @"friend",
                                                      holder.delivered, holder.out ? @" (out)" : @""]];
     }
-    SZFriendsHelperLog(@"pulled a file from %lu holders, blocks each: %@", (unsigned long)current.holders.count,
-                       [shares componentsJoinedByString:@", "]);
+    double seconds = MAX(SZFriendsPullNow() - current.startedAt, 0.001);
+    NSMutableArray<NSString *> *routes = [NSMutableArray array];
+    for (SZFriendsPullHolder *holder in current.holders) [routes addObject:SZFriendsTraceRouteName(holder.route)];
+    SZFriendsHelperLog(@"pulled a file from %lu holders, blocks each: %@; %.1f MB in %.1f s, %.2f MB/s, over %@",
+                       (unsigned long)current.holders.count, [shares componentsJoinedByString:@", "],
+                       current.size / 1e6, seconds, current.size / 1e6 / seconds,
+                       [routes componentsJoinedByString:@", "]);
     NSString *path = [current.blockCopy finish];
     if (path == nil) {
         SZFriendsHelperLog(@"a file pulled from its holders did not check");

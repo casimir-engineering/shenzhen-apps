@@ -18,6 +18,12 @@ static char SZFNHashKey, SZFNSentKey, SZFNAttestationKey;
 - (BOOL)fastTransfers {
     return NO;
 }
+- (SZFriendsCapabilities)remoteCapabilities {
+    return 0;
+}
+- (BOOL)aesSession {
+    return NO;
+}
 - (NSData *)presentedLane {
     return nil;
 }

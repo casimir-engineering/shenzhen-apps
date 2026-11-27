@@ -51,6 +51,8 @@ SZFriendsPersonRecord *SZFNSavePerson(SZFriendsStore *store, SZFriendsRelation r
 // Liveness while a transfer runs (ADR 0018 § 7): a fake link never goes silent, so this does nothing.
 - (void)setLivenessKeepalive:(BOOL)keepalive watch:(BOOL)watch;
 @property(nonatomic, readonly) BOOL fastTransfers; // NO: fakes move files by CHUNK
+@property(nonatomic, readonly) SZFriendsCapabilities remoteCapabilities; // none: protocol 1, as the session-up line says
+@property(nonatomic, readonly) BOOL aesSession;                         // NO: fakes carry no cipher
 @property(nonatomic, readonly, nullable) NSData *presentedLane; // nil: fakes are never lanes
 @property(nonatomic, readonly) BOOL directWiFiAllowed; // YES: fakes play two devices off Wi-Fi (ADR 0022)
 @end
