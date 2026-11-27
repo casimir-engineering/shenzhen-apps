@@ -47,7 +47,7 @@ Everything in those lists is in this spec except what § Not included names, wit
 |---|---|---|
 | One mode | **Annotate** replaces the Fill & Sign button and mode: same place in the toolbar, same ⌥⌘F, a pencil-and-brush icon, named "Annotate". It has every tool of § 2 on every document. On a PDF it also has Fill & Sign's form tools (Text, ✓ ✗, Signature) as its first group, and a PDF with a fillable form still opens with Annotate on | Raph: "paint mode should actually be annotation mode, all tools should be available in all docs" |
 | Pictures | PNG, JPEG, GIF, BMP, TIFF, HEIC, WebP, camera RAW: the Background layer is the picture's own pixels and every tool can change it (erase, fill, crop, resize, rotate) | Paint |
-| PDFs | Each page is a canvas. Its **Background is the page itself, locked**: nothing erases, fills, crops, lifts or recolours it. Pixel tools paint into a drawing layer above the page (made on the first stroke), the Eraser erases only what was added, Fill floods inside the edges you see but paints into the drawing layer, the colour picker reads what you see. Crop, resize, rotate, flip, invert, skew and clear apply to a selection, objects or added layers, never to the page. Canvas size is the page size and can't be dragged | "you can't erase the base pdf of course" |
+| PDFs | Each page is a canvas. Its **Background is the page itself, locked**: nothing erases, fills, crops, lifts or recolours it. Pixel tools paint into the active layer above the page (Layer 1 until the person adds more), the Eraser erases only that layer, Fill floods inside the edges you see but paints into the drawing layer, the colour picker reads what you see. Crop, resize, rotate, flip, invert, skew and clear apply to a selection, objects or added layers, never to the page. Canvas size is the page size and can't be dragged | "you can't erase the base pdf of course" |
 | Text documents | Markdown, plain text and every other format that is not a picture or a PDF (EPUB, XPS, CBZ, FB2, SVG): turning Annotate on asks first: "To annotate this document, save it as a PDF." [Save as PDF…] [Cancel]. Save as PDF uses the app's existing PDF export (what printing would make), the Save panel defaults to the same folder and name with .pdf, the PDF opens in a new tab beside it with Annotate on. The original is never changed | Raph: "text based docs will first ask to save as pdf" |
 | Blank canvas | **File > New Canvas…** (⌘N; ⌥⌘N if ⌘N is taken), also in the tab strip's + menu, opens the New Canvas sheet, then a tab "Untitled canvas", transparent, Annotate on. A checkerboard shows where it is transparent. Its right edge, bottom edge and corner drag to resize it | Raph's defaults |
 
@@ -63,8 +63,8 @@ paper at it, keeps a size typed in mm, cm or in at its length, and leaves pixel 
 orientation and resolution chosen are offered next time; the first time it is Default at 300 ppi. The canvas keeps the
 resolution, and every PNG, JPEG or TIFF saved from it carries it. The table of sizes is `core/spdf_paint_presets.c`,
 shared with `canvas.new {preset}` and `szpdf canvas new --preset`.
-| Layers and depth | Every canvas is a stack: the **Background** at the bottom, raster layers, and **objects** on top. An object is a shape, line, curve, arrow, pen line, text box, picture (pasted, inserted, or a selection that was moved) or, on a PDF, a placed text, mark or signature. Each object is its own layer, so it keeps its depth and stays editable: right-click it for Bring to Front, Bring Forward, Send Backward, Send to Back, Merge Down, Duplicate, Delete | Windows 11 Paint has layers but turns shapes into pixels as soon as you click away; Raph asked for depth you can change later, by right-click |
-| Pen and pixel tools | Fill & Sign's **Pen** and **Arrow** stay: vector lines, each an object, sharp at any zoom and on paper (Tools group). Paint's **Pencil**, nine **brushes**, **Airbrush**, **Eraser**, **Color Eraser** and **Fill** paint pixels into the **active raster layer** and never into an object | Both are useful: a pen line you can move, a brush stroke with texture |
+| Layers and objects | Every document starts as two layers: the **base layer** at the bottom (on a PDF the page itself, locked, "Page 3"; on a picture the picture, "Background"; on a new canvas "Background", transparent) and **Layer 1** above it, which holds every object and the drawing. Nothing else is made by itself: the person adds layers (Layers panel +, Image > Layers > New Layer, right-click the canvas > New Layer), and new drawing and new objects go into the **active layer**. A layer has its own pixels (the pixel tools paint there, under its objects) and its objects, back to front; its eye, lock and opacity apply to both. An object is a shape, line, curve, arrow, pen line, text box, picture (pasted, inserted, or a selection that was moved) or, on a PDF, a placed text, mark or signature; it stays editable and keeps its depth within its layer: right-click it for Bring to Front, Bring Forward, Send Backward, Send to Back (within its layer), **Move to Layer Above / Below** (greyed at the ends; never onto the base layer; every selected object goes, keeping its place on the canvas: up, to the bottom of the layer above; down, to the top of the layer below), Merge Down (into its layer's pixels), Duplicate, Delete | Raph: "by default there should be the pdf layer, every annotate object is on a second layer and it is up to the user to add layers and draw on them. if you right click on an object you can move it to the next layer up or down." |
+| Pen and pixel tools | Fill & Sign's **Pen** and **Arrow** stay: vector lines, each an object, sharp at any zoom and on paper (Tools group). Paint's **Pencil**, nine **brushes**, **Airbrush**, **Eraser**, **Color Eraser** and **Fill** paint pixels into the **active layer** and never into an object; a locked layer takes nothing ("This layer is locked; unlock it to change it.") | Both are useful: a pen line you can move, a brush stroke with texture |
 | Right button | Right-click without moving, or Control-click: the context menu of what is under the pointer (an object, the selection, or the canvas). Right-drag with a pixel tool or a shape tool: draws with Color 2, as in Paint | Both of Paint's uses of the right button, told apart by movement (4 pt) |
 | Saving a picture | ⌘S, Done, closing the tab, switching to another document or quitting writes the flattened picture into the file, in its own format, with its metadata. Collection keeps the version before the first write, as image rotation does. No "save changes?" question for a file that exists | The app already writes Fill & Sign and rotations into the file; Collection is the undo across sessions |
 | Saving a PDF | As Fill & Sign does today: changes are written into the PDF (or its writable copy) after a short pause, as annotations, so every PDF reader shows them (§ 5) | Unchanged behaviour, extended to the new tools |
@@ -98,12 +98,17 @@ leaves it as it was, ↑/↓ step it by 1 (Shift: 10) with the slider following.
 Arrow keep their colours and widths of today, and also take Color 1 and the size slider.
 
 **Layers panel:** a sidebar on the right of the canvas (the minimap's place while Annotate is on; the minimap comes
-back on Done), shown by the Layers button or ⇧⌘L. Top of the list is front. Each row: thumbnail, name ("Background",
-"Page 3" on a PDF, "Drawing", "Layer 2", "Rectangle", "Text: Hello", "Picture", "Pen line", "Signature"), eye
-(hide/show), and while selected an opacity slider whose percentage can be typed, as the palette's values. A PDF page's Background row shows a lock and has no eye, opacity or
-delete. Drag rows to
-reorder (= depth). Buttons under the list: New Layer, Duplicate, Merge Down, Delete. The active raster layer is marked
-with a brush badge; selecting an object row selects that object on the canvas.
+back on Done), shown by the Layers button or ⇧⌘L. Top of the list is front, as in Photoshop: each layer's row
+(disclosure triangle, thumbnail of its drawing and objects, name over "3 objects", lock, eye), its objects' rows
+indented under it, front first (thumbnail, name — "Rectangle", "Text: Hello", "Picture", "Pen line", "Signature" — and
+eye); the triangle folds a layer's objects away. The base layer is last ("Background"; "Page 3" on a PDF, with a lock
+and no eye, opacity or delete). While selected, a row shows an opacity slider whose percentage can be typed, as the
+palette's values. A double-click on a row types over its name (Return renames, Escape keeps it). Selecting a layer's
+row makes it the active layer (brush badge on its thumbnail); selecting an object's row selects that object on the
+canvas. Drag a layer's row among the layers to reorder them (with their objects); drag an object's row within its
+layer (depth) or into another layer's rows (it moves there, keeping its place on the canvas). Buttons under the list:
+New Layer (above the selected layer), Duplicate (a layer with its objects), Merge Down, Delete (a layer with its
+objects).
 
 **Status bar** (bottom of the page area while Annotate is on): pointer position, selection or object size, canvas or
 page size (px on pictures, pt on PDFs, with the page number), Fit, zoom percentage menu, zoom slider. Toggle: View >
@@ -129,16 +134,16 @@ area transparent). Shift keeps the ratio on the corner. Minimum 1 x 1, maximum 1
 Every tool's settings (size, opacity, brush, shape styles, font) are remembered in `<state>/Annotate/settings.json`
 (Fill & Sign's `drawing.json` is read once into it), read the first time Annotate opens, written on change.
 
-Every tool works on every document. On a PDF page "the active raster layer" is that page's drawing layer (made on the
-first stroke, named "Drawing"), and anything that would change the Background changes nothing there: those commands
-are greyed out, with a tooltip "The page itself can't be changed."
+Every tool works on every document. On a PDF page the active layer is Layer 1 until the person adds or picks another,
+and anything that would change the page changes nothing there: those commands are greyed out, with a tooltip "The page
+itself can't be changed."
 
 ### Selection ▾
 
 | Item | Behaviour |
 |---|---|
 | Select (S) | Fill & Sign's Select: click an object to select it, drag a box from empty canvas to select every object it touches. Pressed again: Rectangular selection, then Free-form selection |
-| Rectangular selection | Drag a marching-ants rectangle; Shift makes it square. Drag inside it to move: the pixels lift out of the active layer into a new **Picture** object at the same place (the hole is transparent, or Color 2 when "Transparent selection" is off and the layer has no alpha, as Paint) |
+| Rectangular selection | Drag a marching-ants rectangle; Shift makes it square. It shows the objects' eight handles and rotation handle: dragging one lifts the pixels into a Picture object and resizes (proportions kept, Shift frees them) or turns it live, as any object. Drag inside it to move: the pixels lift out of the active layer (or, when it has nothing there, the nearest layer under it that has, usually the picture) into a new **Picture** object at the same place (the hole is transparent, or Color 2 when "Transparent selection" is off and the layer has no alpha, as Paint) |
 | Free-form selection | Drag a lasso; closes itself on release. On a PDF, a pixel selection selects from the drawing layers only (Copy takes what you see, page included) |
 | Select all (⌘A) | The whole canvas |
 | Invert selection (⇧⌘I) | |
@@ -158,7 +163,7 @@ take the arrow keys (1 px, Shift 10 px).
 | Item | Behaviour |
 |---|---|
 | Crop | Same as Crop to selection |
-| Resize and skew… (⌥⌘I) | Sheet: Resize by Percentage / Pixels, Horizontal, Vertical, Maintain aspect ratio (on); Skew (degrees) Horizontal, Vertical (−89…89). Applies to the selection or selected object if any, else to the whole picture (every layer and object scaled) |
+| Resize and skew… (⌥⌘I) | Sheet, Image menu and palette only (never a right-click menu): Resize by Percentage / Pixels, Horizontal, Vertical, Maintain aspect ratio (on); Skew (degrees) Horizontal, Vertical (−89…89). Applies to the whole picture or canvas (every layer and object scaled), as Paint's dialog; a selection, a pasted picture or any object is resized by its handles |
 | Rotate ▾ | Rotate right 90°, Rotate left 90°, Rotate 180°, and Rotate by… (any angle, classic). Same scope rule |
 | Flip ▾ | Flip vertical, Flip horizontal. Same scope rule |
 | Invert colors (⇧⌘⌥I is taken? use ⌃⌘I) | Inverts RGB of the selection, the selected object or the active layer |
@@ -237,13 +242,16 @@ Colors… write and read a palette (`.json` and Paint/RIFF `.pal`). Every colour
   Fill & Sign's for its own items and Annotate's for shapes, text boxes, pictures, pen lines and arrows (box handles, as
   everywhere; an arrow's direction follows its box or the rotation handle). Double-click edits a text box, a curve's points or a polygon's corners.
 - Right-click an object: **Bring to Front** (⌥⌘]), **Bring Forward** (⌘]), **Send Backward** (⌘[), **Send to Back**
-  (⌥⌘[), Merge Down (into the layer below it; becomes pixels), Duplicate (⌘D), Delete, Flip Horizontal, Flip Vertical,
-  Rotate Right, Rotate Left, Outline ▸ / Fill ▸ / Size ▸ (shapes), Edit Text (text), Copy, Cut.
+  (⌥⌘[) (all within its layer), **Move to Layer Above**, **Move to Layer Below** (also Image > Layers), Merge Down
+  (into its layer's drawing; becomes pixels), Duplicate (⌘D), Delete, Flip Horizontal, Flip Vertical, Rotate Right,
+  Rotate Left, Outline ▸ / Fill ▸ / Size ▸ (shapes), Edit Text (text), Copy, Cut. No right-click menu resizes: the
+  handles do.
 - Right-click the canvas (no object): Paste, Select All, New Layer, Canvas Size and Properties…, Remove Background.
-- Right-click the selection: Cut, Copy, Delete, Crop to Selection, Invert Selection, Lift to Object, Flip/Rotate.
+- Right-click the selection: Cut, Copy, Delete, Crop to Selection, Invert Selection, Lift to Object, Flip/Rotate. A
+  pixel selection shows the handles (resize, rotate) while a selection tool is chosen.
 - Several objects: Shift-click or drag a box with the Selection tool starting on empty canvas while ⌥ is held
-  (without ⌥ the drag is a pixel selection); move, depth and delete apply to all.
-- An object's opacity is its layer's opacity (Layers panel slider).
+  (without ⌥ the drag is a pixel selection); move, depth, Move to Layer and delete apply to all.
+- An object is drawn at its own opacity times its layer's, and hidden or locked with its layer (Layers panel).
 
 ## 4. Edit, history and keys
 
@@ -264,8 +272,10 @@ something else keeps the app's meaning; the UI agent lists clashes and picks the
   turned on, or at once for a `.szpaint` file or a restored canvas tab; a PDF page's annotations are read as Fill &
   Sign reads its items today (per page, when Annotate is on).
 - **`.szpaint`:** a ZIP (MuPDF's `fz_zip_writer`) holding `manifest.json` (canvas size, dpi, layers bottom to top with
-  kind, name, visibility, opacity, and for objects their kind and parameters) and one PNG per raster layer and per
-  Picture object. Shapes and text are stored as parameters, drawn again on load. Version 1.
+  kind, name, visibility, opacity, lock, each with its objects' kinds and parameters) and one PNG per layer and per
+  Picture object. Shapes and text are stored as parameters, drawn again on load. Version 2 (layers hold objects); a
+  version 1 project (each object its own layer) opens with each object on the layer below it, and objects right above
+  the Background on a new "Layer 1".
 - **Writing the picture:** flattened (visible layers and objects, opacity applied), encoded off the main thread with
   ImageIO, written to a temporary file in the same folder and swapped in, as `SPDFRotateImageAtPath` does. Collection
   is told before (`collectionProtectPath`) and after (`collectionDidSavePath`).
@@ -284,7 +294,7 @@ are objects of this model as they are, with no rewrite of files already filled.
 
 | Layer or object | Written as |
 |---|---|
-| Drawing layer (pixels from Pencil, brushes, Airbrush, Fill, pixel erasing) | One `Stamp` annotation per drawing layer and page, its appearance an image XObject (RGBA, SMask for alpha) cropped to the pixels used, at 2x the page's resolution in points (Pencil stays hard-edged at that resolution); `/NM` `spdf-annotate-layer-<uuid>` |
+| A layer's drawing (pixels from Pencil, brushes, Airbrush, Fill, pixel erasing) | One `Stamp` annotation per layer with a drawing and page, its appearance an image XObject (RGBA, SMask for alpha) cropped to the pixels used, at 2x the page's resolution in points (Pencil stays hard-edged at that resolution); `/NM` `spdf-annotate-layer-<uuid>` |
 | Pen line, Arrow | As today: `Ink` |
 | Line, Arrow line, Curve | `Ink` with the drawn points (curves flattened for the appearance, control points in `/SPDFAnnotate`) |
 | Rectangle, Rounded rectangle, Oval | `Square` / `Circle` with `/IC` fill and `/BS` width when the style is solid; textured outline or fill styles as a `Stamp` whose appearance is the drawn shape |
@@ -293,8 +303,15 @@ are objects of this model as they are, with no rewrite of files already filled.
 | Picture | `Stamp` with an image appearance |
 | Fill & Sign text, marks, signatures | As today |
 
-Layer visibility on a PDF is the annotation's Hidden flag; layer opacity is `/CA`. Merge Down of an object into the
-drawing layer rasterises it into that layer's image. The page itself is never rewritten. Writing follows Fill & Sign's
+**Layers.** `/Annots` holds the layers in order, each followed by its objects back to front. Every annotation Annotate
+writes, and every Fill & Sign item it moves or changes, records its layer in `/SPDFAnnotate /Layer`: `<< /Id
+(spdf-annotate-layer-<uuid>) /Name (Layer 2) /Order 2 /Visible true /Opacity 0.8 /Locked false >>` (`/Id` is the layer's
+own name in the file, its drawing's `/NM` when it has one). Opening the page (also after `szpdf` changed it) rebuilds the
+same layers in `/Order` with their names, visibility, opacity and lock, each object on its own. An annotation without a
+record (written before layers held objects, by Fill & Sign alone, or by another app) goes on the lowest layer, Layer 1:
+a PDF annotated before this change opens with all its items, and its drawing, in Layer 1. A layer with nothing on it
+isn't kept in the file. An object's Hidden flag is its own or its layer's; its `/CA` is its own opacity times its
+layer's. Merge Down of an object rasterises it into its layer's drawing. The page itself is never rewritten. Writing follows Fill & Sign's
 commit cycle (shown from memory in the next frame, one save 0.35 s after the last change and before any other reader
 of the file, no wrong frame, writable copy when the original can't be changed, Collection; fill-and-sign.md "UI as built",
 Saving). Save Final Copy (flatten) keeps working and bakes these too.
@@ -325,12 +342,12 @@ generated from it, so a new operation appears everywhere at once.
 | Selection | `select.rect {x,y,w,h}`, `select.freeform {points}`, `select.all`, `select.none`, `select.invert`, `select.delete`, `select.lift` (→ object id), `select.transparent {on}` |
 | Pen and arrow | `pen.add {points, color, width}`, `arrow.add {tail, tip, color, width}` (Fill & Sign's vector items; edited, moved, erased and restyled with the object operations; `erase.lines {points, size}` removes whole pen lines and arrows it touches) |
 | Pixels | `paint.stroke {tool:"pencil"\|"brush"\|"calligraphy1"\|"calligraphy2"\|"airbrush"\|"oil"\|"crayon"\|"marker"\|"natural_pencil"\|"watercolor"\|"eraser"\|"color_eraser", points:[[x,y,(pressure)],…], color?, size, opacity, seed?}`, `paint.fill {x, y, color?, tolerance=0, contiguous=true}`, `color.pick {x, y, from:"visible"\|"layer"}` (read-only) |
-| Objects | `shape.add {shape, rect \| points, rotation=0, outline:{style,color,width}, fill:{style,color}}`, `text.add {rect, text, font, size, bold, italic, underline, strikethrough, align, color, background:"transparent"\|color}`, `picture.add {path \| clipboard:true \| png_base64, rect?}`, `object.update {id, …any add argument}`, `object.move {id \| ids, dx, dy}`, `object.transform {id, rect?, rotation?, flip?}`, `object.order {id \| ids, to:"front"\|"forward"\|"backward"\|"back"\|index}`, `object.merge_down {id}`, `object.duplicate {id}`, `object.delete {id \| ids}` |
-| Layers | `layer.add {name?, above?}`, `layer.duplicate {id}`, `layer.delete {id}`, `layer.merge_down {id}`, `layer.set {id, name?, visible?, opacity?}`, `layer.order {id, to}`, `layer.activate {id}` |
+| Objects | `shape.add {shape, rect \| points, rotation=0, outline:{style,color,width}, fill:{style,color}}`, `text.add {rect, text, font, size, bold, italic, underline, strikethrough, align, color, background:"transparent"\|color}`, `picture.add {path \| clipboard:true \| png_base64, rect?}`, `object.update {id, …any add argument}`, `object.move {id \| ids, dx, dy}`, `object.transform {id, rect?, rotation?, flip?}`, `object.order {id \| ids, to:"front"\|"forward"\|"backward"\|"back"\|index}` (within the object's layer, 0 = its bottom), `object.layer {id \| ids, to:"above"\|"below" \| layer, position?}` (to the layer above or below, or onto a given one; their place on the canvas stays), `object.merge_down {id}`, `object.duplicate {id}`, `object.delete {id \| ids}` |
+| Layers | `layer.add {name?, above?}` (above the active layer and its objects; becomes active), `layer.duplicate {id}` (with its objects), `layer.delete {id}` (with its objects), `layer.merge_down {id}` (drawing into the layer below's, objects on top of its), `layer.set {id, name?, visible?, opacity?, locked?}`, `layer.order {id, to}` (among layers, 0 = lowest), `layer.activate {id}` (an object's id selects it) |
 | Colours | `colors.set {color1?, color2?}`, `palette.set_custom {index, color}`, `palette.save {path}` / `palette.load {path}` (Save Colors… / Get Colors…: `.json` or Paint `.pal`) |
 | History | `history.undo {steps=1}`, `history.redo {steps=1}` |
 | Forms (PDF) | `form.state` (read-only: fields with names, kinds, values, pages, rects; placed items; "3 of 12 filled"), `form.field_set {name, value}`, `form.text_add {page, x, y, text, size?}`, `form.mark_add {page, x, y, kind:"check"\|"cross"}`, `form.signature_place {page, rect, kind:"signature"\|"initials"}` (the person's saved signature; refused with `no_signature` when none is saved: agents never draw one), `form.remove_drawings`, `form.remove_everything`, `form.save_final_copy {path}` |
-| Document | `doc.state` (read-only: size, dpi, layers and objects with ids, kinds, bounds and parameters, active layer, selection, colours, zoom, dirty, file and format), `doc.render {out, region?, scale?, layers?}` (read-only: a PNG to look at), `doc.save`, `doc.save_as {path, format, quality?}`, `doc.save_as_pdf {path?}` (text documents: makes and opens the PDF, answers its tab), `doc.copy {scope, out?}` (`out`: a PNG file instead of the clipboard, Copy to file…), `mode.set {on}` (Annotate on or off, Done) |
+| Document | `doc.state` (read-only: size, dpi, `layers` bottom to top, each layer with its `objects` back to front, with ids, kinds, bounds and parameters, active layer, selection, colours, zoom, dirty, file and format), `doc.render {out, region?, scale?, layers?}` (read-only: a PNG to look at), `doc.save`, `doc.save_as {path, format, quality?}`, `doc.save_as_pdf {path?}` (text documents: makes and opens the PDF, answers its tab), `doc.copy {scope, out?}` (`out`: a PNG file instead of the clipboard, Copy to file…), `mode.set {on}` (Annotate on or off, Done) |
 | View (UI state only, not undone) | `view.zoom {level \| "fit" \| "actual"}`, `view.set {rulers?, gridlines?, statusbar?, thumbnail?}`, `tool.choose {tool, options}` (what the palette shows) |
 
 A brush stroke from the mouse is previewed locally and applied as one `paint.stroke` with all its points on release

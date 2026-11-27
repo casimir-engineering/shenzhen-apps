@@ -266,9 +266,16 @@ sentence each, and `szpdf annotate schema shape.add` gives one operation's argum
   or `#RRGGBBAA`.
 - **Answers.** One operation prints its own answer (a new object's id, a picked colour…) plus `tab` and `windowId`.
   `--script` prints `results` (each operation's answer), `applied` (how many succeeded) and, at the first failure,
-  `error` and `failedAt`; nothing after a failure is applied. `state` prints `doc.state` (size, layers and objects
-  with ids, kinds, bounds and settings, selection, colours, unsaved changes, file and format) and, on a PDF, `form`
-  (its fields with names, kinds, values, pages and boxes, what was placed, and "3 of 12 filled").
+  `error` and `failedAt`; nothing after a failure is applied. `state` prints `doc.state` (size, `layers` bottom to
+  top, each with its `objects` back to front, with ids, kinds, bounds and settings, the `active` layer, selection,
+  colours, unsaved changes, file and format) and, on a PDF, `form` (its fields with names, kinds, values, pages and
+  boxes, what was placed, and "3 of 12 filled").
+- **Layers.** A document starts with its base layer (a PDF's page, locked; a picture's or canvas's Background) and
+  Layer 1, which takes every object and the drawing. `layer.add` adds a layer above the active one and makes it
+  active: new objects and painting go there. `object.layer --ids 4,7 --to above` (or `below`, or `--layer 9`) moves
+  objects to another layer where they are; `object.order` reorders within a layer, `layer.order` moves a layer with its
+  objects; `layer.set` renames, hides, locks or fades a layer and everything on it. On a PDF the layers are kept in the
+  file (`/SPDFAnnotate /Layer`), so reopening it gives the same layers.
 - **Undo.** Each operation is one step on the tab's own undo stack: the person undoes an agent's change with ⌘Z like
   their own, and `history.undo` / `history.redo` undo and redo from a script.
 - **Saving** is the app's: a PDF's changes are written into it as annotations after a short pause (into a writable
