@@ -132,9 +132,9 @@ static void SZFKeep(NSMutableArray<NSArray<NSNumber *> *> *samples, double now, 
 // sent, goes back.
 - (void)degrade:(SZFriendsLaneID)laneID recent:(double)recent now:(double)now {
     SZFLane *lane = _lanes[@(laneID)];
-    [lane->rates removeAllObjects];
     lane->rate = MAX(recent, 1e3);
-    [lane->rates addObject:@[ @(now), @(lane->rate) ]];
+    SZFSample sample = {now, lane->rate};
+    [lane->rates setData:[NSData dataWithBytes:&sample length:sizeof sample]];
     uint64_t keep = (uint64_t)lane->rate;
     for (NSNumber *seq in lane.holdSeqs) {
         NSArray<NSNumber *> *hold = lane->holds[seq];
