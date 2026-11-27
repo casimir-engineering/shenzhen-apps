@@ -38,7 +38,14 @@
     self.liveStrokeRect = NSIsEmptyRect(self.liveStrokeRect) ? rect : NSUnionRect(self.liveStrokeRect, rect);
     if (page < 0) [self liveStrokePatchTiles:rect page:page];
     else [self liveStrokePaintPicture:rect page:page];
-    [self redrawCanvasRect:rect page:page inflate:1];
+    [self liveStrokeRedraw:rect page:page];
+}
+
+// Drawn again on whole pixels of the screen: a part of a pixel drawn over blends with what was there before, and the
+// stroke would keep that blend where no later point draws again.
+- (void)liveStrokeRedraw:(NSRect)rect page:(NSInteger)page {
+    NSRect view = NSInsetRect([self viewRectForCanvasRect:NSInsetRect(rect, -1, -1) page:page], -3, -3);
+    [self setNeedsDisplayInRect:[self backingAlignedRect:view options:NSAlignAllEdgesOutward]];
 }
 
 - (void)liveStrokeSync {
@@ -88,7 +95,7 @@
         spdf_paint_live_cancel(doc, &changed);
         if (page < 0) [self dropTilesOnPage:page inRect:self.liveStrokeRect];
     }
-    if (self.liveStroke && !NSIsEmptyRect(self.liveStrokeRect)) [self redrawCanvasRect:self.liveStrokeRect page:page inflate:2];
+    if (self.liveStroke && !NSIsEmptyRect(self.liveStrokeRect)) [self liveStrokeRedraw:self.liveStrokeRect page:page];
     self.liveStroke = NO;
     self.liveStrokeFed = 0;
     self.liveStrokeRect = NSZeroRect;
@@ -197,8 +204,8 @@
         NSRect px = NSIntersectionRect(value.rectValue, pixelsOf);
         if (!NSIsEmptyRect(px)) [self liveStrokeRender:px picture:picture covered:covered scale:sx doc:doc];
     }
-    [self redrawCanvasRect:NSMakeRect(NSMinX(covered) + NSMinX(pixelsOf) / sx, NSMinY(covered) + NSMinY(pixelsOf) / sx,
-                                      NSWidth(pixelsOf) / sx, NSHeight(pixelsOf) / sx) page:page inflate:1];
+    [self liveStrokeRedraw:NSMakeRect(NSMinX(covered) + NSMinX(pixelsOf) / sx, NSMinY(covered) + NSMinY(pixelsOf) / sx,
+                                      NSWidth(pixelsOf) / sx, NSHeight(pixelsOf) / sx) page:page];
 }
 
 // Pixels px of the picture drawn from the page as it will be (spdf_paint_render_placed: the page, its annotations,
