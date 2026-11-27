@@ -16,6 +16,8 @@
 // or when, 8 s after the lane came up, the group's rate is not 10 % better than before it (the sender closes the lane
 // then). A boost's lane (ADR 0019) is the boost's and is left alone here.
 
+#import <CoreWLAN/CoreWLAN.h>
+
 #import "service/discovery/SZFriendsDiscoveryInternal.h"
 #import "service/helper/nearby/SZFriendsNearbyInternal.h"
 #import "service/transfer/SZFriendsDirectWiFiBoost.h"
@@ -106,7 +108,12 @@ static NSString *SZFP2PShort(NSString *hex) {
     for (id<SZFriendsDiscoveryAdapter> adapter in self.adapters) {
         if (SZFriendsNetworkAdapterOnWiFi(adapter)) return YES;
     }
-    return NO;
+    // Joined but without a routable address (DHCP still asking, a network that gives none): no path runs over it, yet
+    // the radio sits on the network's channel all the same. CoreWLAN knows (the name needs Location Services; the
+    // channel and signal of a station do not).
+    CWInterface *wifi = [CWWiFiClient sharedWiFiClient].interface;
+    return wifi.powerOn && wifi.interfaceMode == kCWInterfaceModeStation &&
+           (wifi.ssid != nil || wifi.bssid != nil || (wifi.wlanChannel != nil && wifi.rssiValue != 0));
 }
 
 // This Mac's side of the owner's rule: on no Wi-Fi network (a Mac is never a phone on mobile data).
@@ -291,7 +298,9 @@ static NSString *SZFP2PShort(NSString *hex) {
         [self p2pTurn:allowedHere why:allowedHere ? @"this Mac is on no Wi-Fi network"
                                                   : @"this Mac is on a Wi-Fi network"];
     }
-    if (state.groups.count > 0) [self p2pScheduleTick];
+    // While direct Wi-Fi is on, joining a network is watched for every second too: one joined without an address
+    // changes no path the monitor would report.
+    if (state.groups.count > 0 || state.on) [self p2pScheduleTick];
 }
 
 // Sender: from 3 to 8 s after our direct Wi-Fi lane came up, the group must move at least 10 % more than in the 5 s
