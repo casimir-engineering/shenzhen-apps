@@ -34,6 +34,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Blocks queued for the digest at most: a receiver faster than BLAKE2b waits rather than holding the whole file.
 static const long SZFriendsDigestBacklog = 32;
+// Read back on the store queue for one block at most: blocks that completed out of order. More (a resumed download's
+// whole prefix, a previous version's blocks reused) would hold the queue for seconds, past the sessions' silence
+// limit; streaming stops instead, and the check hashes the file whole, off the queue.
+static const uint64_t SZFriendsDigestCatchUpBytes = 256ull << 20;
 
 @implementation SZFriendsStreamedDigest {
     dispatch_queue_t _queue;
@@ -67,12 +71,18 @@ static const long SZFriendsDigestBacklog = 32;
                complete:(SZFriendsBlockSet *)complete
                   block:(uint32_t)block
                   fresh:(nullable NSData *)fresh {
+    uint64_t read = 0;
     while (!_stopped && _next < geometry.blocks && [complete contains:_next]) {
         NSData *data = fresh && block == _next ? fresh : nil;
         if (data == nil) {
             uint64_t offset = 0;
             NSUInteger length = 0;
             SZFriendsGeometrySpan(geometry, _next, &offset, &length);
+            read += length;
+            if (fresh && read > SZFriendsDigestCatchUpBytes) {
+                _stopped = YES;
+                return;
+            }
             data = SZFriendsReadAt(fd, offset, length);
         }
         if (data == nil) {

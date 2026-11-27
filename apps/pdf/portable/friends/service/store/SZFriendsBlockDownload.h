@@ -18,7 +18,8 @@ static inline NSError *SZFriendsBlockError(SZFriendsStoreError code, NSString *w
 // offered digest, without one single-threaded pass over the whole file at the end.
 @interface SZFriendsStreamedDigest : NSObject
 // On the store queue: feeds every complete block from the next one on; `fresh` is block `block`'s bytes, just
-// written. A read that fails stops streaming, and the check then hashes the file whole.
+// written. A read that fails, or more than a little to read back here, stops streaming, and the check then hashes the
+// file whole. Without `fresh` (the check, off the queue) it reads whatever it needs.
 - (void)advanceWithFile:(int)fd
                geometry:(SZFriendsBlockGeometry)geometry
                complete:(SZFriendsBlockSet *)complete

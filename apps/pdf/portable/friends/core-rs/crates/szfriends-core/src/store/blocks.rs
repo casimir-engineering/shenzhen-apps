@@ -23,6 +23,10 @@ use crate::transfer::{AssemblyError, BlockAssembly, BlockSet, Geometry, PartOutc
 const BATCH_BYTES: u64 = 64 << 20;
 /// Blocks queued for the streamed digest at most.
 const DIGEST_BACKLOG: usize = 32;
+/// Read back for one fresh block at most (blocks that completed out of order). More (a resumed download's whole
+/// prefix, a previous version's blocks reused) would hold the store for seconds, past the sessions' silence limit:
+/// streaming stops instead, and the check before saving hashes the file whole, on a thread of its own.
+const DIGEST_CATCH_UP_BYTES: u64 = 256 << 20;
 /// How often a batch running in the background is looked at while nothing else settles it.
 const BATCH_POLL: Duration = Duration::from_millis(10);
 const BATCH_INTERVAL: Duration = Duration::from_secs(1);
@@ -75,14 +79,20 @@ impl StreamedDigest {
     }
 
     /// Feeds every block from `next` that is complete: `fresh` (just completed, still in memory) when it is the next,
-    /// the others read back from `file`.
+    /// the others read back from `file` ([`DIGEST_CATCH_UP_BYTES`] at most with a fresh one).
     fn advance(&mut self, file: &File, geometry: &Geometry, complete: &BlockSet, fresh: Option<(u32, &[u8])>) {
         let Some(sender) = &self.sender else { return };
+        let mut read = 0u64;
         while complete.contains(self.next) {
             let data = match fresh {
                 Some((block, data)) if block == self.next => data.to_vec(),
                 _ => {
                     let (offset, length) = geometry.span(self.next);
+                    read += length as u64;
+                    if fresh.is_some() && read > DIGEST_CATCH_UP_BYTES {
+                        self.sender = None; // the check before saving reads the file whole instead
+                        return;
+                    }
                     let mut buffer = vec![0u8; length];
                     if read_exact_at(file, &mut buffer, offset).is_err() {
                         self.sender = None; // the check before saving reads the file whole instead
