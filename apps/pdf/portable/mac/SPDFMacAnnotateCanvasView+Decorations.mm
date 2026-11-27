@@ -315,7 +315,14 @@ static void AddPath(CGContextRef context, NSBezierPath* path) {
     CGFloat scale = [self scaleForPage:page];
     NSColor* color = SPDFAnnotateColor(self.rightButton ? session.color2 : session.color1);
     CGFloat dash[] = {4, 3};
-    switch (self.gesture) {
+    // What the release paints or adds stays inside the canvas (a page): so does its preview.
+    SPDFAnnotateGesture gesture = self.gesture;
+    BOOL paints = gesture == SPDFAnnotateGestureStroke || gesture == SPDFAnnotateGestureShape ||
+                  gesture == SPDFAnnotateGestureCurve || gesture == SPDFAnnotateGesturePolygon;
+    [NSGraphicsContext saveGraphicsState];
+    if (paints) NSRectClip([self canvasRectForPage:page]);
+    if ([self previewsLineObject]) [self drawLineObjectPreviewOnPage:page];  // +LinePreview.mm
+    else switch (gesture) {
         case SPDFAnnotateGestureStroke: {
             NSDictionary* options = [SPDFAnnotateSettings.shared optionsForTool:SPDFAnnotateToolName(session.tool, session.brush)];
             CGFloat size = [options[@"size"] doubleValue];
@@ -392,6 +399,7 @@ static void AddPath(CGContextRef context, NSBezierPath* path) {
         default:
             break;
     }
+    [NSGraphicsContext restoreGraphicsState];
 }
 
 static NSPoint SPDFAnnotateAt45(NSPoint a, NSPoint b) {

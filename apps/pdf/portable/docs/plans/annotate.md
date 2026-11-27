@@ -357,7 +357,9 @@ generated from it, so a new operation appears everywhere at once.
 | View (UI state only, not undone) | `view.zoom {level \| "fit" \| "actual"}`, `view.set {rulers?, gridlines?, statusbar?, thumbnail?}`, `tool.choose {tool, options}` (what the palette shows) |
 
 A brush stroke from the mouse is previewed locally and applied as one `paint.stroke` with all its points on release
-(airbrush and the textured brushes take a `seed`, so replaying the operation gives the same pixels). A drag of an
+(airbrush and the textured brushes take a `seed`, so replaying the operation gives the same pixels). The preview
+stays inside the canvas or page, as what the release paints does; the Pen's line and the Arrow are previewed as the
+object they add (its smoothing, head, width and the Pen row's colour). A drag of an
 object is one `object.move` on release. Text typing is one `object.update` when the box closes.
 
 Fill & Sign's actions are these same operations: its Pen is `pen.add`, Arrow `arrow.add`, Whole-lines eraser

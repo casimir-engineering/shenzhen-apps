@@ -141,6 +141,13 @@ typedef NS_ENUM(NSInteger, SPDFAnnotateCanvasHandle) {
 - (NSBezierPath*)curvePreviewOnPage:(NSInteger)page;
 @end
 
+// +LinePreview.mm: the Pen's line and the Arrow drawn as the object the release adds.
+@interface SPDFMacAnnotateCanvasView (LinePreview)
+- (BOOL)previewsLineObject;  // the gesture is the Pen's stroke or the Arrow's drag
+- (void)drawLineObjectPreviewOnPage:(NSInteger)page;
+- (NSRect)penRedrawRectAfterAdding;  // canvas units: what the Pen's last drag point changed
+@end
+
 // +TextBox.mm: the text box being typed in.
 @interface SPDFMacAnnotateCanvasView (TextBox)
 - (void)openTextEditorAt:(NSRect)rect page:(NSInteger)page object:(NSNumber*)object text:(NSString*)text;

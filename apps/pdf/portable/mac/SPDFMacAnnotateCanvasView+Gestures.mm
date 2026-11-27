@@ -302,6 +302,7 @@ static BOOL IsPixelOrShapeTool(SPDFAnnotateTool tool) {
             // only showed once the stroke was released.
             NSRect segment = NSMakeRect(MIN(last.x, point.x), MIN(last.y, point.y), fabs(point.x - last.x),
                                         fabs(point.y - last.y));
+            if ([self previewsLineObject]) segment = [self penRedrawRectAfterAdding];  // the Pen's curve bends back
             if (event.modifierFlags & NSEventModifierFlagShift) self.needsDisplay = YES;
             else [self redrawCanvasRect:segment page:self.gesturePage inflate:[self toolSize] * scale + 4];
             break;
