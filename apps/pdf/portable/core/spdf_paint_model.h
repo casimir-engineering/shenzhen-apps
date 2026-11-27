@@ -146,6 +146,8 @@ int spdf_paint_normalize_layers(spdf_paint_doc* doc);
 spdf_paint_status spdf_paint_fail_unpaintable(spdf_paint_call* call, const spdf_paint_layer* layer);
 cJSON* spdf_paint_layers_json(const spdf_paint_doc* doc); /* doc.state "layers": each with its "objects" */
 spdf_paint_status spdf_paint_op_object_layer(spdf_paint_call* call);
+/* An object by id that may be changed: found, not another app's annotation, not locked (fails the call otherwise). */
+spdf_paint_status spdf_paint_find_object(spdf_paint_call* call, spdf_paint_id id, spdf_paint_layer** out);
 
 /* ---- spdf_paint_transform_ops.c ---- */
 

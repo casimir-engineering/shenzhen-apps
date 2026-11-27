@@ -114,7 +114,7 @@ spdf_paint_status spdf_paint_op_object_move(spdf_paint_call* call);
 spdf_paint_status spdf_paint_op_object_transform(spdf_paint_call* call);
 spdf_paint_status spdf_paint_op_object_order(spdf_paint_call* call);
 spdf_paint_status spdf_paint_op_object_merge_down(spdf_paint_call* call);
-spdf_paint_status spdf_paint_op_object_duplicate(spdf_paint_call* call); /* -> {"id"} */
+spdf_paint_status spdf_paint_op_object_duplicate(spdf_paint_call* call); /* -> {"id", "ids"} */
 spdf_paint_status spdf_paint_op_object_delete(spdf_paint_call* call);
 
 /* ---- Layers (spdf_paint_doc.c) ---- */

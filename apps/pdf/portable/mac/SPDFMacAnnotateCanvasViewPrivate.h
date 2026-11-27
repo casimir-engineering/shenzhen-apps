@@ -120,7 +120,7 @@ typedef NS_ENUM(NSInteger, SPDFAnnotateCanvasHandle) {
 // Select on a PDF is Fill & Sign's, except on Annotate's own objects (shapes, text boxes, pictures, pen lines, arrows) and the
 // handles of what Annotate selected: YES there, so the canvas takes the press.
 - (BOOL)takesSelectPressAt:(NSPoint)viewPoint;
-- (void)resizeSelectionTo:(NSRect)rect page:(NSInteger)page;  // object.transform of each selected object
+- (void)resizeSelectionTo:(NSRect)rect page:(NSInteger)page;  // one object.transform of all selected objects
 - (void)finishStrokeOnPage:(NSInteger)page right:(BOOL)right;
 - (void)finishPolygonOnPage:(NSInteger)page;
 - (void)clickWithTool:(SPDFAnnotateTool)tool at:(NSPoint)point page:(NSInteger)page right:(BOOL)right

@@ -108,12 +108,18 @@ static NSCursor* SPDFAnnotateResizeCursor(NSInteger handle) {
 
 #pragma mark - Resizing and the page
 
-// One object takes the new box; several keep their places and sizes relative to the box around them.
+// One object takes the new box; several keep their places and sizes relative to the box around them, in one
+// object.transform: one step to undo, one write into a PDF page.
 - (void)resizeSelectionTo:(NSRect)to page:(NSInteger)page {
     NSDictionary<NSNumber*, NSValue*>* rects = [self rectsForResizeTo:to page:page];  // as shown while dragging
-    for (NSNumber* id in rects)
-        [self operation:@{@"op": @"object.transform", @"id": id, @"rect": SPDFAnnotateRectObject(rects[id].rectValue)}
-                   page:page done:nil];
+    if (!rects.count) return;
+    NSMutableArray* ids = [NSMutableArray array];
+    NSMutableArray* boxes = [NSMutableArray array];
+    for (NSNumber* id in rects) {
+        [ids addObject:id];
+        [boxes addObject:SPDFAnnotateRectObject(rects[id].rectValue)];
+    }
+    [self operation:@{@"op": @"object.transform", @"ids": ids, @"rects": boxes} page:page done:nil];
 }
 
 - (NSInteger)pageInView {

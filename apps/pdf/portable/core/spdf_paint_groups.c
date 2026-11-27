@@ -7,7 +7,7 @@
  *
  * Every document starts with the base layer and one layer, "Layer 1", which takes every object and the drawing until
  * the person adds more. Here: the bookkeeping of that grouping, the object.layer operation (move objects to another
- * layer) and doc.state's nested "layers". */
+ * layer), object.duplicate (each copy just above its object) and doc.state's nested "layers". */
 #include "spdf_paint_model.h"
 
 #include <stdio.h>
@@ -123,6 +123,50 @@ spdf_paint_status spdf_paint_fail_unpaintable(spdf_paint_call* call, const spdf_
     if (layer && layer->kind == SPDF_PAINT_LAYER_RASTER && layer->locked)
         return spdf_paint_call_fail(call, SPDF_PAINT_ERR_LOCKED, "This layer is locked; unlock it to change it.");
     return spdf_paint_call_fail(call, SPDF_PAINT_ERR_PAGE_LOCKED, "The page itself can't be changed.");
+}
+
+/* ---- object.duplicate: a copy of each object just above it, the copies selected, all in one step ---- */
+
+spdf_paint_status spdf_paint_op_object_duplicate(spdf_paint_call* call) {
+    spdf_paint_doc* doc = call->doc;
+    spdf_paint_id* ids = NULL;
+    int count = 0;
+    spdf_paint_arg_ids(call, &ids, &count);
+    spdf_paint_status status = SPDF_PAINT_OK;
+    spdf_paint_layer* layer = NULL;
+    for (int i = 0; i < count && status == SPDF_PAINT_OK; i++) status = spdf_paint_find_object(call, ids[i], &layer);
+    cJSON* made = status == SPDF_PAINT_OK ? cJSON_AddArrayToObject(call->reply, "ids") : NULL;
+    for (int i = 0; i < count && status == SPDF_PAINT_OK; i++) {
+        layer = spdf_paint_layer_find(doc, ids[i]);
+        spdf_paint_layer* copy = spdf_paint_layer_clone(doc->ctx, layer, 1);
+        if (!copy || !copy->object) {
+            spdf_paint_layer_free(doc->ctx, copy);
+            status = spdf_paint_call_fail(call, SPDF_PAINT_ERR_NO_MEMORY, "There is not enough memory.");
+            break;
+        }
+        copy->id = doc->next_id++;
+        fz_free(doc->ctx, copy->pdf_nm);
+        copy->pdf_nm = NULL;
+        fz_free(doc->ctx, copy->object->pdf_nm);
+        copy->object->pdf_nm = NULL;
+        if (copy->object->kind >= SPDF_PAINT_OBJ_FILL_TEXT && copy->object->kind <= SPDF_PAINT_OBJ_FILL_SIGNATURE) {
+            fz_free(doc->ctx, copy->object->u.fill.nm);
+            copy->object->u.fill.nm = NULL;
+        }
+        spdf_paint_layer_insert(doc, copy, spdf_paint_layer_index(doc, layer->id) + 1);
+        spdf_paint_history_added_layer(doc, copy);
+        spdf_paint_object_update_bounds(copy->object);
+        spdf_paint_changed(doc, copy, copy->object->bounds);
+        if (!i) cJSON_AddNumberToObject(call->reply, "id", copy->id);
+        cJSON_AddItemToArray(made, cJSON_CreateNumber(copy->id));
+        ids[i] = copy->id;  /* the copies become the selection */
+    }
+    if (status == SPDF_PAINT_OK) {
+        spdf_paint_history_save_active(doc);
+        spdf_paint_select_objects(doc, ids, count);
+    }
+    fz_free(doc->ctx, ids);
+    return status;
 }
 
 /* ---- object.layer: objects into the layer above or below, or a given one ---- */

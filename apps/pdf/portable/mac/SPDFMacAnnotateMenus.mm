@@ -165,7 +165,7 @@ void SPDFAnnotateInstallMenuItems(NSMenu* fileMenu, NSMenu* editMenu, NSMenu* vi
     NSInteger paste = [editMenu indexOfItem:[editMenu itemWithTitle:@"Paste"]];
     NSArray* selection = @[
         BAR(@"Paste from file…", @"V", kCmd | kShift | kOpt, SPDFAnnotateCommandPasteFromFile, nil),
-        BAR(@"Duplicate", @"d", kCmd | kOpt, (@{@"op" : @"object.duplicate", @"id" : SPDFAnnotateSelectedIds}), nil),
+        BAR(@"Duplicate", @"d", kCmd | kOpt, (@{@"op" : @"object.duplicate", @"ids" : SPDFAnnotateSelectedIds}), nil),
         BAR(@"Invert selection", @"I", kCmd | kShift | kOpt, @{@"op" : @"select.invert"}, nil),
         BAR(@"Crop to selection", @"X", kCmd | kShift, @{@"op" : @"image.crop"}, nil),
     ];

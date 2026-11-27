@@ -40,21 +40,22 @@ static NSMenu* SPDFAnnotateObjectMenu(SPDFMacFillController* c, NSDictionary* la
     NSMenu* menu = [[NSMenu alloc] initWithTitle:@"Object"];
     const NSEventModifierFlags cmd = NSEventModifierFlagCommand, opt = NSEventModifierFlagOption;
 #define ITEM(title, key, mods, payload) [menu addItem:SPDFAnnotateItem(title, key, mods, payload, c, nil)]
-#define ORDER(to) (@{@"op" : @"object.order", @"id" : objectId, @"to" : to})
+    // Every selected object goes, when the one right-clicked is among them (it is made the selection first otherwise),
+    // in one operation: one step to undo.
+    NSArray* selected = SPDFAnnotateCurrentSession(c, NO).selectedObjects;
+    NSArray* moving = [selected containsObject:objectId] ? selected : @[ objectId ];
+#define ORDER(to) (@{@"op" : @"object.order", @"ids" : moving, @"to" : to})
     ITEM(@"Bring to Front", @"]", cmd | opt, ORDER(@"front"));
     ITEM(@"Bring Forward", @"]", cmd, ORDER(@"forward"));
     ITEM(@"Send Backward", @"[", cmd, ORDER(@"backward"));
     ITEM(@"Send to Back", @"[", cmd | opt, ORDER(@"back"));
     [menu addItem:[NSMenuItem separatorItem]];
-    // Every selected object goes, when the one right-clicked is among them (it is made the selection first otherwise).
-    NSArray* selected = SPDFAnnotateCurrentSession(c, NO).selectedObjects;
-    NSArray* moving = [selected containsObject:objectId] ? selected : @[ objectId ];
     ITEM(@"Move to Layer Above", @"", 0, (@{@"op" : @"object.layer", @"ids" : moving, @"to" : @"above"}));
     ITEM(@"Move to Layer Below", @"", 0, (@{@"op" : @"object.layer", @"ids" : moving, @"to" : @"below"}));
     [menu addItem:[NSMenuItem separatorItem]];
     ITEM(@"Merge Down", @"", 0, (@{@"op" : @"object.merge_down", @"id" : objectId}));
-    ITEM(@"Duplicate", @"d", cmd | opt, (@{@"op" : @"object.duplicate", @"id" : objectId}));
-    ITEM(@"Delete", @"", 0, (@{@"op" : @"object.delete", @"id" : objectId}));
+    ITEM(@"Duplicate", @"d", cmd | opt, (@{@"op" : @"object.duplicate", @"ids" : moving}));
+    ITEM(@"Delete", @"", 0, (@{@"op" : @"object.delete", @"ids" : moving}));
     [menu addItem:[NSMenuItem separatorItem]];
     ITEM(@"Flip Horizontal", @"", 0, (@{@"op" : @"object.transform", @"id" : objectId, @"flip" : @"horizontal"}));
     ITEM(@"Flip Vertical", @"", 0, (@{@"op" : @"object.transform", @"id" : objectId, @"flip" : @"vertical"}));

@@ -1,7 +1,7 @@
 /* Annotate's objects (docs/plans/annotate.md § 3, § 6 Objects, Pen and arrow): making, copying and freeing objects,
  * their bounds, and the handlers of pen.add, arrow.add, erase.lines, picture.add, object.update, object.move,
- * object.transform, object.order, object.merge_down, object.duplicate and object.delete. Every object is its own
- * layer, so it keeps its depth. shape.add and text.add are Core B's (spdf_paint_shapes.c, spdf_paint_text.c). */
+ * object.transform, object.order, object.merge_down and object.delete (object.duplicate is in spdf_paint_groups.c).
+ * Every object is its own layer, so it keeps its depth. shape.add and text.add are Core B's (spdf_paint_shapes.c, spdf_paint_text.c). */
 #include "spdf_paint_model.h"
 
 #include "spdf_fill_ink_geometry.h"
@@ -131,7 +131,7 @@ void spdf_paint_object_update_bounds(spdf_paint_object* o) {
 
 /* ---- Shared by the handlers ---- */
 
-static spdf_paint_status find_object(spdf_paint_call* call, spdf_paint_id id, spdf_paint_layer** out) {
+spdf_paint_status spdf_paint_find_object(spdf_paint_call* call, spdf_paint_id id, spdf_paint_layer** out) {
     spdf_paint_layer* layer = spdf_paint_layer_find(call->doc, id);
     *out = layer;
     if (!layer || !layer->object)
@@ -313,7 +313,7 @@ spdf_paint_status spdf_paint_op_object_update(spdf_paint_call* call) {
     double id = 0;
     spdf_paint_arg_number(call, "id", &id);
     spdf_paint_layer* layer = NULL;
-    if (find_object(call, (spdf_paint_id)id, &layer) != SPDF_PAINT_OK) return call->status;
+    if (spdf_paint_find_object(call, (spdf_paint_id)id, &layer) != SPDF_PAINT_OK) return call->status;
     spdf_paint_history_save_object(call->doc, layer);
     damage_object(call->doc, layer);
     spdf_paint_status status =
@@ -337,7 +337,7 @@ spdf_paint_status spdf_paint_op_object_move(spdf_paint_call* call) {
     spdf_paint_status status = SPDF_PAINT_OK;
     for (int i = 0; i < count && status == SPDF_PAINT_OK; i++) {
         spdf_paint_layer* layer = NULL;
-        if ((status = find_object(call, ids[i], &layer)) != SPDF_PAINT_OK) break;
+        if ((status = spdf_paint_find_object(call, ids[i], &layer)) != SPDF_PAINT_OK) break;
         spdf_paint_object* o = layer->object;
         spdf_paint_history_save_object(call->doc, layer);
         damage_object(call->doc, layer);
@@ -365,11 +365,7 @@ static void map_points(spdf_paint_point* p, int n, spdf_rect from, spdf_rect to)
 }
 
 static void transform_points(spdf_paint_point* p, int n, fz_matrix m) {
-    for (int i = 0; i < n; i++) {
-        fz_point q = fz_transform_point_xy(p[i].x, p[i].y, m);
-        p[i].x = q.x;
-        p[i].y = q.y;
-    }
+    for (int i = 0; i < n; i++) { fz_point q = fz_transform_point_xy(p[i].x, p[i].y, m); p[i].x = q.x; p[i].y = q.y; }
 }
 
 static fz_matrix about_center(spdf_rect r, fz_matrix m) {
@@ -377,29 +373,24 @@ static fz_matrix about_center(spdf_rect r, fz_matrix m) {
     return fz_concat(fz_concat(fz_translate(-cx, -cy), m), fz_translate(cx, cy));
 }
 
-spdf_paint_status spdf_paint_op_object_transform(spdf_paint_call* call) {
-    double id = 0, rotation = 0;
-    spdf_paint_arg_number(call, "id", &id);
-    spdf_paint_layer* layer = NULL;
-    if (find_object(call, (spdf_paint_id)id, &layer) != SPDF_PAINT_OK) return call->status;
+/* One object to a new box (rect, NULL to keep it), a rotation (has_rotation) and a flip (NULL for none). */
+static void transform_object(spdf_paint_call* call, spdf_paint_layer* layer, const spdf_rect* rect, int has_rotation,
+                             double rotation, const char* flip) {
     spdf_paint_object* o = layer->object;
     spdf_paint_history_save_object(call->doc, layer);
     damage_object(call->doc, layer);
     int line = o->kind == SPDF_PAINT_OBJ_PEN || o->kind == SPDF_PAINT_OBJ_ARROW;
-    spdf_rect rect;
-    if (spdf_paint_arg_rect(call, "rect", &rect)) {
-        if (line) map_points(o->u.line.points, o->u.line.point_count, o->place.rect, rect);
-        else if (o->kind == SPDF_PAINT_OBJ_SHAPE) {
-            map_points(o->u.shape.points, o->u.shape.point_count, o->place.rect, rect);
-            map_points(&o->u.shape.tail, 1, o->place.rect, rect);
-        }
-        o->place.rect = rect;
+    if (rect) {
+        if (line) map_points(o->u.line.points, o->u.line.point_count, o->place.rect, *rect);
+        else if (o->kind == SPDF_PAINT_OBJ_SHAPE)
+            map_points(o->u.shape.points, o->u.shape.point_count, o->place.rect, *rect),
+                map_points(&o->u.shape.tail, 1, o->place.rect, *rect);
+        o->place.rect = *rect;
     }
-    if (spdf_paint_arg_number(call, "rotation", &rotation)) {
+    if (has_rotation) {
         if (line) transform_points(o->u.line.points, o->u.line.point_count, about_center(o->place.rect, fz_rotate((float)rotation)));
         else o->place.rotation = (float)fmod(rotation, 360.0);
     }
-    const char* flip = spdf_paint_arg_string(call, "flip");
     if (flip) {
         int h = !strcmp(flip, "horizontal");
         if (line)
@@ -413,7 +404,34 @@ spdf_paint_status spdf_paint_op_object_transform(spdf_paint_call* call) {
     }
     if (line) line_points_set(o);
     damage_object(call->doc, layer);
-    return SPDF_PAINT_OK;
+}
+
+/* One object (id, rect), or several at once (ids, and rects in the same order): one step on the history either way,
+ * so a group resized with the handles is undone in one go and written back to a PDF page once. */
+spdf_paint_status spdf_paint_op_object_transform(spdf_paint_call* call) {
+    spdf_paint_id* ids = NULL;
+    int count = 0;
+    double rotation = 0;
+    spdf_paint_arg_ids(call, &ids, &count);
+    int has_rotation = spdf_paint_arg_number(call, "rotation", &rotation);
+    const cJSON* rects = cJSON_GetObjectItemCaseSensitive(call->args, "rects");
+    spdf_rect one, *boxes = fz_calloc_no_throw(call->doc->ctx, (size_t)count + 1, sizeof(*boxes));
+    int has_rect = spdf_paint_arg_rect(call, "rect", &one);
+    spdf_paint_status status =
+        boxes ? SPDF_PAINT_OK : spdf_paint_call_fail(call, SPDF_PAINT_ERR_NO_MEMORY, "There is not enough memory.");
+    if (status == SPDF_PAINT_OK && rects && (cJSON_GetArraySize(rects) != count || has_rect))
+        status = spdf_paint_call_fail(call, SPDF_PAINT_ERR_INVALID_ARGUMENT, "rects takes one box per id, and no rect.");
+    spdf_paint_layer* layer = NULL;
+    for (int i = 0; i < count && status == SPDF_PAINT_OK; i++)  /* every one first: all of them change, or none */
+        status = rects && !spdf_paint_json_rect(cJSON_GetArrayItem(rects, i), &boxes[i])
+                     ? spdf_paint_call_fail(call, SPDF_PAINT_ERR_INVALID_ARGUMENT, "rects[%d] is not a box.", i)
+                     : spdf_paint_find_object(call, ids[i], &layer);
+    for (int i = 0; i < count && status == SPDF_PAINT_OK; i++)
+        transform_object(call, spdf_paint_layer_find(call->doc, ids[i]), rects ? &boxes[i] : has_rect ? &one : NULL,
+                         has_rotation, rotation, spdf_paint_arg_string(call, "flip"));
+    fz_free(call->doc->ctx, boxes);
+    fz_free(call->doc->ctx, ids);
+    return status;
 }
 
 spdf_paint_status spdf_paint_op_object_order(spdf_paint_call* call) {
@@ -423,7 +441,7 @@ spdf_paint_status spdf_paint_op_object_order(spdf_paint_call* call) {
     spdf_paint_status status = SPDF_PAINT_OK;
     for (int i = 0; i < count && status == SPDF_PAINT_OK; i++) {
         spdf_paint_layer* layer = NULL;
-        status = find_object(call, ids[i], &layer);
+        status = spdf_paint_find_object(call, ids[i], &layer);
     }
     if (status == SPDF_PAINT_OK)
         status = spdf_paint_order_layers(call, ids, count, cJSON_GetObjectItemCaseSensitive(call->args, "to"));
@@ -435,35 +453,8 @@ spdf_paint_status spdf_paint_op_object_merge_down(spdf_paint_call* call) {
     double id = 0;
     spdf_paint_arg_number(call, "id", &id);
     spdf_paint_layer* layer = NULL;
-    if (find_object(call, (spdf_paint_id)id, &layer) != SPDF_PAINT_OK) return call->status;
+    if (spdf_paint_find_object(call, (spdf_paint_id)id, &layer) != SPDF_PAINT_OK) return call->status;
     return spdf_paint_merge_object_down(call, layer);
-}
-
-spdf_paint_status spdf_paint_op_object_duplicate(spdf_paint_call* call) {
-    spdf_paint_doc* doc = call->doc;
-    double id = 0;
-    spdf_paint_arg_number(call, "id", &id);
-    spdf_paint_layer* layer = NULL;
-    if (find_object(call, (spdf_paint_id)id, &layer) != SPDF_PAINT_OK) return call->status;
-    spdf_paint_layer* copy = spdf_paint_layer_clone(doc->ctx, layer, 1);
-    if (!copy || !copy->object) {
-        spdf_paint_layer_free(doc->ctx, copy);
-        return spdf_paint_call_fail(call, SPDF_PAINT_ERR_NO_MEMORY, "There is not enough memory.");
-    }
-    copy->id = doc->next_id++;
-    fz_free(doc->ctx, copy->pdf_nm);
-    copy->pdf_nm = NULL;
-    fz_free(doc->ctx, copy->object->pdf_nm);
-    copy->object->pdf_nm = NULL;
-    if (copy->object->kind >= SPDF_PAINT_OBJ_FILL_TEXT && copy->object->kind <= SPDF_PAINT_OBJ_FILL_SIGNATURE) {
-        fz_free(doc->ctx, copy->object->u.fill.nm);
-        copy->object->u.fill.nm = NULL;
-    }
-    spdf_paint_layer_insert(doc, copy, spdf_paint_layer_index(doc, layer->id) + 1);
-    spdf_paint_history_added_layer(doc, copy);
-    spdf_paint_history_save_active(doc);
-    spdf_paint_select_objects(doc, &copy->id, 1);
-    return reply_new(call, copy->object, copy->id);
 }
 
 spdf_paint_status spdf_paint_op_object_delete(spdf_paint_call* call) {
@@ -473,7 +464,7 @@ spdf_paint_status spdf_paint_op_object_delete(spdf_paint_call* call) {
     spdf_paint_status status = SPDF_PAINT_OK;
     for (int i = 0; i < count && status == SPDF_PAINT_OK; i++) {
         spdf_paint_layer* layer = NULL;
-        if ((status = find_object(call, ids[i], &layer)) == SPDF_PAINT_OK) spdf_paint_layer_delete(call->doc, layer);
+        if ((status = spdf_paint_find_object(call, ids[i], &layer)) == SPDF_PAINT_OK) spdf_paint_layer_delete(call->doc, layer);
     }
     fz_free(call->doc->ctx, ids);
     return status;
