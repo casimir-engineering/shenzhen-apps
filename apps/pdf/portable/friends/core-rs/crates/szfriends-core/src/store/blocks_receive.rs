@@ -113,9 +113,13 @@ impl Store {
                 download.unsynced_bytes += data.len() as u64;
                 download.first_unsynced.get_or_insert_with(Instant::now);
                 download.unreported_complete.push(block);
-                let due = download.unsynced_bytes >= BATCH_BYTES || download.assembly.is_complete();
-                if due {
+                let complete = download.assembly.is_complete();
+                let due = download.unsynced_bytes >= BATCH_BYTES;
+                if complete || (due && self.batch.is_some()) {
                     self.flush_blocks(transfer_id)?;
+                } else if due {
+                    self.settle_block_flush(transfer_id, false)?;
+                    self.flush_blocks_in_background(transfer_id)?;
                 }
                 Ok(BlockPart::Written(block))
             }
@@ -123,12 +127,80 @@ impl Store {
     }
 
     /// When the oldest written block not yet durable became so overdue that a batch should run now.
+    /// A batch running in the background is looked at every few milliseconds until it settles.
     pub fn block_flush_due(&self) -> Option<Instant> {
-        self.receiving.blocks.values().filter_map(|d| d.first_unsynced).min().map(|at| at + BATCH_INTERVAL)
+        let due = |d: &BlockDownload| {
+            [d.first_unsynced.map(|at| at + BATCH_INTERVAL), d.flush.as_ref().map(|f| f.started + BATCH_POLL)]
+        };
+        self.receiving.blocks.values().flat_map(due).flatten().min()
+    }
+
+    /// The prefix committed for older helpers once blocks are durable.
+    fn blocks_made_durable(&mut self, transfer_id: &str, blocks: Vec<u32>) -> Result<()> {
+        let Some(download) = self.receiving.blocks.get_mut(transfer_id) else { return Ok(()) };
+        for &block in &blocks {
+            download.durable.insert(block);
+        }
+        download.unreported_durable.extend(blocks);
+        let prefix = durable_prefix(download.assembly.geometry(), &download.durable);
+        self.write(|conn| set_column(conn, transfer_id, "verified_bytes", &(prefix as i64)))
+    }
+
+    /// The background batch, once it ran (waiting for it with `wait`): its blocks count, or go back to unsynced when a
+    /// step failed. `Ok(true)` when it settled one.
+    fn settle_block_flush(&mut self, transfer_id: &str, wait: bool) -> Result<bool> {
+        let Some(download) = self.receiving.blocks.get_mut(transfer_id) else { return Ok(false) };
+        if !download.flush.as_ref().is_some_and(|f| wait || f.handle.is_finished()) {
+            return Ok(false);
+        }
+        let flush = download.flush.take().expect("checked");
+        match flush.handle.join() {
+            Ok(Ok(())) => self.blocks_made_durable(transfer_id, flush.blocks)?,
+            _ => {
+                download.unsynced.extend(flush.blocks);
+                download.unsynced_bytes += flush.bytes;
+                download.first_unsynced.get_or_insert_with(Instant::now);
+            }
+        }
+        Ok(true)
+    }
+
+    /// [`Store::flush_blocks`]'s steps on a thread of its own, on clones of both descriptors, against a bitmap that
+    /// claims only this batch's blocks beyond those already durable. One at a time per download.
+    fn flush_blocks_in_background(&mut self, transfer_id: &str) -> Result<()> {
+        let Some(download) = self.receiving.blocks.get_mut(transfer_id) else { return Ok(()) };
+        if download.flush.is_some() || download.unsynced.is_empty() {
+            return Ok(());
+        }
+        let Some(map) = download.map.as_ref() else { return Ok(()) };
+        let (Ok(file), Ok(map)) = (download.file.try_clone(), map.try_clone()) else { return Ok(()) };
+        let mut claimed = download.durable.clone();
+        for &block in &download.unsynced {
+            claimed.insert(block);
+        }
+        let bitmap = claimed.to_bitmap();
+        let bitmap_offset = (HEADER_BYTES + 32 * download.assembly.geometry().blocks as usize) as u64;
+        let spawned = std::thread::Builder::new().name("szfriends-durable".into()).spawn(move || {
+            crate::store::disk::order_writes(&file)?;
+            write_all_at(&map, &bitmap, bitmap_offset)?;
+            crate::store::disk::make_durable(&map)
+        });
+        // Without a thread the next batch flushes in place.
+        let Ok(handle) = spawned else { return Ok(()) };
+        download.flush = Some(BackgroundFlush {
+            blocks: std::mem::take(&mut download.unsynced),
+            bytes: std::mem::take(&mut download.unsynced_bytes),
+            started: Instant::now(),
+            handle,
+        });
+        download.first_unsynced = None;
+        Ok(())
     }
 
     /// A durability batch: the blocks, then the map's bitmap, then both durable at once; then the prefix committed.
+    /// The batch running in the background, if any, settles first.
     pub fn flush_blocks(&mut self, transfer_id: &str) -> Result<()> {
+        self.settle_block_flush(transfer_id, true)?;
         let Some(download) = self.receiving.blocks.get_mut(transfer_id) else { return Ok(()) };
         if download.unsynced.is_empty() {
             return Ok(());
@@ -158,6 +230,14 @@ impl Store {
     /// Every download by blocks whose batch is due (or all of them, at a session's end or exit).
     pub fn flush_due_blocks(&mut self, all: bool) -> Result<Vec<String>> {
         let now = Instant::now();
+        let running: Vec<String> =
+            self.receiving.blocks.iter().filter(|(_, d)| d.flush.is_some()).map(|(id, _)| id.clone()).collect();
+        let mut flushed = Vec::new();
+        for id in running {
+            if self.settle_block_flush(&id, all)? {
+                flushed.push(id);
+            }
+        }
         let due: Vec<String> = self
             .receiving
             .blocks
@@ -165,10 +245,13 @@ impl Store {
             .filter(|(_, d)| d.first_unsynced.is_some_and(|at| all || now >= at + BATCH_INTERVAL))
             .map(|(id, _)| id.clone())
             .collect();
-        for id in &due {
-            self.flush_blocks(id)?;
+        for id in due {
+            self.flush_blocks(&id)?;
+            if !flushed.contains(&id) {
+                flushed.push(id);
+            }
         }
-        Ok(due)
+        Ok(flushed)
     }
 
     /// What changed since the last HAVE: blocks written, blocks made durable.
