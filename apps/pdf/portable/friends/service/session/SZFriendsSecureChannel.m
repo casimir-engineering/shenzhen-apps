@@ -135,18 +135,24 @@ const char SZFriendsPrologueLabel[18] = "SZFriends session"; // the array's 18th
     // Before any work on these bytes: a refusal they cause closes a fixed time after this moment.
     _inputArrivedAt = [self now];
     [self noteHeard:_inputArrivedAt];
-    [_inbound appendData:data];
+    // With nothing held from earlier deliveries, the messages are read straight out of this one and only an
+    // unfinished last message is kept; otherwise the delivery joins what is held.
+    BOOL direct = _inbound.length == 0;
+    if (!direct) {
+        [_inbound appendData:data];
+    }
     // Held locally: a callback run from a message handler may close the channel, which replaces _inbound, and the
     // handler is still reading the message out of this buffer.
-    NSMutableData *buffer = _inbound;
+    NSData *buffer = direct ? data : _inbound;
+    NSUInteger offset = direct ? 0 : _inboundOffset;
     while (_state != SZFriendsChannelStateClosed && _state != SZFriendsChannelStateRefusing) {
-        const uint8_t *bytes = (const uint8_t *)buffer.bytes + _inboundOffset;
-        NSUInteger available = buffer.length - _inboundOffset;
+        const uint8_t *bytes = (const uint8_t *)buffer.bytes + offset;
+        NSUInteger available = buffer.length - offset;
         if (_state == SZFriendsChannelStateAwaitingPreamble) {
             if (available < 4) {
                 break;
             }
-            _inboundOffset += 4;
+            offset += 4;
             if (![self consumePreambleFromBytes:bytes length:4]) {
                 return;
             }
@@ -170,7 +176,7 @@ const char SZFriendsPrologueLabel[18] = "SZFriends session"; // the array's 18th
         if (available < 2 + length) {
             break;
         }
-        _inboundOffset += 2 + length;
+        offset += 2 + length;
         if (_state == SZFriendsChannelStateHandshaking) {
             [self handleHandshakeMessage:bytes + 2 length:length];
         } else if (_state == SZFriendsChannelStateClosing) {
@@ -182,6 +188,14 @@ const char SZFriendsPrologueLabel[18] = "SZFriends session"; // the array's 18th
     if (_state == SZFriendsChannelStateClosed || _state == SZFriendsChannelStateRefusing) {
         return;
     }
+    if (direct) {
+        if (offset < data.length) {
+            [_inbound appendBytes:(const uint8_t *)data.bytes + offset length:data.length - offset];
+        }
+        _inboundOffset = 0;
+        return;
+    }
+    _inboundOffset = offset;
     if (_inboundOffset == _inbound.length) {
         _inbound.length = 0;
         _inboundOffset = 0;
