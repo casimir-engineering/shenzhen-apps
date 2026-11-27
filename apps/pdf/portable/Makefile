@@ -91,7 +91,7 @@ CORE_OBJS += $(CORE_FILL_OBJS)
 CORE_PAINT_NAMES := doc groups pdf_layers ops schema schema_build history brush brush_tex brush_live brush_op fill shapes shapes_draw text transform \
 	file pdf pdf_pixels pdf_params pdf_write pdf_fill pdf_remove \
 	composite select layers objects objjson validate transform_ops doc_util history_apply canvas_ops pdf_live presets preview \
-	preview_dark
+	preview_dark live
 CORE_PAINT_OBJS := $(patsubst %,$(BUILD)/spdf_paint_%.o,$(CORE_PAINT_NAMES))
 CORE_PAINT_HDRS := core/spdf_paint.h core/spdf_paint_internal.h core/spdf_paint_handlers.h core/spdf_paint_model.h \
 	core/spdf_paint_brush_engine.h core/spdf_paint_pdf_internal.h

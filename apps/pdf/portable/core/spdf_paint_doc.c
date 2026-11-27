@@ -141,6 +141,7 @@ void spdf_paint_doc_release(spdf_paint_doc* doc) {
 
 void spdf_paint_close(spdf_paint_doc* doc) {
     if (!doc) return;
+    spdf_paint_live_settle(doc);
     if (doc->kind == SPDF_PAINT_DOC_PDF) spdf_paint_pdf_live_remove(doc);
     spdf_paint_doc_release(doc);
     free(doc);

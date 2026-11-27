@@ -68,6 +68,7 @@ static void draw_object(spdf_paint_doc* doc, spdf_paint_layer* layer, const spdf
                         fz_irect clip, float scale, float opacity) {
     spdf_paint_object* o = layer->object;
     float w = o->place.rect.x1 - o->place.rect.x0, h = o->place.rect.y1 - o->place.rect.y0;
+    if (!placed && spdf_paint_live_draw_object(doc, layer, fz_scale(scale, scale), dest, clip, opacity)) return;
     int moved_only = !placed || (!placed->turns && fabsf((placed->rect.x1 - placed->rect.x0) - w) < 1e-3f &&
                                  fabsf((placed->rect.y1 - placed->rect.y0) - h) < 1e-3f);
     int written = doc->pdf && (o->kind == SPDF_PAINT_OBJ_FOREIGN || (o->pdf_nm && o->pdf_nm[0]));
@@ -87,6 +88,46 @@ static void draw_object(spdf_paint_doc* doc, spdf_paint_layer* layer, const spdf
     if (!copy) return;
     spdf_paint_object_draw(doc, copy, fz_scale(scale, scale), dest, clip, opacity);
     spdf_paint_object_free(doc->ctx, copy);
+}
+
+/* A PDF page's drawing layer as the reader draws it once written (spdf_paint_pdf_write.c): its painted box, one
+ * picture over that box. Scaling only that part, from its own edges, gives the reader's pixels at a cut or a soft
+ * edge, where scaling the whole layer would not. */
+static void draw_layer_as_written(spdf_paint_doc* doc, spdf_paint_layer* layer, fz_pixmap* dest, fz_irect clip,
+                                  float scale, float opacity) {
+    fz_context* ctx = doc->ctx;
+    fz_pixmap* src = layer->pixels;
+    fz_irect used;
+    if (!spdf_paint_live_used(doc, layer, &used))
+        used = layer->pdf_dirty || fz_is_empty_irect(layer->pdf_used)
+                   ? spdf_paint_pixels_used(src, fz_make_irect(0, 0, src->w, src->h)) : layer->pdf_used;
+    used = fz_intersect_irect(used, fz_make_irect(0, 0, src->w, src->h));
+    if (fz_is_empty_irect(used) || opacity <= 0) return;
+    float rs = (float)doc->raster_scale;
+    fz_rect r = {used.x0 / rs, used.y0 / rs, used.x1 / rs, used.y1 / rs};
+    fz_pixmap* part = NULL;
+    fz_image* image = NULL;
+    fz_device* dev = NULL;
+    fz_var(part), fz_var(image), fz_var(dev);
+    fz_try(ctx) {
+        part = fz_new_pixmap_with_bbox(ctx, fz_device_rgb(ctx), fz_make_irect(0, 0, used.x1 - used.x0, used.y1 - used.y0),
+                                       NULL, 1);
+        for (int y = used.y0; y < used.y1; y++)
+            memcpy(part->samples + (size_t)(y - used.y0) * part->stride,
+                   src->samples + (size_t)y * src->stride + (size_t)used.x0 * 4, (size_t)(used.x1 - used.x0) * 4);
+        image = fz_new_image_from_pixmap(ctx, part, NULL);
+        dev = fz_new_draw_device_with_bbox(ctx, fz_identity, dest, &clip);
+        fz_matrix at = fz_concat(fz_concat(fz_scale(r.x1 - r.x0, r.y1 - r.y0), fz_translate(r.x0, r.y0)),
+                                 fz_scale(scale, scale));
+        fz_fill_image(ctx, dev, image, at, opacity, fz_default_color_params);
+        fz_close_device(ctx, dev);
+    }
+    fz_always(ctx) {
+        fz_drop_device(ctx, dev);
+        fz_drop_image(ctx, image);
+        fz_drop_pixmap(ctx, part);
+    }
+    fz_catch(ctx) fz_ignore_error(ctx);
 }
 
 /* The page as the reader renders it: into pixels without alpha (text over an opaque page blends a level or two
@@ -151,6 +192,8 @@ spdf_paint_status spdf_paint_render_placed(spdf_paint_doc* doc, const spdf_paint
         } else if (layer->object) {
             const spdf_paint_placed* at = layer->locked ? NULL : find_placed(placed, count, layer->id);
             draw_object(doc, layer, at, dest, box, scale, opacity);
+        } else if (layer->pixels && doc->pdf) {
+            draw_layer_as_written(doc, layer, dest, box, scale, opacity);
         } else if (layer->pixels) {
             spdf_paint_draw_raster(doc, layer->pixels, dest, box, scale, opacity, nearest);
         }

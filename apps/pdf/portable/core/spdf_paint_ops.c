@@ -202,6 +202,8 @@ spdf_paint_status spdf_paint_apply_ex(spdf_paint_doc* doc, const char* json, con
         call.reply = reply = cJSON_CreateObject();
         cJSON_AddTrueToObject(reply, "ok");
         int undoable = (call.op->flags & SPDF_PAINT_OP_UNDOABLE) != 0;
+        if (doc->live && !(call.op->flags & SPDF_PAINT_OP_READ_ONLY) && strcmp(call.op->name, "paint.stroke"))
+            spdf_paint_live_settle(doc); /* a stroke being drawn goes back before anything else changes */
         if (undoable) {
             char* text = cJSON_PrintUnformatted(root);
             spdf_paint_history_begin(doc, text);
