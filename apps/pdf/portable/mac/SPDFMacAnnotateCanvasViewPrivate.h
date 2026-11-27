@@ -33,7 +33,9 @@ typedef NS_ENUM(NSInteger, SPDFAnnotateCanvasHandle) {
     SPDFAnnotateCanvasHandleCorner
 };
 
-@interface SPDFMacAnnotateCanvasView ()
+@interface SPDFMacAnnotateCanvasView () {
+    NSMutableDictionary<NSString*, id>* _tiles;  // "page:level:tx:ty" -> CGImageRef (SPDFMacAnnotateCanvasView.mm)
+}
 @property(nonatomic, weak, readwrite) SPDFMacFillController* controller;
 @property(nonatomic, weak, readwrite) SPDFMacFillOverlayView* overlay;
 @property(nonatomic, readwrite) BOOL holdsLastFrame;
@@ -58,6 +60,17 @@ typedef NS_ENUM(NSInteger, SPDFAnnotateCanvasHandle) {
 @property(nonatomic, copy) NSArray<NSNumber*>* dragObjects;
 @property(nonatomic) NSEventModifierFlags gestureModifiers;
 
+// The stroke being drawn, shown as its release leaves it (+LiveStroke.mm).
+@property(nonatomic) BOOL liveStroke;
+@property(nonatomic) NSInteger liveStrokePage;
+@property(nonatomic) NSUInteger liveStrokeFed;   // points the core has
+@property(nonatomic) NSPoint liveStrokeLastFed;
+@property(nonatomic) uint32_t liveStrokeSeed;     // the stroke's seed: the same while drawn and on release
+@property(nonatomic) NSRect liveStrokeRect;       // canvas units: all it changed so far
+@property(nonatomic, strong) NSBitmapImageRep* liveStrokePicture;  // a PDF page: the reader's picture, stroke parts
+@property(nonatomic) NSRect liveStrokeCovered;    // what that picture covers (canvas units)
+@property(nonatomic) NSRect liveStrokeArea;       // its pixels the reader will draw again on release
+
 // The text box being typed in.
 @property(nonatomic, strong) NSTextView* textEditor;
 @property(nonatomic) NSRect textRect;  // canvas units
@@ -76,6 +89,8 @@ typedef NS_ENUM(NSInteger, SPDFAnnotateCanvasHandle) {
 - (SPDFDocumentView*)documentView;           // the reader's page view under the canvas view
 - (NSArray<NSNumber*>*)pagesInView;            // -1 for a picture
 - (NSRect)viewRectForCanvasRect:(NSRect)rect page:(NSInteger)page;
+- (int)levelForPage:(NSInteger)page;           // the tiles' render scale is 2^level
+- (void)dropTilesOnPage:(NSInteger)page inRect:(NSRect)rect;  // NSZeroRect: all of them
 - (NSPoint)viewPointForCanvasPoint:(NSPoint)point page:(NSInteger)page;
 - (void)redrawCanvasRect:(NSRect)rect page:(NSInteger)page inflate:(CGFloat)points;
 - (void)operation:(NSDictionary*)op page:(NSInteger)page done:(void (^)(NSDictionary* result))done;
@@ -132,6 +147,14 @@ typedef NS_ENUM(NSInteger, SPDFAnnotateCanvasHandle) {
 @interface SPDFMacAnnotateCanvasView (Live)
 - (NSDictionary<NSNumber*, NSValue*>*)rectsForResizeTo:(NSRect)to page:(NSInteger)page;
 - (void)drawLiveTransformInRect:(NSRect)dirty;
+@end
+
+// +LiveStroke.mm: Pencil, brushes and the erasers drawn as the release leaves them (spdf_paint_live_begin).
+@interface SPDFMacAnnotateCanvasView (LiveStroke)
+- (NSMutableDictionary*)strokeOperationRight:(BOOL)right;  // the release's operation, without its points
+- (void)liveStrokeSync;                // gives the core the points it hasn't seen (or starts the stroke over)
+- (void)liveStrokeEnded;               // after the release's operation, or a cancel: nothing live any more
+- (void)drawLiveStrokeInRect:(NSRect)dirty;  // a PDF page: the stroke's parts of the reader's picture
 @end
 
 // +Curve.mm: the Curve, drawn as a line and then bent twice (classic Paint).

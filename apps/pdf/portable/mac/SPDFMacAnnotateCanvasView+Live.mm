@@ -81,6 +81,7 @@ static const CGFloat kClickSlop = 4.0;  // as +Gestures.mm: under it, a press on
 }
 
 - (void)drawLiveTransformInRect:(NSRect)dirty {
+    [self drawLiveStrokeInRect:dirty];  // a stroke being drawn on a PDF page (+LiveStroke.mm)
     if (self.gesture != SPDFAnnotateGestureResize && self.gesture != SPDFAnnotateGestureMove &&
         self.gesture != SPDFAnnotateGestureRotate)
         return;

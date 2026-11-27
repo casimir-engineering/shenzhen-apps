@@ -256,6 +256,7 @@ static BOOL IsPixelOrShapeTool(SPDFAnnotateTool tool) {
             self.gesture = SPDFAnnotateGestureStroke;
             [self.points addObject:@(point)];
             [self.pressures addObject:@(event.pressure > 0 ? event.pressure : 1)];
+            [self liveStrokeSync];  // a press already paints (+LiveStroke.mm)
             break;
         case SPDFAnnotateToolArrow:
             self.gesture = SPDFAnnotateGestureShape;
@@ -335,6 +336,7 @@ static BOOL IsPixelOrShapeTool(SPDFAnnotateTool tool) {
             self.needsDisplay = YES;
             break;
     }
+    if (self.gesture == SPDFAnnotateGestureStroke) [self liveStrokeSync];
     [self notePointer:point page:self.gesturePage inside:YES];
     [self autoscroll:event];
 }

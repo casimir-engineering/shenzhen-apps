@@ -324,6 +324,7 @@ static void AddPath(CGContextRef context, NSBezierPath* path) {
     if ([self previewsLineObject]) [self drawLineObjectPreviewOnPage:page];  // +LinePreview.mm
     else switch (gesture) {
         case SPDFAnnotateGestureStroke: {
+            if (self.liveStroke) break;  // the canvas itself shows it (+LiveStroke.mm)
             NSDictionary* options = [SPDFAnnotateSettings.shared optionsForTool:SPDFAnnotateToolName(session.tool, session.brush)];
             CGFloat size = [options[@"size"] doubleValue];
             if (size <= 0) size = session.tool == SPDFAnnotateToolPencil ? 1 : session.tool == SPDFAnnotateToolEraser ? 4
