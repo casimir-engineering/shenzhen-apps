@@ -6,23 +6,23 @@
  * one), so every drawing of the canvas shows it through the usual compositing, layers above and below included. The
  * release lays the same coverage into the same pixels; anything else puts the pixels back first.
  * Lines: the pixel Eraser's cuts are worked out as the operation will cut (spdf_paint_line_cut) and the pieces drawn
- * in the line's place; the lines the whole-line eraser will take are drawn faded. The objects themselves are left
+ * in the line's place; the lines the whole-line eraser will take are not drawn. The objects themselves are left
  * alone until the release. */
 #include "spdf_paint_brush_engine.h"
 #include "spdf_paint_model.h"
+#include "spdf_paint_written.h"
 #include "spdf_fill_ink_geometry.h"
 
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define FADED 0.3f /* a line the whole-line eraser will take */
 
 typedef struct live_line {
     spdf_paint_id id;
     spdf_paint_object** pieces; /* what the pixel Eraser leaves of it */
     int count;
-    int cut, faded;
+    int cut, faded; /* faded: taken by the whole-line eraser, not drawn */
 } live_line;
 
 typedef struct spdf_paint_live spdf_paint_live;
@@ -43,6 +43,10 @@ struct spdf_paint_live {
     int used_moved;               /* ... changed: the reader draws the whole layer's part of what it redraws anew */
     fz_irect marked;              /* raster pixels the stroke covers: what the release reports changed */
     spdf_rect lines_changed;      /* the lines it cuts or takes, as the release reports them */
+    spdf_paint_written_picture picture; /* a PDF page: the layer as it will be written (spdf_paint_written.h) */
+    spdf_rect crop;               /* ... and the part the reader's release draws again, at crop_scale */
+    float crop_scale;
+    fz_pixmap* paper;             /* the page over that part, drawn whole (spdf_paint_live_paper) */
     spdf_paint_point* points;
     int count, cap;
     live_line* lines;
@@ -146,6 +150,7 @@ static void relay(spdf_paint_doc* doc, spdf_paint_live* live, fz_irect box) {
     spdf_brush_lay(layer->pixels, &live->shown, box, live->mode, live->color, live->args.color2,
                    fminf(fmaxf(live->args.opacity, 0), 1), live->args.mask);
     live->laid = join(live->laid, box);
+    live->picture.stale = join(live->picture.stale, box);
     stale_tiles(doc, box);
     if (doc->kind == SPDF_PAINT_DOC_PDF) { /* the painted box: only a change at its edge or past it moves it */
         fz_irect u = live->used;
@@ -162,6 +167,8 @@ static void free_live(spdf_paint_doc* doc, spdf_paint_live* live) {
     spdf_brush_run_drop(ctx, live->run);
     spdf_brush_mask_drop(ctx, &live->committed);
     spdf_brush_mask_drop(ctx, &live->shown);
+    spdf_paint_written_picture_drop(ctx, &live->picture);
+    fz_drop_pixmap(ctx, live->paper);
     for (int i = 0; i < live->line_count; i++) spdf_paint_line_pieces_free(ctx, live->lines[i].pieces, live->lines[i].count);
     free(live->lines);
     free(live->points);
@@ -202,6 +209,47 @@ void spdf_paint_live_cancel(spdf_paint_doc* doc, spdf_rect* changed) {
 }
 
 int spdf_paint_live_active(const spdf_paint_doc* doc) { return doc && doc->live; }
+
+spdf_paint_written_picture* spdf_paint_live_picture(spdf_paint_doc* doc, const spdf_paint_layer* layer) {
+    return doc && doc->live && !doc->live->lines_only && layer && doc->live->layer == layer->id ? &doc->live->picture
+                                                                                                 : NULL;
+}
+
+void spdf_paint_live_set_reader_crop(spdf_paint_doc* doc, spdf_rect region, float scale) {
+    if (doc && doc->live) doc->live->crop = region, doc->live->crop_scale = scale;
+}
+
+int spdf_paint_live_reader_crop(const spdf_paint_doc* doc, float scale, fz_irect* crop) {
+    const spdf_paint_live* live = doc ? doc->live : NULL;
+    spdf_rect r = live ? live->crop : (spdf_rect){0, 0, 0, 0};
+    if (!live || fabsf(live->crop_scale - scale) > 1e-4f || r.x1 <= r.x0 || r.y1 <= r.y0) return 0;
+    const float e = 1e-3f; /* on the pixels spdf_paint_render_placed draws the region on */
+    crop->x0 = (int)floorf(r.x0 * scale + e), crop->y0 = (int)floorf(r.y0 * scale + e);
+    crop->x1 = crop->x0 + (int)ceilf((r.x1 - r.x0) * scale - e), crop->y1 = crop->y0 + (int)ceilf((r.y1 - r.y0) * scale - e);
+    return 1;
+}
+
+fz_pixmap* spdf_paint_live_paper(spdf_paint_doc* doc, float scale, fz_irect box) {
+    fz_irect crop;
+    spdf_paint_live* live = doc ? doc->live : NULL;
+    if (!live || !doc->pdf || !spdf_paint_live_reader_crop(doc, scale, &crop) || box.x0 < crop.x0 ||
+        box.y0 < crop.y0 || box.x1 > crop.x1 || box.y1 > crop.y1)
+        return NULL;
+    fz_pixmap* p = live->paper;
+    if (p && p->x == crop.x0 && p->y == crop.y0 && p->w == crop.x1 - crop.x0 && p->h == crop.y1 - crop.y0) return p;
+    fz_drop_pixmap(doc->ctx, live->paper);
+    live->paper = NULL;
+    fz_try(doc->ctx) p = fz_new_pixmap_with_bbox(doc->ctx, fz_device_rgb(doc->ctx), crop, NULL, 0);
+    fz_catch(doc->ctx) {
+        fz_ignore_error(doc->ctx);
+        return NULL;
+    }
+    if (!spdf_paint_pdf_draw_page(doc, fz_scale(scale, scale), p, crop, 0)) {
+        fz_drop_pixmap(doc->ctx, p);
+        return NULL;
+    }
+    return live->paper = p;
+}
 
 int spdf_paint_live_written(const spdf_paint_doc* doc, spdf_rect* changed) {
     spdf_paint_live* live = doc ? doc->live : NULL;
@@ -279,7 +327,7 @@ spdf_paint_status spdf_paint_live_begin(spdf_paint_doc* doc, const char* op_json
         live->tiles_x = (box.x1 + SPDF_PAINT_TILE_SIZE - 1) / SPDF_PAINT_TILE_SIZE;
         live->tiles_y = (box.y1 + SPDF_PAINT_TILE_SIZE - 1) / SPDF_PAINT_TILE_SIZE;
         live->saved = calloc((size_t)live->tiles_x * live->tiles_y, sizeof(*live->saved));
-        live->laid = live->marked = fz_empty_irect;
+        live->laid = live->marked = live->picture.box = live->picture.stale = fz_empty_irect;
         live->used = doc->kind == SPDF_PAINT_DOC_PDF ? spdf_paint_pixels_used(layer->pixels, box) : fz_empty_irect;
         if (!live->saved || !spdf_brush_mask_init(doc->ctx, &live->committed, box) ||
             !spdf_brush_mask_init(doc->ctx, &live->shown, box) || !(live->run = spdf_brush_run_new(doc->ctx, &job, box)))
@@ -293,6 +341,7 @@ spdf_paint_status spdf_paint_live_begin(spdf_paint_doc* doc, const char* op_json
         return st;
     }
     doc->live = live;
+    if (doc->kind == SPDF_PAINT_DOC_PDF) spdf_paint_pdf_warm(doc); /* the reader's pictures as the preview draws them */
     return SPDF_PAINT_OK;
 }
 
@@ -343,7 +392,9 @@ static spdf_rect touch_lines(spdf_paint_doc* doc, spdf_paint_live* live, int fro
             free(line);
             live_line* e = d <= live->size / 2 + o->u.line.width / 2 ? line_entry(live, l->id, 1) : NULL;
             if (e && !e->faded) {
+                spdf_paint_object_update_bounds(o); /* as the release's deletion reports it: the reader draws it again */
                 e->faded = 1, changed = join_rect(changed, shown);
+                live->lines_changed = join_rect(live->lines_changed, o->bounds);
                 stale_tiles(doc, spdf_paint_raster_box(doc, shown));
             }
             continue;
@@ -403,65 +454,13 @@ spdf_paint_status spdf_paint_live_add(spdf_paint_doc* doc, const float* xyp, int
 
 /* ---- Drawing the lines it changes ---- */
 
-/* A piece as the reader will draw it once written into the page: Fill & Sign's Ink appearance, its points joined by
- * straight lines with round ends and joins; an arrow's head a second line through its tip. */
-static void draw_as_written(spdf_paint_doc* doc, const spdf_paint_object* o, fz_matrix ctm, fz_pixmap* dest,
-                            fz_irect clip, float opacity) {
-    fz_context* ctx = doc->ctx;
-    const spdf_paint_point* p = o->u.line.points;
-    int n = o->u.line.point_count;
-    spdf_paint_color c = o->u.line.color;
-    float rgb[3] = {((c >> 24) & 0xFF) / 255.0f, ((c >> 16) & 0xFF) / 255.0f, ((c >> 8) & 0xFF) / 255.0f};
-    fz_device* dev = NULL;
-    fz_path* path = NULL;
-    fz_stroke_state* stroke = NULL;
-    fz_var(dev), fz_var(path), fz_var(stroke);
-    if (n < 1) return;
-    fz_try(ctx) {
-        path = fz_new_path(ctx);
-        fz_moveto(ctx, path, p[0].x, p[0].y);
-        for (int i = 1; i < n; i++) fz_lineto(ctx, path, p[i].x, p[i].y);
-        if (n == 1) fz_lineto(ctx, path, p[0].x, p[0].y);
-        if (o->kind == SPDF_PAINT_OBJ_ARROW && n >= 2) {
-            spdf_fill_point head[3];
-            spdf_ink_arrow_head((spdf_fill_point){p[0].x, p[0].y}, (spdf_fill_point){p[n - 1].x, p[n - 1].y},
-                                o->u.line.width, head);
-            fz_moveto(ctx, path, head[0].x, head[0].y);
-            fz_lineto(ctx, path, head[1].x, head[1].y);
-            fz_lineto(ctx, path, head[2].x, head[2].y);
-        }
-        stroke = fz_new_stroke_state(ctx);
-        stroke->linewidth = o->u.line.width;
-        stroke->start_cap = stroke->end_cap = stroke->dash_cap = FZ_LINECAP_ROUND;
-        stroke->linejoin = FZ_LINEJOIN_ROUND;
-        dev = fz_new_draw_device_with_bbox(ctx, fz_identity, dest, &clip);
-        fz_stroke_path(ctx, dev, path, stroke, ctm, fz_device_rgb(ctx), rgb, (c & 0xFF) / 255.0f * opacity,
-                       fz_default_color_params);
-        fz_close_device(ctx, dev);
-    }
-    fz_always(ctx) {
-        fz_drop_device(ctx, dev);
-        fz_drop_path(ctx, path);
-        fz_drop_stroke_state(ctx, stroke);
-    }
-    fz_catch(ctx) fz_ignore_error(ctx);
-}
-
 int spdf_paint_live_draw_object(spdf_paint_doc* doc, const spdf_paint_layer* layer, fz_matrix ctm, fz_pixmap* dest,
                                 fz_irect clip, float opacity) {
     live_line* e = doc && doc->live && layer && layer->object ? line_entry(doc->live, layer->id, 0) : NULL;
-    const spdf_paint_object* o = e ? layer->object : NULL;
     if (!e || (!e->cut && !e->faded)) return 0;
-    if (e->faded) {
-        int written = doc->pdf && o->pdf_nm && o->pdf_nm[0];
-        spdf_paint_object stand_in = *o; /* a line already in the page: through its annotation, as the reader draws */
-        if (written) stand_in.kind = SPDF_PAINT_OBJ_FILL_SIGNATURE;
-        if (written) spdf_paint_pdf_draw_annotation(doc, &stand_in, ctm, dest, clip, opacity * FADED);
-        else spdf_paint_object_draw(doc, o, ctm, dest, clip, opacity * FADED);
-        return 1;
-    }
+    if (e->faded) return 1; /* gone, as the release leaves it */
     for (int i = 0; i < e->count; i++) {
-        if (doc->kind == SPDF_PAINT_DOC_PDF) draw_as_written(doc, e->pieces[i], ctm, dest, clip, opacity);
+        if (doc->kind == SPDF_PAINT_DOC_PDF) spdf_paint_draw_line_as_written(doc, e->pieces[i], ctm, dest, clip, opacity);
         else spdf_paint_object_draw(doc, e->pieces[i], ctm, dest, clip, opacity);
     }
     return 1;

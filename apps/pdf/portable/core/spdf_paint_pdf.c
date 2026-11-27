@@ -6,6 +6,7 @@
 #include "spdf_paint_model.h"
 #include "spdf_paint_pdf_internal.h"
 #include "spdf_paint_pdf_layers.h"
+#include "spdf_paint_written.h"
 
 #include "spdf_core_document.h"
 #include "spdf_fill_items.h"
@@ -80,6 +81,7 @@ void spdf_paint_pdf_close(spdf_paint_doc* doc) {
     spdf_paint_pdf_state* st = spdf_paint_pdf_state_of(doc);
     int i;
     if (!st) return;
+    spdf_paint_pdf_warm_drop(doc);
     for (i = 0; i < st->count; ++i) free(st->entries[i].nm), free(st->entries[i].model), free(st->entries[i].file);
     free(st->entries);
     spdf_paint_pdf_retired_free(st);
@@ -276,7 +278,8 @@ void spdf_paint_pdf_read(spdf_paint_doc* doc, int reload) {
     spdf_fill_items items = {0};
     spdf_paint_pdf_placed* volatile placed = NULL;
     char err[256];
-    int i, changed = !reload;
+    int i, changed = !reload, has = 0;
+    spdf_rect damage = {0, 0, 0, 0}; /* what a reload changes, before and after: the reader draws only that again */
     for (i = 0; i < st->count; ++i) st->entries[i].seen = 0;
     if (!spdf_fill_load_items(doc->pdf, doc->page_index, &items, err, sizeof err)) fz_throw(ctx, FZ_ERROR_FORMAT, "%s", err);
     fz_try(ctx) {
@@ -334,6 +337,7 @@ void spdf_paint_pdf_read(spdf_paint_doc* doc, int reload) {
                 continue;
             }
             changed = 1;
+            if (layer) spdf_paint_union_damage(&damage, &has, spdf_paint_layer_box(doc, layer));
             spdf_paint_pdf_placed* at = &placed[count];
             if (origin != SPDF_PAINT_PDF_FOREIGN) spdf_paint_pdf_read_layer_record(ctx, annot, &at->record);
             at->reread = 1, at->fresh = !layer;
@@ -350,6 +354,7 @@ void spdf_paint_pdf_read(spdf_paint_doc* doc, int reload) {
                 if (rev > st->rev) st->rev = rev;
             }
             at->layer = layer->id;
+            spdf_paint_union_damage(&damage, &has, spdf_paint_layer_box(doc, layer));
             count++;
         }
         for (i = st->count - 1; i >= 0; --i) { /* gone from the file: gone from the canvas */
@@ -359,10 +364,12 @@ void spdf_paint_pdf_read(spdf_paint_doc* doc, int reload) {
             index = spdf_paint_layer_index(doc, e->layer);
             if (index > 0 && doc->layers[index]->kind == SPDF_PAINT_LAYER_RASTER) { /* a layer stays; its drawing goes */
                 spdf_paint_layer* l = doc->layers[index];
-                if (e->file && e->file[0] && l->pixels) fz_drop_pixmap(ctx, l->pixels), l->pixels = NULL, changed = 1;
+                if (e->file && e->file[0] && l->pixels) fz_drop_pixmap(ctx, l->pixels), l->pixels = NULL, changed = 1,
+                    spdf_paint_union_damage(&damage, &has, spdf_paint_canvas_rect(doc)); /* its drawing, gone */
                 spdf_paint_pdf_entry_set(doc, e, spdf_paint_pdf_layer_state(doc, l), spdf_paint_pdf_strdup(""));
                 continue;
             }
+            if (index > 0) spdf_paint_union_damage(&damage, &has, spdf_paint_layer_box(doc, doc->layers[index]));
             if (index > 0) spdf_paint_pdf_retire(doc, e), drop_layer(doc, index);
             if (doc->active == e->layer) doc->active = 0;
             spdf_paint_pdf_entry_remove(doc, e);
@@ -382,7 +389,8 @@ void spdf_paint_pdf_read(spdf_paint_doc* doc, int reload) {
     }
     fz_catch(ctx) fz_rethrow(ctx);
     if (changed) {
-        spdf_paint_damage_all(doc);
+        if (reload && has) spdf_paint_damage(doc, damage);
+        else spdf_paint_damage_all(doc);
         ++doc->generation;
     }
 }

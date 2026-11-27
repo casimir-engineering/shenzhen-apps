@@ -198,3 +198,10 @@ int spdf_paint_mask_at(const fz_pixmap* mask, int x, int y) {
     if (x < 0 || y < 0 || x >= mask->w || y >= mask->h) return 0;
     return mask->samples[y * mask->stride + x];
 }
+
+spdf_rect spdf_paint_layer_box(spdf_paint_doc* doc, spdf_paint_layer* layer) {
+    if (!layer || !layer->object) return spdf_paint_canvas_rect(doc);
+    spdf_paint_object_update_bounds(layer->object);
+    spdf_rect b = layer->object->bounds;
+    return b.x1 > b.x0 && b.y1 > b.y0 ? b : spdf_paint_canvas_rect(doc);
+}

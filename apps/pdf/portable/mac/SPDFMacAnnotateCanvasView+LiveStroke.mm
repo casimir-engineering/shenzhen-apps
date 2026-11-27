@@ -1,10 +1,10 @@
 // Pencil, the brushes, the Eraser and the Color Eraser shown as their release leaves them, every frame of the drag
 // (SPDFMacAnnotateCanvasView.h). The core holds the stroke being drawn (spdf_paint_live_begin): its pixels in the
-// active layer, with the layers above and below, the pen lines the Eraser cuts, the lines the whole-line Eraser takes,
-// faded. Each new point costs only what it changes: on a picture or a canvas the screen tiles under that part are
-// drawn again; on a PDF page that part of the page is drawn, as the reader draws its picture of the page, into a picture
-// of the same pixels laid over the reader's until the release. The release sends the same operation (the same seed:
-// the Airbrush sprays the same dots), and the core lays exactly what was shown.
+// active layer, with the layers above and below, the pen lines the Eraser cuts, without the lines the whole-line
+// Eraser takes. Each new point costs only what it changes: on a picture or a canvas the screen tiles under that part
+// are drawn again; on a PDF page that part of the page is drawn, as the reader will draw it on the release, into a
+// picture of the same pixels laid over the reader's until the release. The release sends the same operation (the
+// same seed: the Airbrush sprays the same dots), and the core lays exactly what was shown.
 #import "SPDFMacAnnotateCanvasViewPrivate.h"
 
 #import "SPDFMacAnnotateLayersPanelPrivate.h"
@@ -152,16 +152,14 @@
     NSRect changed = NSMakeRect(floor((NSMinX(rect) - NSMinX(covered)) * sx), floor((NSMinY(rect) - NSMinY(covered)) * sx), 0, 0);
     changed.size = NSMakeSize(ceil((NSMaxX(rect) - NSMinX(covered)) * sx) - NSMinX(changed),
                               ceil((NSMaxY(rect) - NSMinY(covered)) * sx) - NSMinY(changed));
-    // What changed in the part, and the part's new edges (where the reader will draw it again from now on).
+    // The release draws this part whole, from its own edges (spdf_paint_live_set_reader_crop): when it moves, all of
+    // it is drawn again so, else only what changed in it.
+    spdf_paint_live_set_reader_crop(doc, (spdf_rect){(float)(NSMinX(covered) + NSMinX(pixelsOf) / sx),
+                                                     (float)(NSMinY(covered) + NSMinY(pixelsOf) / sx),
+                                                     (float)(NSMinX(covered) + NSMaxX(pixelsOf) / sx),
+                                                     (float)(NSMinY(covered) + NSMaxY(pixelsOf) / sx)}, (float)sx);
     NSMutableArray<NSValue*>* parts = [NSMutableArray arrayWithObject:@(NSIntersectionRect(changed, pixelsOf))];
-    if (NSIsEmptyRect(before)) [parts addObject:@(pixelsOf)];
-    else if (!NSEqualRects(before, pixelsOf)) {
-        CGFloat x0 = NSMinX(pixelsOf), x1 = NSMaxX(pixelsOf), y0 = NSMinY(pixelsOf), y1 = NSMaxY(pixelsOf);
-        [parts addObject:@(NSMakeRect(x0, y0, x1 - x0, NSMinY(before) - y0))];
-        [parts addObject:@(NSMakeRect(x0, NSMaxY(before), x1 - x0, y1 - NSMaxY(before)))];
-        [parts addObject:@(NSMakeRect(x0, y0, NSMinX(before) - x0, y1 - y0))];
-        [parts addObject:@(NSMakeRect(NSMaxX(before), y0, x1 - NSMaxX(before), y1 - y0))];
-    }
+    if (!NSEqualRects(before, pixelsOf)) parts = [NSMutableArray arrayWithObject:@(pixelsOf)];
     for (NSValue* value in parts) {
         NSRect px = NSIntersectionRect(value.rectValue, pixelsOf);
         if (!NSIsEmptyRect(px)) [self liveStrokeRender:px picture:picture covered:covered scale:sx doc:doc];

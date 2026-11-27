@@ -50,6 +50,7 @@ typedef struct spdf_paint_pdf_state {
     int retired_count, retired_cap;
     fz_display_list* images_of;    /* the page_list page_images were read with (kept), NULL before */
     spdf_recolor_page_entry page_images; /* the page's own pictures, for a dark preview that keeps them */
+    void* warm;                    /* spdf_paint_pdf_warm.c: the written pictures kept decoded for the reader */
 } spdf_paint_pdf_state;
 
 /* ---- spdf_paint_pdf.c ---- */

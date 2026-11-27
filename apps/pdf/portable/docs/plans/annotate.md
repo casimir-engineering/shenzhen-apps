@@ -360,9 +360,12 @@ A brush stroke from the mouse is shown as it is drawn and applied as one `paint.
 release (airbrush and the textured brushes take a `seed`, chosen at the press, so the stroke drawn and its replay give
 the same pixels). While the button is held the core holds the stroke (`spdf_paint_live_*`, spdf_paint_live.c): its
 real brush, built point by point, laid into the active layer with the layers above and below showing, the pen lines
-the pixel Eraser cuts shown in their pieces, the lines the whole-line Eraser takes shown faded; each point costs only
+the pixel Eraser cuts shown in their pieces, the lines the whole-line Eraser takes already gone; each point costs only
 what it changes. The release lays exactly what was shown. On a PDF page the part the reader will draw again is drawn
-as the reader draws it. The preview stays inside the canvas or page, as what the release paints does; the Pen's line
+as the reader draws it: the drawing layer stored and sampled as MuPDF stores and samples the written picture, from
+where the reader's release starts, over the page drawn once for that part (spdf_paint_written.h). Pictures at 100 %
+and above are shown in screen-pixel tiles, so a part drawn again shows the same pixels as the whole. The Layers
+panel's thumbnail of the active layer follows the stroke (at most ten times a second). The preview stays inside the canvas or page, as what the release paints does; the Pen's line
 and the Arrow are previewed as the object they add (its smoothing, head, width and the Pen row's colour). The pixel
 Eraser cuts a pen line where it is drawn (its smoothed curve), and the pieces keep the line's own points. A drag of an
 object is one `object.move` on release. Text typing is one `object.update` when the box closes.
