@@ -184,10 +184,14 @@ static NSPasteboardType const kSPDFLayerRowType = @"com.intuition.shenzhenpdf.an
     NSArray* rows = SPDFAnnotateLayerRows(state, _folded);
     id active = state[@"active"] ?: state[@"activeLayer"];
     _activeId = [active isKindOfClass:[NSNumber class]] ? active : nil;
-    if (![rows isEqual:_rows]) {
+    if (![rows isEqual:_rows]) {  // rows taken out or put in where they were (a delete, an undo) keep the others' views
+        NSIndexSet* gone = SPDFAnnotateRowsLeft(_rows, rows);
+        NSIndexSet* added = gone ? nil : SPDFAnnotateRowsLeft(rows, _rows);
         _rows = rows;
         _syncing = YES;
-        [_table reloadData];
+        if (gone.count) [_table removeRowsAtIndexes:gone withAnimation:NSTableViewAnimationEffectNone];
+        else if (added.count) [_table insertRowsAtIndexes:added withAnimation:NSTableViewAnimationEffectNone];
+        else if (!gone && !added) [_table reloadData];
         _syncing = NO;
     }
     [self selectRowsFor:state];
@@ -223,9 +227,7 @@ static NSPasteboardType const kSPDFLayerRowType = @"com.intuition.shenzhenpdf.an
     _height.constant = MIN(360, MAX(48, height));
 }
 
-- (void)selectionDidChange {
-    [self selectRowsFor:SPDFAnnotateDocState(_controller)];
-}
+- (void)selectionDidChange { [self selectRowsFor:SPDFAnnotateDocState(_controller)]; }
 
 #pragma mark - Thumbnails
 
@@ -312,6 +314,18 @@ static NSString* SPDFObjectsCount(NSInteger count) {
     return count == 1 ? @"1 object" : count ? [NSString stringWithFormat:@"%ld objects", (long)count] : @"";
 }
 
+// Symbols made once: every selection change configures every row, and making a symbol image costs a little each time.
+static NSImage* SPDFLayerSymbol(NSString* symbol, NSString* label) {
+    static NSMutableDictionary<NSString*, NSImage*>* made;
+    if (!made) made = [NSMutableDictionary dictionary];
+    NSString* key = [symbol stringByAppendingFormat:@"|%@", label];
+    if (!made[key]) made[key] = SPDFAnnotateSymbol(symbol, label) ?: [NSImage new];
+    return made[key];
+}
+
+// The same image again would lay the button out again.
+static void SPDFSetImage(NSButton* button, NSImage* image) { if (button.image != image) button.image = image; }
+
 - (void)configure:(SPDFAnnotateLayerRow*)cell row:(NSInteger)row {
     if (![cell isKindOfClass:[SPDFAnnotateLayerRow class]] || row >= (NSInteger)_rows.count) return;
     NSDictionary* r = _rows[row];
@@ -320,25 +334,27 @@ static NSString* SPDFObjectsCount(NSInteger count) {
     if (!cell.name.currentEditor) cell.name.stringValue = r[@"name"];
     cell.name.textColor = visible ? NSColor.labelColor : NSColor.tertiaryLabelColor;
     cell.thumb.image = _thumbs[r[@"id"]];
-    cell.detail.stringValue = base ? (page ? @"The page itself" : @"The picture") : SPDFObjectsCount([r[@"count"] integerValue]);
+    // Under the base layer's name, what it is (a canvas's Background needs no words); under a layer's, what it holds.
+    cell.detail.stringValue = base ? (page ? @"The page itself" : [r[@"canvas"] boolValue] ? @"" : @"The picture")
+                                   : SPDFObjectsCount([r[@"count"] integerValue]);
     cell.disclosure.hidden = object || ![r[@"count"] integerValue];
     BOOL folded = [r[@"folded"] boolValue];
-    cell.disclosure.image = SPDFAnnotateSymbol(folded ? @"chevron.right" : @"chevron.down", folded ? @"Show its objects" : @"Hide its objects");
+    if (!cell.disclosure.hidden) SPDFSetImage(cell.disclosure, SPDFLayerSymbol(folded ? @"chevron.right" : @"chevron.down", folded ? @"Show its objects" : @"Hide its objects"));
     cell.disclosure.toolTip = folded ? @"Show its objects" : @"Hide its objects";
     BOOL active = [r[@"id"] isEqual:_activeId] && !object;
     BOOL objectLocked = object && locked;  // on a locked layer, or another app's annotation
-    cell.badge.image = (page || objectLocked) ? SPDFAnnotateSymbol(@"lock.fill", @"Locked")
-                       : active ? SPDFAnnotateSymbol(@"paintbrush.pointed.fill", @"Drawing and new objects go here") : nil;
+    cell.badge.image = (page || objectLocked) ? SPDFLayerSymbol(@"lock.fill", @"Locked")
+                       : active ? SPDFLayerSymbol(@"paintbrush.pointed.fill", @"Drawing and new objects go here") : nil;
     cell.badge.toolTip = page ? SPDFAnnotatePageLockedText : objectLocked ? @"Locked" : active ? @"Drawing and new objects go here" : nil;
     cell.badge.hidden = !cell.badge.image;
     cell.lock.hidden = object || base;
     cell.lockWidth.constant = cell.lock.hidden ? 0 : 22;
-    cell.lock.image = SPDFAnnotateSymbol(locked ? @"lock.fill" : @"lock.open", locked ? @"Unlock" : @"Lock");
+    if (!object && !base) SPDFSetImage(cell.lock, SPDFLayerSymbol(locked ? @"lock.fill" : @"lock.open", locked ? @"Unlock" : @"Lock"));
     cell.lock.toolTip = locked ? @"Unlock" : @"Lock";
     cell.lock.contentTintColor = locked ? NSColor.labelColor : NSColor.tertiaryLabelColor;
     cell.lock.tag = row;
     cell.eye.hidden = page || objectLocked;
-    cell.eye.image = SPDFAnnotateSymbol(visible ? @"eye" : @"eye.slash", visible ? @"Hide" : @"Show");
+    SPDFSetImage(cell.eye, SPDFLayerSymbol(visible ? @"eye" : @"eye.slash", visible ? @"Hide" : @"Show"));
     cell.eye.toolTip = visible ? @"Hide" : @"Show";
     cell.eye.tag = row;
     cell.disclosure.tag = row;

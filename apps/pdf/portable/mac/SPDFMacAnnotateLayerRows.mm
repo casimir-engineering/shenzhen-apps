@@ -18,6 +18,7 @@ NSArray<NSDictionary*>* SPDFAnnotateLayerRows(NSDictionary* state, NSSet<NSNumbe
             @"name" : [layer[@"name"] isKindOfClass:[NSString class]] ? layer[@"name"] : @"",
             @"visible" : @(layer[@"visible"] ? [layer[@"visible"] boolValue] : YES), @"opacity" : @(SPDFLayerRowOpacity(layer)),
             @"locked" : @([layer[@"locked"] boolValue]), @"page" : @(base && pdf),
+            @"canvas" : @(base && [state[@"kind"] isEqual:@"canvas"]),
         }];
         if (fold) continue;
         for (NSDictionary* object in objects.reverseObjectEnumerator) {
@@ -31,6 +32,18 @@ NSArray<NSDictionary*>* SPDFAnnotateLayerRows(NSDictionary* state, NSSet<NSNumbe
         }
     }
     return rows;
+}
+
+NSIndexSet* SPDFAnnotateRowsLeft(NSArray<NSDictionary*>* from, NSArray<NSDictionary*>* to) {
+    if (to.count > from.count) return nil;
+    NSMutableIndexSet* left = [NSMutableIndexSet indexSet];
+    NSUInteger j = 0;
+    for (NSUInteger i = 0; i < from.count; ++i) {
+        BOOL same = j < to.count && [from[i][@"id"] isEqual:to[j][@"id"]] && [from[i][@"object"] isEqual:to[j][@"object"]];
+        if (same) j++;
+        else [left addIndex:i];
+    }
+    return j == to.count ? left : nil;
 }
 
 NSDictionary* SPDFAnnotateLayerDrop(NSArray<NSDictionary*>* rows, NSInteger from, NSInteger row) {
