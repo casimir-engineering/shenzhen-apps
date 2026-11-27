@@ -60,6 +60,8 @@ pub const UNHEARD_AFTER: Duration = Duration::from_millis(2_500);
 pub const UNHEARD_AFTER_BLUETOOTH: Duration = Duration::from_millis(3_500);
 /// A silent lane is closed after this long without a byte from the peer.
 pub const CLOSE_SILENT_AFTER: Duration = Duration::from_secs(10);
+/// Units (blocks, or slices with pieces) a network lane may hold before its rate is measured (ADR 0018 § 7).
+pub const NETWORK_FLOOR_UNITS: u64 = 8;
 /// A lane slower than this many seconds per block holds one block at a time.
 const SLOW_BLOCK_SECONDS: f64 = 1.0;
 /// In flight per lane at most.

@@ -27,10 +27,10 @@ fn a_closed_lane_gives_its_blocks_back_at_once() {
     let mut s = Scheduler::new(Config::default());
     up(&mut s, 1, 0, RouteMethod::Lan);
     up(&mut s, 2, 1, RouteMethod::Lan);
-    s.add_transfer(7, Geometry::for_size(8 * MIB).unwrap());
-    s.want(7, &[(0, 8)], Duration::ZERO).unwrap();
+    s.add_transfer(7, Geometry::for_size(64 * MIB).unwrap());
+    s.want(7, &[(0, 64)], Duration::ZERO).unwrap();
     let first = sends(&s.take_actions());
-    assert_eq!(first.len(), 4, "two blocks per lane at first: {first:?}");
+    assert_eq!(first.len(), 16, "eight blocks per network lane at first: {first:?}");
     let on_two: Vec<u32> = first.iter().filter(|(l, _)| *l == 2).map(|(_, b)| *b).collect();
     s.lane_event(LaneEvent::Down { lane: 2 }, ms(5));
     let again = sends(&s.take_actions());
@@ -38,7 +38,7 @@ fn a_closed_lane_gives_its_blocks_back_at_once() {
     s.have(7, &[(0, 1)], ms(30)).unwrap();
     let next = sends(&s.take_actions());
     assert_eq!(next[0], (1, on_two[0]), "the lost lane's blocks first: {next:?}");
-    assert_eq!(s.open(7).0, 3, "lost blocks stay open (the receiver may hold parts)");
+    assert_eq!(s.open(7).0, 15, "lost blocks stay open (the receiver may hold parts)");
 }
 
 #[test]
@@ -136,14 +136,14 @@ fn a_boost_the_person_agreed_to_keeps_its_direct_lane_until_it_ends() {
 fn a_block_that_failed_is_wanted_again_alone_and_goes_first() {
     let mut s = Scheduler::new(Config::default());
     up(&mut s, 1, 0, RouteMethod::Lan);
-    s.add_transfer(1, Geometry::for_size(4 * MIB).unwrap());
-    s.want(1, &[(0, 4)], Duration::ZERO).unwrap();
-    assert_eq!(sends(&s.take_actions()), vec![(1, 0), (1, 1)]);
+    s.add_transfer(1, Geometry::for_size(16 * MIB).unwrap());
+    s.want(1, &[(0, 16)], Duration::ZERO).unwrap();
+    assert_eq!(sends(&s.take_actions()), (0..8).map(|b| (1, b)).collect::<Vec<_>>(), "eight on a network lane");
     s.want(1, &[(0, 1)], ms(10)).unwrap();
     let actions = s.take_actions();
     assert_eq!(actions[0], Action::Cancel { lane: 1, transfer: 1, block: 0 });
     assert_eq!(sends(&actions), vec![(1, 0)]);
-    assert_eq!(s.want(1, &[(3, 2)], ms(10)), Err(SchedulerError::OutOfRange));
+    assert_eq!(s.want(1, &[(15, 2)], ms(10)), Err(SchedulerError::OutOfRange));
     assert_eq!(s.have(9, &[(0, 1)], ms(10)), Err(SchedulerError::UnknownTransfer));
 }
 

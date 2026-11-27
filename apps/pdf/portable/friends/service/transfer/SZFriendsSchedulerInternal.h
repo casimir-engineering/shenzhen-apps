@@ -13,6 +13,8 @@ static const double SZFSilentAfter = 1, SZFSilentAfterBluetooth = 2;
 static const double SZFUnheardAfter = 2.5, SZFUnheardAfterBluetooth = 3.5;
 // A lane slower than this many seconds per block holds one block at a time.
 static const double SZFSlowBlockSeconds = 1.0;
+// Units a network lane may hold before its rate is measured (scheduler.rs's NETWORK_FLOOR_UNITS).
+static const uint64_t SZFNetworkFloorUnits = 8;
 // A silent lane is closed after this long without a byte from the peer.
 static const double SZFCloseSilentAfter = 10;
 // In flight per lane at most.

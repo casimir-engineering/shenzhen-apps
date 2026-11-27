@@ -17,13 +17,17 @@ NS_ASSUME_NONNULL_BEGIN
         if (other.working) fastest = MAX(fastest, other->rate);
     }
     if (lane->rate < fastest) max = MIN(max, MAX((uint64_t)(fastest * SZFSlowerLaneSeconds), blockBytes));
-    uint64_t bdp2 = (uint64_t)(2.0 * lane->rate * lane->rtt);
+    // Twice the bandwidth-delay product and, on network routes, one unit more, so the cap can grow past what the lane
+    // already moves (as scheduler_decisions.rs): a lane that started low no longer stays there.
+    BOOL network = lane->route != SZFriendsRouteMethodBluetooth && lane->route != SZFriendsRouteMethodRelay;
+    uint64_t bdp2 = (uint64_t)(2.0 * lane->rate * lane->rtt) + (network ? blockBytes : 0);
     // A lane beside a faster one that needs longer than a second per block (Bluetooth beside a slow LAN) holds one: a
     // second one queued behind it would push its expected finish past what the faster lanes need for the rest.
     BOOL faster = NO;
     for (SZFLane *other in _lanes.allValues) faster |= other.working && other->rate > lane->rate * 2.0;
     BOOL slow = faster && (double)blockBytes / MAX(lane->rate, 1.0) > SZFSlowBlockSeconds;
-    return MIN(MAX(bdp2, (slow ? 1 : 2) * blockBytes), max);
+    uint64_t floor = slow ? 1 : network ? SZFNetworkFloorUnits : 2; // 8 units before anything is measured
+    return MIN(MAX(bdp2, floor * blockBytes), max);
 }
 
 - (BOOL)room:(SZFLane *)lane bytes:(uint64_t)bytes blockBytes:(uint64_t)blockBytes {
