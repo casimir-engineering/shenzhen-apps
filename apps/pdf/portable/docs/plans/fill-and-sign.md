@@ -124,8 +124,13 @@ when the PDF has a real form, no cost at launch (ideally a gain), testing only a
   writable copy on the first commit; the session holds the value and re-applies it to the new `_doc`.
 - **Hybrid AcroForm + XFA:** `/AcroForm/XFA` is removed on the first fill (as Preview and pdf.js do), otherwise
   Acrobat keeps showing the old XFA data. XFA-only: no auto-on; placed items still work.
-- **Save failure:** the value stays on screen with a red outline, and "Couldn't save what you filled in" plus the
-  detail.
+- **Save failure:** the change stays on screen and stays owed; "Couldn't save your changes to “<name>”" with the reason
+  and "Your changes are still here. ShenzhenPDF tries again with your next change and when you leave the document; if
+  it still can't when you close it, it keeps them in a copy." is shown once per run of failures. Still failing when the
+  document closes, the changes are written to a copy in Edited Copies, opened in a new tab, and "Couldn't save your
+  latest changes to “<name>”" says so (`mac/SPDFMacFillSaveCopy.mm`).
+- **File changed by another app:** the owed save is never appended to it (below, Saving); the changes go to a copy the
+  tab follows, with "“<name>” was changed by another app".
 
 ## 2. UI text (all of it)
 
@@ -329,22 +334,33 @@ Where the Mac front end differs from the sketches below:
   changes rest: 0.35 s after the last one, 1 s after the first at most, put off while a mouse button is down or a key
   or click waits (2 s at the very latest). One incremental save then covers the whole burst, so five quick Backspaces
   or a run of nudges never wait for a save (an 11 MB datasheet: 6–85 ms each before, up to 270 ms for the first).
-  While the palette shows, the file's objects are read ahead in 3 ms idle steps (`spdf_prepare_save_step`), so the
-  first save no longer stops to read them all (MuPDF's `pdf_check_document`). Nothing ever reads the file without an
+  From the first change, or the first press on a page with a drawing tool (not when the palette merely shows), the
+  file's objects are read ahead in 3 ms idle steps (`spdf_prepare_save_step`, each step bounded in entries looked at,
+  nothing read ahead past 500,000 objects), so the first save no longer stops to read them all (MuPDF's
+  `pdf_check_document`). A save that comes while another is written or Fill & Sign is busy comes again 0.1 s later. Nothing ever reads the file without an
   owed change: `-activeWorkingPath` (every worker render, crop, search, cursor map, export) writes it first; leaving
   the document (`rememberActiveTabState`: tab switch, close, quit, rename) writes it; every agent-channel request
   writes it before it is handled and before it is answered, and szpdf's own readings ask the running readers first;
   every menu command but Annotate's own edits writes it; and `spdf_close` writes whatever is still owed. A scroll or
   zoom before the save redraws, from memory, the small picture a page at a high zoom shows past its sharp part, so a
-  deleted object never shows there. A kill -9 loses the last ~0.35 s at most, never part of a change (each save is
-  atomic). What is being typed is written before the document is left. Collection gets `collectionDidSavePath:` 5 s
-  after the last save of a burst (one version per burst; the old selector cancel with a nil object cancelled nothing),
-  and the "before edit" protection runs once per burst.
+  deleted object never shows there; a redraw queued for the next frame is dropped when the document changed meanwhile,
+  and quitting saves without drawing pages again. The core notes the file (device, inode, size, modification time)
+  when it opens and after every save into it; `spdf_save_deferred` refuses to append an increment to a file that is no
+  longer as it was (another app replaced, grew or cut it, or it is gone), since the increment would damage it: the
+  whole document goes to a copy in Edited Copies (`spdf_save_deferred_copy`), the tab follows it, and the palette's line
+  says why. A failed save stays owed (§ 1 G); `spdf_close` hands one still failing to the frontend's hook
+  (`spdf_core_set_save_failed_hook`). A kill -9 loses the last ~0.35 s at most. A save that rewrites the file is
+  written beside it and swapped in, so a kill leaves the old file or the new one; an increment is appended in one
+  write, so a kill in the middle of it leaves the earlier saves whole and an unfinished tail that readers repair past
+  (checked: qpdf recovers all 425 pages of the datasheet cut mid-increment); nothing is fsynced. What is being typed
+  is written before the document is left. Collection gets `collectionDidSavePath:` 5 s after the last save of a burst
+  (one version per burst, owed by every save whether or not pages are drawn again; the old selector cancel with a nil
+  object cancelled nothing), and the "before edit" protection runs once per burst.
 - **Palette room:** while the palette shows, the document view keeps room above the first page (`topReserve`, the
   palette's height plus 18 pt, grown but not shrunk while it shows), so the top of a page is never stuck under it;
   page steps and reading positions count the viewport from below it, and Tab scrolls a target clear of it. When the
-  document is the app's own copy of a file that couldn't be changed, the palette's second line says so and points to
-  File ▸ Save As….
+  document is the app's own copy of a file that couldn't be changed, or of one another app changed while it was being
+  annotated, the palette's second line says which and points to File ▸ Save As….
 - **Snapping additions:** a small square drawn as four separate rules counts as a box (`find_ruled_squares`), and
   Tab lists the empty cells of ruled tables. MuPDF's "auto" size for one-line fields (text and combo) is capped at
   0.65 × the field height and 12 pt, as the editor shows it (`mupdf/source/pdf/pdf-appearance.c`, marked

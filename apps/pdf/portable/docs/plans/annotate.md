@@ -60,7 +60,11 @@ resolution: A4 at 300 ppi is 2480 x 3508, at 150 ppi 1240 x 1754); screens HD, F
 Pro wallpapers, iPhone 16 Pro / Pro Max, iPad Pro 13" / Air 11"; social Instagram square / portrait, Story / Reel, YouTube
 thumbnail, X header; icons 16–512 and App icon 1024; and Custom (what is typed). Changing the resolution redraws
 paper at it, keeps a size typed in mm, cm or in at its length, and leaves pixel sizes alone. The size, unit,
-orientation and resolution chosen are offered next time; the first time it is Default at 300 ppi. The canvas keeps the
+orientation and resolution chosen are offered next time; the first time it is Default at 300 ppi. A size over the
+limits (16384 px a side, 268 M pixels) is made smaller by one factor, so it keeps its shape, at a resolution lowered
+by the same factor, so paper keeps its printed size: A0 at 600 ppi is 11588 x 16384 px at 350 ppi. The list shows the
+size it makes, and a line under the resolution says "Too large for one canvas: Create makes it 11588 × 16384 px at 350
+ppi, the same printed size." (a size typed in px: "..., the same shape."); `canvas.new {preset}` does the same. The canvas keeps the
 resolution, and every PNG, JPEG or TIFF saved from it carries it. The table of sizes is `core/spdf_paint_presets.c`,
 shared with `canvas.new {preset}` and `szpdf canvas new --preset`.
 | Layers and objects | Every document starts as two layers: the **base layer** at the bottom (on a PDF the page itself, locked, "Page 3"; on a picture the picture, "Background"; on a new canvas "Background", transparent) and **Layer 1** above it, which holds every object and the drawing. Nothing else is made by itself: the person adds layers (Layers panel +, Image > Layers > New Layer, right-click the canvas > New Layer), and new drawing and new objects go into the **active layer**. A layer has its own pixels (the pixel tools paint there, under its objects) and its objects, back to front; its eye, lock and opacity apply to both. An object is a shape, line, curve, arrow, pen line, text box, picture (pasted, inserted, or a selection that was moved) or, on a PDF, a placed text, mark or signature; it stays editable and keeps its depth within its layer: right-click it for Bring to Front, Bring Forward, Send Backward, Send to Back (within its layer), **Move to Layer Above / Below** (greyed at the ends; never onto the base layer; every selected object goes, keeping its place on the canvas: up, to the bottom of the layer above; down, to the top of the layer below), Merge Down (into its layer's pixels), Duplicate, Delete | Raph: "by default there should be the pdf layer, every annotate object is on a second layer and it is up to the user to add layers and draw on them. if you right click on an object you can move it to the next layer up or down." |
@@ -151,7 +155,7 @@ itself can't be changed."
 | Transparent selection (toggle) | When on, pixels equal to Color 2 are left behind when a selection is lifted (classic "Draw Opaque" off) |
 | Crop to selection (⇧⌘X) | Canvas becomes the selection's bounding box; objects keep their place relative to it |
 | Esc | Deselect; a lifted selection stays an object |
-| Copy / Cut / Paste (⌘C / ⌘X / ⌘V) | Copy puts the selection (or the selected object, flattened) on the clipboard as PNG and TIFF. Paste makes a Picture object centred in the part of the page or picture in view, shrunk to fit 90 % of it (never enlarged), selected with its handles, and chooses the Select tool so it can be dragged and resized (Paint). It works whatever tool is chosen, on a PDF too, whenever the clipboard holds a picture: PNG, TIFF, JPEG or HEIC data, or a picture file copied in Finder (its contents, not its icon). A picture added with no box by any route (picture.add without `rect`, from the app) is placed the same way. A pasted picture larger than the canvas asks "Make the canvas bigger to fit?" (Yes / No), as Paint |
+| Copy / Cut / Paste (⌘C / ⌘X / ⌘V) | Copy puts the selection (or the selected object, flattened) on the clipboard as PNG and TIFF (PNG alone over 50 M pixels): promised at once, encoded on a background queue right after and then written as real data, so a quit right after a Cut still leaves the picture on the clipboard and the pixels are let go; when another app takes the clipboard first, nothing is written back. Paste makes a Picture object centred in the part of the page or picture in view, shrunk to fit 90 % of it (never enlarged), selected with its handles, and chooses the Select tool so it can be dragged and resized (Paint). It works whatever tool is chosen, on a PDF too, whenever the clipboard holds a picture: PNG, TIFF, JPEG or HEIC data, or a picture file copied in Finder (its contents, not its icon). A picture added with no box by any route (picture.add without `rect`, from the app) is placed the same way. A pasted picture larger than the canvas asks "Make the canvas bigger to fit?" (Yes / No), as Paint |
 | Paste from file… (⇧⌥⌘V) / drop a picture file | A Picture object; a dropped one centred where it was dropped (other files dropped on the page still open as documents) |
 | Copy to file… | Saves the selection as PNG |
 
@@ -238,14 +242,16 @@ Colors… write and read a palette (`.json` and Paint/RIFF `.pal`). Every colour
   arrows, on pictures, canvases and PDF pages; several selected objects resize together, keeping their places in the
   box around them. While a handle or a move is held, the objects themselves follow the pointer every frame (on a PDF
   page drawn over the page as the reader draws it), and the release shows them in place in the next frame. One resize
-  is one `object.transform` with the new `rect`, undone in one step, and agents resize the same way. On a PDF, Select is
+  is one `object.transform` with the new `rect` (several objects: `ids` with one box each in `rects`), undone in one
+  step and written into a PDF page once, and agents resize the same way. On a PDF, Select is
   Fill & Sign's for its own items and Annotate's for shapes, text boxes, pictures, pen lines and arrows (box handles, as
   everywhere; an arrow's direction follows its box or the rotation handle). Double-click edits a text box, a curve's points or a polygon's corners.
 - Right-click an object: **Bring to Front** (⌥⌘]), **Bring Forward** (⌘]), **Send Backward** (⌘[), **Send to Back**
   (⌥⌘[) (all within its layer), **Move to Layer Above**, **Move to Layer Below** (also Image > Layers), Merge Down
   (into its layer's drawing; becomes pixels), Duplicate (⌘D), Delete, Flip Horizontal, Flip Vertical, Rotate Right,
-  Rotate Left, Outline ▸ / Fill ▸ / Size ▸ (shapes), Edit Text (text), Copy, Cut. No right-click menu resizes: the
-  handles do.
+  Rotate Left, Outline ▸ / Fill ▸ / Size ▸ (shapes), Edit Text (text), Copy, Cut. The depth items, the layer moves,
+  Duplicate and Delete act on every selected object when the one right-clicked is among them, each in one step (Edit
+  ▸ Duplicate too: the copies are selected). No right-click menu resizes: the handles do.
 - Right-click the canvas (no object): Paste, Select All, New Layer, Canvas Size and Properties…, Remove Background.
 - Right-click the selection: Cut, Copy, Delete, Crop to Selection, Invert Selection, Lift to Object, Flip/Rotate. A
   pixel selection shows the handles (resize, rotate) while a selection tool is chosen.
@@ -255,7 +261,7 @@ Colors… write and read a palette (`.json` and Paint/RIFF `.pal`). Every colour
 
 ## 4. Edit, history and keys
 
-Undo ⌘Z, Redo ⇧⌘Z and ⌘Y, unlimited within 1 GB of history per tab (oldest steps dropped first; History is per tab
+Undo ⌘Z, Redo ⇧⌘Z (sent as "Z", or as "z" with Shift by a program: the canvas and the overlay take it before the menu bar, which matched that one to Undo) and ⌘Y, unlimited within 1 GB of history per tab (oldest steps dropped first; History is per tab
 and survives switching tabs, not quitting). Edit > Repeat (F4) repeats the last operation (classic). Escape cancels
 the gesture in progress.
 
@@ -342,7 +348,7 @@ generated from it, so a new operation appears everywhere at once.
 | Selection | `select.rect {x,y,w,h}`, `select.freeform {points}`, `select.all`, `select.none`, `select.invert`, `select.delete`, `select.lift` (→ object id), `select.transparent {on}` |
 | Pen and arrow | `pen.add {points, color, width}`, `arrow.add {tail, tip, color, width}` (Fill & Sign's vector items; edited, moved, erased and restyled with the object operations; `erase.lines {points, size}` removes whole pen lines and arrows it touches) |
 | Pixels | `paint.stroke {tool:"pencil"\|"brush"\|"calligraphy1"\|"calligraphy2"\|"airbrush"\|"oil"\|"crayon"\|"marker"\|"natural_pencil"\|"watercolor"\|"eraser"\|"color_eraser", points:[[x,y,(pressure)],…], color?, size, opacity, seed?}`, `paint.fill {x, y, color?, tolerance=0, contiguous=true}`, `color.pick {x, y, from:"visible"\|"layer"}` (read-only) |
-| Objects | `shape.add {shape, rect \| points, rotation=0, outline:{style,color,width}, fill:{style,color}}`, `text.add {rect, text, font, size, bold, italic, underline, strikethrough, align, color, background:"transparent"\|color}`, `picture.add {path \| clipboard:true \| png_base64, rect?}`, `object.update {id, …any add argument}`, `object.move {id \| ids, dx, dy}`, `object.transform {id, rect?, rotation?, flip?}`, `object.order {id \| ids, to:"front"\|"forward"\|"backward"\|"back"\|index}` (within the object's layer, 0 = its bottom), `object.layer {id \| ids, to:"above"\|"below" \| layer, position?}` (to the layer above or below, or onto a given one; their place on the canvas stays), `object.merge_down {id}`, `object.duplicate {id}`, `object.delete {id \| ids}` |
+| Objects | `shape.add {shape, rect \| points, rotation=0, outline:{style,color,width}, fill:{style,color}}`, `text.add {rect, text, font, size, bold, italic, underline, strikethrough, align, color, background:"transparent"\|color}`, `picture.add {path \| clipboard:true \| png_base64, rect?}`, `object.update {id, …any add argument}`, `object.move {id \| ids, dx, dy}`, `object.transform {id \| ids, rect? \| rects?, rotation?, flip?}` (`rects`: one box per id, all in one step), `object.order {id \| ids, to:"front"\|"forward"\|"backward"\|"back"\|index}` (within the object's layer, 0 = its bottom), `object.layer {id \| ids, to:"above"\|"below" \| layer, position?}` (to the layer above or below, or onto a given one; their place on the canvas stays), `object.merge_down {id}`, `object.duplicate {id \| ids}` (each copy just above its object, the copies selected, one step), `object.delete {id \| ids}` |
 | Layers | `layer.add {name?, above?}` (above the active layer and its objects; becomes active), `layer.duplicate {id}` (with its objects), `layer.delete {id}` (with its objects), `layer.merge_down {id}` (drawing into the layer below's, objects on top of its), `layer.set {id, name?, visible?, opacity?, locked?}`, `layer.order {id, to}` (among layers, 0 = lowest), `layer.activate {id}` (an object's id selects it) |
 | Colours | `colors.set {color1?, color2?}`, `palette.set_custom {index, color}`, `palette.save {path}` / `palette.load {path}` (Save Colors… / Get Colors…: `.json` or Paint `.pal`) |
 | History | `history.undo {steps=1}`, `history.redo {steps=1}` |
