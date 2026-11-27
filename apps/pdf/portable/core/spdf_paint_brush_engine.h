@@ -101,8 +101,16 @@ void spdf_brush_wet(fz_context* ctx, spdf_brush_mask* mask, float radius, fz_mat
 
 /* The same over `part` of the mask only (device pixels): what lies within the blurs' reach of it is read, the rest
  * of the mask left as it is. */
+/* Its noise at each device pixel, kept while a stroke is drawn: each new point works the wet look out again around
+ * it, over pixels whose noise is already known. */
+typedef struct spdf_brush_wet_noise {
+    fz_irect box;
+    float *edge, *grain;  /* the wet edge's threshold, the granulation */
+    unsigned char* have;  /* 1: edge known, 2: grain known */
+} spdf_brush_wet_noise;
 void spdf_brush_wet_part(fz_context* ctx, spdf_brush_mask* mask, float radius, fz_matrix from_device, uint32_t seed,
-                         fz_irect part);
+                         fz_irect part, spdf_brush_wet_noise* noise);
+void spdf_brush_wet_noise_drop(fz_context* ctx, spdf_brush_wet_noise* noise);
 
 /* A textured fill (§ 2 Shapes Fill: crayon, marker, oil, natural pencil): back-and-forth strokes of that brush over
  * rect (stroke space), drawn through to_device into mask. The caller multiplies the result by the shape's area. */
