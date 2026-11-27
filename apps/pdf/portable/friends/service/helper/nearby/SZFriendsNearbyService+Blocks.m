@@ -4,6 +4,7 @@
 // blocks. This file ties them to links: lanes dialed and admitted, what is sent where, ACK expectations, durability
 // batches and the scheduler's timers on the helper queue, and what a received file sets off.
 
+#import "service/helper/nearby/SZFriendsNearbyLaneHealth.h"
 #import "service/helper/nearby/SZFriendsNearbyInternal.h"
 
 // A durability batch comes due at most a second after a block was written (SZFriendsBlockDownloads.m).
@@ -39,6 +40,7 @@ static uint64_t SZFriendsNextLaneSerial = 0;
     };
     blocks.queue = self.queue;
     blocks.pieces = link.channel.pieces;
+    blocks.directWiFi = [self peerToPeerAllowedWith:link]; // the owner's rule (+PeerToPeer), followed from then on
     [self wireBlocks:blocks toLink:link];
     link.blocks = blocks;
     return blocks;
@@ -84,8 +86,6 @@ static uint64_t SZFriendsNextLaneSerial = 0;
                            BOOL outgoing, BOOL late) {
         [weakSelf tracePartOnGroup:weakLink transfer:transferID lane:lane route:route bytes:bytes outgoing:outgoing
                               late:late];
-        SZFriendsPeerLink *strongLink = weakLink;
-        if (!outgoing && !late && strongLink != nil) [weakSelf peerToPeerNoteReceived:bytes onGroup:strongLink];
     };
     blocks.onWanted = ^(NSString *transferID, uint64_t offset, BOOL resumed) {
         if (resumed) {
@@ -110,6 +110,10 @@ static uint64_t SZFriendsNextLaneSerial = 0;
     blocks.onOpenLane = ^(SZFriendsRouteMethod route) {
         SZFriendsPeerLink *strongLink = weakLink;
         if (strongLink) [weakSelf openLaneOfLink:strongLink route:route];
+    };
+    blocks.onOpenLaneBeside = ^(SZFriendsRouteMethod route, SZFriendsLaneID lane) {
+        SZFriendsPeerLink *strongLink = weakLink;
+        if (strongLink) [weakSelf openLaneOfLink:strongLink route:route beside:lane];
     };
     blocks.onCloseLane = ^(SZFriendsLaneID lane) {
         for (SZFriendsPeerLink *member in weakLink.lanes.allObjects) {
@@ -165,6 +169,7 @@ static uint64_t SZFriendsNextLaneSerial = 0;
                        [strongLink.blocks tick];
                        [self traceGroupOfLink:strongLink];
                        [self boostTickOnLink:strongLink];
+                       [self laneHealthTickOnLink:strongLink];
                        [self scheduleBlockTickOnLink:strongLink];
                    });
 }
@@ -239,8 +244,8 @@ static uint64_t SZFriendsNextLaneSerial = 0;
 
 // The scheduler asks for a lane on `route`: the friend's device is dialed there, with the next index's token. A Bonjour
 // entry seen on Wi-Fi and on awdl is one sighting listing both routes; a lane on peer-to-peer Wi-Fi is pinned to awdl.
-// Peer-to-peer Wi-Fi is on demand (ADR 0021): asking for such a lane turns it on, and the lane is dialed once the
-// friend shows up there.
+// Peer-to-peer Wi-Fi only under the owner's rule (ADR 0022, +PeerToPeer): the lane is dialed once the friend shows up
+// there.
 - (void)openLaneOfLink:(SZFriendsPeerLink *)head route:(SZFriendsRouteMethod)route {
     SZFriendsPersonRecord *person = [self.services.store personWithConversationID:head.conversationID];
     if (head.closed || person.staticKey == nil || person.identityKey == nil) return;
@@ -252,9 +257,7 @@ static uint64_t SZFriendsNextLaneSerial = 0;
             return;
         }
         if (![self peerToPeerLaneWantedBeside:head]) {
-            [self traceLaneWanted:head route:route
-                             what:@"not dialled yet: direct Wi-Fi turned on for this transfer; dialled once the friend "
-                                  @"is sighted there"];
+            [self traceLaneWanted:head route:route what:@"not dialled yet: dialled once the friend is sighted there"];
             return;
         }
     }

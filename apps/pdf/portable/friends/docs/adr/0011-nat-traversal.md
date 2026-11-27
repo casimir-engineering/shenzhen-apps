@@ -48,17 +48,14 @@ number: `shouldStartAttempt` and `decisionForCompletedRoute` in `SZFriendsRouteR
 instead of Bluetooth's (`DialDelayForRoute`). Within the Internet class the first path to go live carries the
 session; a later direct path of the same class does not replace it, but any direct path replaces the relay.
 
-**Peer-to-peer Wi-Fi keeps the device online.** A transfer never costs a device its Internet connection without its
-person's word, a computer's above all (a phone has cellular, but its Wi-Fi Internet is kept too). The one exception is
-ADR 0019's Wi-Fi Direct boost: a device may leave its Wi-Fi network for a direct link after its person said Go faster on
-that device, for that transfer, and it rejoins the network by itself when the transfer ends. Peer-to-peer Wi-Fi is dialed only
-where the platform keeps its Wi-Fi network connection up beside the direct link: one check per helper,
-`p2p_wifi_usable` (`szfriends-core::nearby::p2p_wifi`) and `SZFriendsPeerToPeerWiFiUsable`, which the racers apply
-before dialing. Apple's AWDL qualifies and is the only implementation. A future Wi-Fi Direct route qualifies only
-where the hardware reports station and P2P at once (Windows: the WiFiDirect APIs on a driver with that concurrency;
-Linux: `iw list` combinations allowing managed plus P2P-client or P2P-GO; Android: `WifiP2pManager` with documented
-STA + P2P concurrency), never a hotspot or anything that drops the station link. Unsure means skip: the racer moves
-on to the next route in the order above.
+**Direct Wi-Fi only off Wi-Fi** (amended by [ADR 0022](0022-direct-wifi-only-off-wifi.md), the owner's rule,
+2026-11-27; it replaces "peer-to-peer Wi-Fi keeps the device online"). Peer-to-peer Wi-Fi and ADR 0019's Wi-Fi Direct
+boost are used only when neither device is on a Wi-Fi network, or the one that is is a phone running Shenzhen 3D that
+stays online over mobile data. Keeping the Wi-Fi network connection up beside the direct link no longer qualifies a
+route: that is the shared radio the rule avoids. Each side tells the other in its handshake (capability bit 6) and in
+BOOST's Abilities (bit 4); one check per helper, `p2p_wifi_usable` and `direct_wifi_allowed`
+(`szfriends-core::nearby::p2p_wifi`), the Mac helper's AWDL policy (`+PeerToPeer`) and its session check (`+Sessions`).
+Unsure means skip: the racer moves on to the next route in the order above.
 
 **The direct phase, on the helper's own timer.** The timer starts on each side when both descriptions are
 applied: on the offerer when it applies the authenticated answer, on the answerer when it sends its answer. The

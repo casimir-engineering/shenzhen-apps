@@ -1,13 +1,16 @@
-//! The Wi-Fi Direct boost (ADR 0019), sans-IO: when two friends' devices found each other only by Bluetooth and are
-//! not on the same network, a large transfer may move over a direct Wi-Fi link that one device hosts and the other
-//! joins, after the person on each device that would lose its Internet connection said Go faster.
+//! The Wi-Fi Direct boost (ADR 0019, ADR 0022), sans-IO: when two friends' devices found each other only by
+//! Bluetooth, a large transfer may move over a direct Wi-Fi link that one device hosts and the other joins, only
+//! under the owner's rule (`nearby::p2p_wifi`): each device is on no Wi-Fi network, or is a phone that stays online
+//! over mobile data, and both said so (Abilities' [`Abilities::direct_wifi_allowed`]). A phone that would leave its
+//! Wi-Fi for the link asks its person first.
 //!
 //! Four pieces, each pure and tested here; the helpers move frames, call the platform and keep the record on disk:
 //!
 //! - **When** ([`worth_it`], [`not_on_same_network`]): Bluetooth carries the group alone, the network had its chances,
 //!   and the direct link would save at least [`SAVES_AT_LEAST`] seconds of this transfer.
-//! - **Who hosts and who is asked** ([`role`], [`Cost`]): the pairing that takes fewer devices off their Wi-Fi, and a
-//!   question only on a device whose Wi-Fi is its only way online.
+//! - **Whether, who hosts and who is asked** ([`Abilities::direct_wifi_allowed`], [`role`], [`Cost`]): both sides
+//!   allow direct Wi-Fi, the pairing that takes fewer devices off their Wi-Fi, and a question on any device that
+//!   would leave its Wi-Fi network.
 //! - **The negotiation** ([`Boost`]): BOOST frames on the group's existing encrypted session (PROPOSE, READY, HOST,
 //!   END, DECLINE). The network name and the one-time passphrase ([`Link`]) are random per boost and travel only in
 //!   HOST, inside the Noise session; the joining side then dials an ordinary lane, whose token binds it to that same
@@ -84,7 +87,9 @@ pub struct Situation {
 }
 
 /// The two devices found each other only by Bluetooth and are not on the same network: the device was never seen on
-/// the network in [`BLUETOOTH_ONLY_FOR`], or it was and [`NETWORK_TRIES`] dials there failed.
+/// the network in [`BLUETOOTH_ONLY_FOR`], or it was and [`NETWORK_TRIES`] dials there failed. Not enough on its own:
+/// two devices on two different Wi-Fi networks pass it, and the owner's rule refuses them
+/// ([`Connectivity::allows_direct_wifi`] on each side).
 pub fn not_on_same_network(situation: &Situation) -> bool {
     situation.bluetooth_only
         && situation.bluetooth_only_for >= BLUETOOTH_ONLY_FOR
@@ -104,13 +109,16 @@ pub struct Abilities {
     pub host_keeps_wifi: bool,
     /// Joining keeps it on its own Wi-Fi network (a Wi-Fi Direct client beside the station).
     pub join_keeps_wifi: bool,
+    /// Direct Wi-Fi allowed on this device now, under the owner's rule (ADR 0022): on no Wi-Fi network, or a phone
+    /// on mobile data. Set from [`Connectivity`] when a boost starts; a peer that never sets it is declined.
+    pub direct_wifi_allowed: bool,
 }
 
 impl Abilities {
     /// Android: hosts as a group owner and joins as a Wi-Fi Direct client; both keep its Wi-Fi where the hardware
     /// runs station and P2P at once (`concurrent`).
     pub fn android(concurrent: bool) -> Self {
-        Self { host: true, join: true, host_keeps_wifi: concurrent, join_keeps_wifi: concurrent }
+        Self { host: true, join: true, host_keeps_wifi: concurrent, join_keeps_wifi: concurrent, ..Self::default() }
     }
 
     /// A Mac or an iPhone: joins only, as a Wi-Fi client, which takes it off its own network.
@@ -125,6 +133,7 @@ impl Abilities {
             (self.join, boost_ability::JOIN),
             (self.host_keeps_wifi, boost_ability::HOST_KEEPS_WIFI),
             (self.join_keeps_wifi, boost_ability::JOIN_KEEPS_WIFI),
+            (self.direct_wifi_allowed, boost_ability::DIRECT_WIFI_ALLOWED),
         ] {
             if on {
                 byte |= bit;
@@ -140,6 +149,7 @@ impl Abilities {
             join: byte & boost_ability::JOIN != 0,
             host_keeps_wifi: byte & boost_ability::HOST_KEEPS_WIFI != 0,
             join_keeps_wifi: byte & boost_ability::JOIN_KEEPS_WIFI != 0,
+            direct_wifi_allowed: byte & boost_ability::DIRECT_WIFI_ALLOWED != 0,
         }
     }
 
@@ -182,6 +192,20 @@ pub struct Connectivity {
     pub wired: bool,
     /// Also online by mobile data.
     pub mobile: bool,
+    /// A phone (the core in Shenzhen 3D): only a phone's mobile data lets it leave its Wi-Fi for a link (ADR 0022).
+    pub phone: bool,
+}
+
+impl Connectivity {
+    /// This device's side of the owner's rule.
+    pub fn standing(&self) -> crate::nearby::WifiStanding {
+        crate::nearby::WifiStanding { on_wifi: self.on_wifi, phone_on_mobile: self.phone && self.mobile }
+    }
+
+    /// Direct Wi-Fi allowed on this device's side now (ADR 0022): on no Wi-Fi network, or a phone on mobile data.
+    pub fn allows_direct_wifi(&self) -> bool {
+        self.standing().allows_direct_wifi()
+    }
 }
 
 /// What the boost costs this device's connections, which decides whether its person is asked.
@@ -189,9 +213,11 @@ pub struct Connectivity {
 pub enum Cost {
     /// Nothing changes for its connections.
     Nothing,
-    /// It leaves its Wi-Fi network but stays online another way: no question, and the transfer's note says so.
+    /// It leaves its Wi-Fi network but stays online another way (a phone's mobile data, the only way the owner's rule
+    /// allows): its person is asked first, and the question and the note say it stays online.
     LeavesWifi { network: Option<String>, over_mobile: bool },
-    /// It leaves the Wi-Fi network that is its only way online: its person is asked first.
+    /// It leaves the Wi-Fi network that is its only way online. The owner's rule never lets a boost get here (such a
+    /// device does not allow direct Wi-Fi); kept so that a mistake still asks rather than cuts the device off.
     LeavesInternet { network: Option<String> },
 }
 
@@ -212,8 +238,9 @@ impl Cost {
         }
     }
 
+    /// No device leaves its network silently (ADR 0022): any device that would is asked.
     pub fn asks(&self) -> bool {
-        matches!(self, Self::LeavesInternet { .. })
+        self.leaves_wifi()
     }
 
     pub fn leaves_wifi(&self) -> bool {
@@ -365,6 +392,8 @@ pub struct Boost {
 
 impl Boost {
     fn new(transfer: [u8; 16], local: Abilities, connectivity: Connectivity, local_sorts_first: bool) -> Self {
+        // The rule's bit says how this device is now, whatever the platform reported with its abilities.
+        let local = Abilities { direct_wifi_allowed: connectivity.allows_direct_wifi(), ..local };
         Self {
             transfer,
             local,
@@ -387,10 +416,12 @@ impl Boost {
         }
     }
 
-    /// This side saw the transfer crawl over Bluetooth ([`worth_it`], [`not_on_same_network`]) and proposes.
+    /// This side saw the transfer crawl over Bluetooth ([`worth_it`], [`not_on_same_network`]) and proposes; only
+    /// where `connectivity` allows direct Wi-Fi ([`Connectivity::allows_direct_wifi`]), which the helper checks first.
     pub fn propose(transfer: [u8; 16], local: Abilities, connectivity: Connectivity, local_sorts_first: bool) -> Self {
         let mut boost = Self::new(transfer, local, connectivity, local_sorts_first);
-        boost.effects.push(Effect::Send(Message::Propose { abilities: local }));
+        let abilities = boost.local;
+        boost.effects.push(Effect::Send(Message::Propose { abilities }));
         boost
     }
 

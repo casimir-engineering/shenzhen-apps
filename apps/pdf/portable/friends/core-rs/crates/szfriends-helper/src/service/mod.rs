@@ -28,6 +28,7 @@ mod blocks;
 mod boost;
 mod device_files;
 mod devices;
+mod direct_wifi;
 mod facts;
 mod friend_links;
 mod intents;
@@ -53,6 +54,7 @@ mod room;
 pub mod seed;
 mod serving;
 mod sessions;
+mod tcp_health;
 mod transfers;
 mod views;
 

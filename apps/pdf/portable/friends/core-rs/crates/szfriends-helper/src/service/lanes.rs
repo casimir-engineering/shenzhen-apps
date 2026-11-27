@@ -306,13 +306,13 @@ impl State {
     /// The scheduler of a first session sending by blocks, made the first time, with what its group did since.
     pub(crate) fn schedule(&mut self, head: u64, route: RouteMethod) -> &mut Schedule {
         let now = szfriends_core::session::monotonic_now();
+        let direct_wifi = self.direct_wifi_with(head);
         let groups = &mut self.sessions.groups;
         if !groups.schedules.contains_key(&head) {
             let config = Config {
                 phone: cfg!(any(target_os = "android", target_os = "ios")),
-                // AWDL keeps a Mac or an iPhone on its Wi-Fi network beside a direct link; elsewhere direct Wi-Fi
-                // would take the device off it.
-                direct_wifi_keeps_internet: cfg!(any(target_os = "macos", target_os = "ios")),
+                // The owner's rule for this friend (ADR 0022), kept up to date by direct_wifi_tick.
+                direct_wifi,
             };
             let mut scheduler = Scheduler::new(config);
             // The lanes live now; what the group reports after this goes to the scheduler as it happens.

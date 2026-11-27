@@ -370,7 +370,7 @@ impl State {
                     }
                 }
                 // The bench dials every lane itself; one it no longer wants closes.
-                Action::Lane(LaneRequest::Open { .. }) => {}
+                Action::Lane(LaneRequest::Open { .. } | LaneRequest::OpenBeside { .. }) => {}
                 Action::Lane(LaneRequest::Close { lane }) => {
                     if lane != head {
                         if let Some(s) = self.sessions.get_mut(&lane) {

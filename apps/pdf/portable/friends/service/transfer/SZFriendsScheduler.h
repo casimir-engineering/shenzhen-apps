@@ -22,6 +22,8 @@ typedef NS_ENUM(NSInteger, SZFriendsScheduleKind) {
     SZFriendsScheduleCancel,    // another copy of `block` completed: drop its parts not yet written on `lane`
     SZFriendsScheduleOpenLane,  // one more lane on `route` (the group keeps its limits)
     SZFriendsScheduleCloseLane, // close `lane`
+    // one more lane on `route` through another interface than `lane`'s, which degraded (Ethernet beside Wi-Fi)
+    SZFriendsScheduleOpenLaneBeside,
 };
 
 @interface SZFriendsScheduleAction : NSObject
@@ -33,12 +35,25 @@ typedef NS_ENUM(NSInteger, SZFriendsScheduleKind) {
 @end
 
 extern const double SZFriendsBluetoothHelpsBelow;  // 4 MB/s
-extern const double SZFriendsDirectWiFiHelpsBelow; // 25 MB/s
+
+// How a lane the scheduler tried did: the group's acknowledged bytes per second before it and with it.
+@interface SZFriendsLaneVerdict : NSObject
+@property(nonatomic) SZFriendsLaneID lane;
+@property(nonatomic) SZFriendsRouteMethod route;
+@property(nonatomic) double before, with;
+@property(nonatomic) BOOL kept;
+@end
 
 @interface SZFriendsScheduler : NSObject
-// `phone`: at most 8 MiB in flight per lane. `directWiFiKeepsInternet`: direct Wi-Fi leaves this device on its Wi-Fi
-// network (AWDL on Macs); without it, direct Wi-Fi is never asked for and a direct Wi-Fi lane is closed unused.
-- (instancetype)initWithPhone:(BOOL)phone directWiFiKeepsInternet:(BOOL)keepsInternet NS_DESIGNATED_INITIALIZER;
+// `phone`: at most 8 MiB in flight per lane. `directWiFi`: the owner's rule allows direct Wi-Fi for this group (ADR
+// 0022: neither device on a Wi-Fi network, or a phone on mobile data, both said so); then a direct Wi-Fi lane is asked
+// for where the group has no LAN lane. Without it (and without a boost, -allowDirectWiFi:), direct Wi-Fi is never
+// asked for and a direct Wi-Fi lane is closed unused. As the Rust core's scheduler.rs.
+- (instancetype)initWithPhone:(BOOL)phone directWiFi:(BOOL)directWiFi NS_DESIGNATED_INITIALIZER;
+// The rule's answer for this group changed: while it says no, direct Wi-Fi lanes other than a boost's close at once.
+- (void)setDirectWiFi:(BOOL)directWiFi;
+// ADR 0019's boost: while allowed, its direct Wi-Fi lane is kept where the rule's answer would close it.
+- (void)allowDirectWiFi:(BOOL)allowed;
 - (instancetype)init NS_UNAVAILABLE;
 - (NSArray<SZFriendsScheduleAction *> *)takeActions;
 
@@ -76,6 +91,14 @@ extern const double SZFriendsDirectWiFiHelpsBelow; // 25 MB/s
               silent:(BOOL *)silent
              reaches:(BOOL *)reaches
                  now:(double)now;
+@end
+
+// ADR 0018 § 7.2 (SZFriendsScheduler+Health.m): the share of `lane`'s bytes its connection retransmitted lately, as
+// the socket says; the trials judged since the last call; the group's acknowledged rate over `span`.
+@interface SZFriendsScheduler (Health)
+- (void)retransmits:(SZFriendsLaneID)lane share:(double)share now:(double)now;
+- (NSArray<SZFriendsLaneVerdict *> *)takeVerdicts;
+- (double)groupRateOver:(double)span now:(double)now;
 @end
 
 NS_ASSUME_NONNULL_END

@@ -118,6 +118,13 @@ impl SecureChannel {
         self.fast_with(szfriends_wire::consts::CAPABILITY_DIRECT_WIFI_BOOST)
     }
 
+    /// The owner's rule (ADR 0022): both handshakes said direct Wi-Fi is allowed on their device (capability bit 6),
+    /// so this session or lane may run on the peer-to-peer Wi-Fi route. Any minor: it is about the route, not frames.
+    pub fn direct_wifi_allowed(&self) -> bool {
+        let bit = szfriends_wire::consts::CAPABILITY_DIRECT_WIFI_ALLOWED;
+        self.config.capabilities & bit != 0 && self.remote_capabilities & bit != 0
+    }
+
     pub fn rekeys(&self) -> (u64, u64) {
         (self.rekeys_sent, self.rekeys_received)
     }

@@ -139,6 +139,7 @@ fn the_catalog_is_the_helpers() {
         "error.internal.identity_not_removed.phone",
         "transfer.boost.device.phone",
         "transfer.boost.ask.join",
+        "transfer.boost.ask.mobile",
         "transfer.boost.direct.mobile",
     ];
     for key in rust.keys().filter(|key| !objc.contains_key(*key) && !PORTABLE_ONLY.contains(&key.as_str())) {

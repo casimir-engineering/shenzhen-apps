@@ -52,6 +52,7 @@ SZFriendsPersonRecord *SZFNSavePerson(SZFriendsStore *store, SZFriendsRelation r
 - (void)setLivenessKeepalive:(BOOL)keepalive watch:(BOOL)watch;
 @property(nonatomic, readonly) BOOL fastTransfers; // NO: fakes move files by CHUNK
 @property(nonatomic, readonly, nullable) NSData *presentedLane; // nil: fakes are never lanes
+@property(nonatomic, readonly) BOOL directWiFiAllowed; // YES: fakes play two devices off Wi-Fi (ADR 0022)
 @end
 
 // A link for a fake channel, as a listener would have accepted it.

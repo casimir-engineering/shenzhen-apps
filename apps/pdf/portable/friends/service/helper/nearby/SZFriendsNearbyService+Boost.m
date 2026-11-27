@@ -41,6 +41,10 @@ static const void *SZFriendsBoostGroupKey = &SZFriendsBoostGroupKey;
     if (head != nil) [self.service dialDirectLaneOfLink:head address:address port:port];
 }
 
+- (void)boostAllowDirectWiFi:(BOOL)allowed {
+    self.head.blocks.boostDirectWiFi = allowed;
+}
+
 - (void)boostCloseDirectLane {
     for (SZFriendsPeerLink *lane in self.head.lanes.allObjects) {
         if (lane.raceRoute == SZFriendsRouteMethodPeerToPeerWiFi) [lane.channel closeWithReason:SZFriendsCloseReasonNormal];

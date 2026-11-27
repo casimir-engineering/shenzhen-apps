@@ -852,12 +852,16 @@ The new computer's side of joining a person's existing profile, with the helper 
   the globe), the globe in the offline colour for `connecting`, a hollow dot crossed out for `offline` and nothing for
   `none` or a kind they do not know, with `label` as its tooltip; both views draw the same shapes.
 - **Route order.** Helpers dial and keep routes in one order: `lan`, `p2p_wifi`, `internet`, `bluetooth`, `relay`.
-  A transfer never costs the device its Internet connection without the person's word: `p2p_wifi` is used only where
-  the device stays on its Wi-Fi network at the same time (AWDL on Macs and iPhones; a Mac wakes AWDL only while it is
-  on no network or a transfer wants a direct Wi-Fi lane, [ADR 0021](docs/adr/0021-peer-to-peer-wifi-on-demand.md)).
-  Anywhere else, or when unsure, it is skipped and the next route carries the session; friends' files and a profile's own devices alike. The one
-  exception is the Wi-Fi Direct boost (§ Fast transfers): the person says Go faster on the transfer, the device leaves
-  its Wi-Fi for that transfer only and rejoins it by itself afterwards. The relay is the last resort
+  Direct Wi-Fi (`p2p_wifi`, and the Wi-Fi Direct boost of § Fast transfers) follows the owner's rule
+  ([ADR 0022](docs/adr/0022-direct-wifi-only-off-wifi.md)): only when **neither** device is on a Wi-Fi network, or the
+  one that is is a phone running Shenzhen 3D that stays online over mobile data. Staying on the Wi-Fi network beside
+  the direct link does not count: that shares the radio, which slows the network it sits beside. Each side says how it
+  is in its handshake (capability bit 6, read afresh for every session and lane) and in BOOST's Abilities (bit 4); a
+  session or lane on `p2p_wifi` closes as soon as it is up unless both handshakes set the bit, and a side that never
+  sets it (any helper before the rule) never gets direct Wi-Fi. A Mac wakes AWDL exactly while it is on no Wi-Fi
+  network. Direct Wi-Fi is never added beside a LAN for speed. Anywhere else, or when unsure, it is skipped and the
+  next route carries the session; friends' files and a profile's own devices alike. No device leaves its network
+  silently: a phone that would leave its Wi-Fi for a boost asks first and rejoins it by itself afterwards. The relay is the last resort
   ([ADR 0020](docs/adr/0020-relay-last-resort.md)): it carries a file only when no other route works; while it does,
   helpers keep trying every other route at most a second apart, and one that appears carries the file at once,
   `progress` going on from where it was; while another route works the relay carries nothing. Views need no change.
@@ -1577,18 +1581,21 @@ client capability.
   (the sender no longer has it, or it changed), with today's words and Try again.
 - **Getting a file again and copies from the person's own computers** (§ Getting a file again, § Devices) resume from
   the blocks they already have in the same way: "Copying from Mei Lin · 90%" carries on at 90 %.
-- **Wi-Fi Direct boost** ([ADR 0019](docs/adr/0019-wifi-direct-boost.md)). When the two devices met only over
-  Bluetooth, are not on the same network and the file would take at least 20 s longer over Bluetooth, an Android phone
-  can host a direct Wi-Fi link that the other device joins. A device that would leave the Wi-Fi network that is its only
-  way online asks first, on the transfer, and only in views that declared `transfers.boost`: `route_note` is the
-  question ("Go faster? Mei isn’t on your Wi-Fi, so this is going over Bluetooth (about 12 min). Leave “HomeWiFi” for
-  about 1 min to connect to Mei directly. Your computer rejoins it by itself when it’s done.", catalog `transfer.boost.ask`;
-  phones that ask again with a system prompt add "Then choose Join.") and `actions` start with Go faster
+- **Wi-Fi Direct boost** ([ADR 0019](docs/adr/0019-wifi-direct-boost.md), under the rule of
+  [ADR 0022](docs/adr/0022-direct-wifi-only-off-wifi.md)). When the two devices met only over Bluetooth, are not on the
+  same network, each is on no Wi-Fi network or is a phone on mobile data, and the file would take at least 20 s longer
+  over Bluetooth, an Android phone can host a direct Wi-Fi link that the other device joins. A device that would leave
+  its Wi-Fi network (only a phone on mobile data can) asks first, on the transfer, and only in views that declared
+  `transfers.boost`: `route_note` is the question ("Go faster? Mei isn’t on your Wi-Fi, so this is going over Bluetooth
+  (about 12 min). Leave your Wi-Fi for about 1 min to connect to Mei directly. Your phone stays online over mobile data
+  and rejoins it by itself when it’s done.", catalog `transfer.boost.ask.mobile`; phones that ask again with a system
+  prompt add "Then choose Join.") and `actions` start with Go faster
   (`boost_transfer`, primary) and Not now (`skip_boost`, secondary) before Cancel. Views show them as any action and
   note. Not now is final for that transfer. Afterwards `route_note` says what happens: "Connecting directly to Mei…",
   "Going directly over Wi-Fi. Your computer rejoins “HomeWiFi” when it’s done." (or, on a device that stays online another
   way, that it does), "Rejoining “HomeWiFi”…", and if it did not get back by itself "Your computer didn’t get back on
-  “HomeWiFi” by itself. Choose it in the Wi-Fi menu." A device that keeps its Wi-Fi on the link is never asked.
+  “HomeWiFi” by itself. Choose it in the Wi-Fi menu." A device on no Wi-Fi network, or a phone that stays on its
+  Wi-Fi beside the link, has nothing to leave and is never asked.
 
 ## Static strings
 

@@ -57,6 +57,7 @@ static NSData *CopyDispatchData(dispatch_data_t content) {
     BOOL _closedLocally; // -close or -cancel: the owner knows, so onClose is not called
     BOOL _hasPendingClose;
     NSError *_pendingCloseError;
+    nw_interface_t _pathInterface; // the interface the connected path took (ADR 0018 § 7.2)
 }
 
 @synthesize onData = _onData;
@@ -139,6 +140,7 @@ static NSData *CopyDispatchData(dispatch_data_t content) {
     __block NSString *name = nil;
     nw_path_enumerate_interfaces(path, ^bool(nw_interface_t interface) {
         name = @(nw_interface_get_name(interface));
+        self->_pathInterface = interface;
         return false; // the first interface is the one the connection uses
     });
     if (name) _pathRoute = SZFriendsRouteForInterfaceName(name);
@@ -252,6 +254,22 @@ static NSData *CopyDispatchData(dispatch_data_t content) {
                        self->_connectionQueue, ^{
                            nw_connection_cancel(connection);
                        });
+    });
+}
+
+// The connection's data-transfer report since it started: TCP bytes sent and retransmitted on all its paths.
+- (void)collectTransportHealth:(void (^)(uint64_t, uint64_t, id))done {
+    void (^answer)(uint64_t, uint64_t, id) = [done copy];
+    dispatch_async(_connectionQueue, ^{
+        if (!self->_isReady || self->_closed) return answer(0, 0, nil);
+        nw_interface_t interface = self->_pathInterface;
+        nw_data_transfer_report_t report = nw_connection_create_new_data_transfer_report(self->_connection);
+        nw_data_transfer_report_collect(report, self->_connectionQueue, ^(nw_data_transfer_report_t collected) {
+            uint64_t sent = nw_data_transfer_report_get_sent_transport_byte_count(collected, NW_ALL_PATHS);
+            uint64_t again =
+                nw_data_transfer_report_get_sent_transport_retransmitted_byte_count(collected, NW_ALL_PATHS);
+            answer(sent, again, interface);
+        });
     });
 }
 

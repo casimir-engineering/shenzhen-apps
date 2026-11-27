@@ -119,6 +119,17 @@
     link.live = YES;
     link.liveAt = [NSDate date];
     if (link.dialKey != nil) [self.dialing removeObject:link.dialKey];
+    // The owner's rule (ADR 0022, +PeerToPeer): on peer-to-peer Wi-Fi only when both handshakes allow direct Wi-Fi. A
+    // boost's lane (the Mac dials it, always as a lane of its group) was judged by BOOST's Abilities instead.
+    BOOL boostLane = link.channel.isInitiator && link.laneHead != nil && [self boostingGroup:link.laneHead];
+    if (link.raceRoute == SZFriendsRouteMethodPeerToPeerWiFi && !link.channel.directWiFiAllowed && !boostLane) {
+        SZFriendsHelperLog(@"%@ #%llu %@ on direct Wi-Fi closed: both devices must allow direct Wi-Fi (on no Wi-Fi "
+                           @"network, or a phone on mobile data)",
+                           link.lane ? @"lane" : @"session", (unsigned long long)link.traceID,
+                           [self traceWhoOfLink:link]);
+        [link.channel closeWithReason:SZFriendsCloseReasonNormal]; // a lane leaves its group as it closes
+        return;
+    }
     [self armIdleCheckForLink:link];
     SZFriendsSecureChannel *channel = link.channel;
     if (channel.isInitiator && (link.purpose == SZFriendsLinkPurposeFriend ||

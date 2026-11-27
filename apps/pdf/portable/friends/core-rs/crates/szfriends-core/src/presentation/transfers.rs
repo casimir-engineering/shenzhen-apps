@@ -75,7 +75,12 @@ impl SnapshotBuilder {
                 let fast = s.duration_label(boost.direct_seconds);
                 let mut with_times = values.to_vec();
                 with_times.extend([("slow", slow.as_str()), ("fast", fast.as_str())]);
-                let text = s.text_with("transfer.boost.ask", &with_times);
+                // A phone on mobile data is the only device the owner's rule lets leave its Wi-Fi (ADR 0022).
+                let key = match boost.stays_online {
+                    Some(StaysOnline::Mobile) => "transfer.boost.ask.mobile",
+                    _ => "transfer.boost.ask",
+                };
+                let text = s.text_with(key, &with_times);
                 Some(if boost.system_asks_too {
                     s.text_with("transfer.boost.ask.join", &[("text", &text)])
                 } else {

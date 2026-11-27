@@ -26,7 +26,7 @@ static const SZFriendsTransferKey SZFriendsPullKey = 0;
 - (instancetype)initWithGeometry:(SZFriendsBlockGeometry)geometry missing:(NSData *)missing now:(double)now {
     if ((self = [super init])) {
         _geometry = geometry;
-        _scheduler = [[SZFriendsScheduler alloc] initWithPhone:NO directWiFiKeepsInternet:YES];
+        _scheduler = [[SZFriendsScheduler alloc] initWithPhone:NO directWiFi:NO];
         [_scheduler addTransfer:SZFriendsPullKey geometry:geometry];
         [_scheduler want:SZFriendsPullKey ranges:missing now:now];
         _asked = [NSMutableDictionary dictionary];
@@ -103,6 +103,7 @@ static const SZFriendsTransferKey SZFriendsPullKey = 0;
             break;
         // Sources are the sessions that hold the file; the scheduler's lane requests do not apply.
         case SZFriendsScheduleOpenLane:
+        case SZFriendsScheduleOpenLaneBeside:
         case SZFriendsScheduleCloseLane: break;
         }
     }

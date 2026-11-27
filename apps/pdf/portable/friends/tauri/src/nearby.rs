@@ -11,11 +11,13 @@
 
 use std::io;
 use std::net::SocketAddr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use serde_json::{json, Value};
+use szfriends_core::nearby::WifiStanding;
 use szfriends_core::presentation::facts::BoostDevice;
 use szfriends_core::transfer::boost::{Abilities, Connectivity, Link};
 use szfriends_helper::nearby::direct_wifi::{self, DirectWifi, Done};
@@ -114,6 +116,16 @@ fn txt(value: &Value) -> Vec<(String, Vec<u8>)> {
 struct Discovery<R: Runtime> {
     native: Arc<Native<R>>,
     owns_connections: bool,
+    /// The last answer for the owner's direct Wi-Fi rule, asked again after a second at most.
+    standing: Mutex<Option<(Instant, Option<WifiStanding>)>>,
+}
+
+/// The phone's side of the owner's direct Wi-Fi rule (ADR 0022) from the plugin's connectivity: on a Wi-Fi network,
+/// and on mobile data (a phone's mobile data is what lets it leave its Wi-Fi).
+fn standing_of(answer: &Value) -> Option<WifiStanding> {
+    let on_wifi = answer.get("onWifi")?.as_bool()?;
+    let mobile = answer.get("mobile").and_then(Value::as_bool).unwrap_or(false);
+    Some(WifiStanding { on_wifi, phone_on_mobile: mobile })
 }
 
 impl<R: Runtime> PlatformDiscovery for Discovery<R> {
@@ -178,6 +190,18 @@ impl<R: Runtime> PlatformDiscovery for Discovery<R> {
 
     fn connect(&self, name: &str, dial: u64) -> bool {
         self.native.call("nearbyConnect", json!({"name": name, "dial": dial})).is_ok()
+    }
+
+    fn wifi_standing(&self) -> Option<WifiStanding> {
+        let mut cached = self.standing.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some((at, standing)) = *cached {
+            if at.elapsed() < Duration::from_secs(1) {
+                return standing;
+            }
+        }
+        let standing = self.native.call("directWifiConnectivity", json!({})).ok().as_ref().and_then(standing_of);
+        *cached = Some((Instant::now(), standing));
+        standing
     }
 }
 
@@ -302,6 +326,8 @@ fn abilities_of(answer: &Value) -> Abilities {
         join: flag("join"),
         host_keeps_wifi: flag("hostKeepsWifi"),
         join_keeps_wifi: flag("joinKeepsWifi"),
+        // The owner's rule's bit comes from the connectivity when a boost starts (the core sets it).
+        direct_wifi_allowed: false,
     }
 }
 
@@ -321,7 +347,13 @@ impl<R: Runtime> DirectWifi for PhoneDirectWifi<R> {
         let now = self.native.call("directWifiConnectivity", json!({})).unwrap_or_default();
         let flag = |key: &str| now[key].as_bool().unwrap_or(false);
         // Phones never read the network's name (it needs location): the question says "your Wi-Fi".
-        Connectivity { on_wifi: flag("onWifi"), wifi_name: None, wired: flag("wired"), mobile: flag("mobile") }
+        Connectivity {
+            on_wifi: flag("onWifi"),
+            wifi_name: None,
+            wired: flag("wired"),
+            mobile: flag("mobile"),
+            phone: true,
+        }
     }
 
     fn current_network(&self) -> Option<String> {
@@ -382,7 +414,7 @@ pub fn install<R: Runtime>(handle: PluginHandle<R>) {
     let capabilities = native.call("nearbyCapabilities", json!({})).unwrap_or_default();
     let owns_connections = capabilities["ownsConnections"].as_bool().unwrap_or(false);
     let bluetooth = capabilities["bluetooth"].as_bool().unwrap_or(false);
-    platform::install(Arc::new(Discovery { native: native.clone(), owns_connections }));
+    platform::install(Arc::new(Discovery { native: native.clone(), owns_connections, standing: Mutex::new(None) }));
     let boost = native.call("directWifiAbilities", json!({})).unwrap_or_default();
     if boost["supported"].as_bool().unwrap_or(false) {
         let system_asks = boost["systemAsks"].as_bool().unwrap_or(false);

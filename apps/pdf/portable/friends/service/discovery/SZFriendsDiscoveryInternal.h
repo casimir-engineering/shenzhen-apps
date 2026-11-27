@@ -62,6 +62,13 @@ BOOL SZFriendsNetworkAdapterPeerToPeer(id<SZFriendsDiscoveryAdapter> adapter);
 // said; YES for anything that is not a network adapter, and in loopback mode. `changed` runs on the adapter's queue
 // whenever that changes.
 BOOL SZFriendsNetworkAdapterHasNetwork(id<SZFriendsDiscoveryAdapter> adapter);
+// Whether one of those networks is a Wi-Fi network (ADR 0022: then this Mac does not allow direct Wi-Fi), as the path
+// monitor last said; NO for anything that is not a network adapter, YES in loopback mode (test helpers never use
+// AWDL). `changed` below runs when this changes too.
+BOOL SZFriendsNetworkAdapterOnWiFi(id<SZFriendsDiscoveryAdapter> adapter);
+// ADR 0018 § 7.2: the next LAN dial to `endpointID` avoids `interface` (an nw_interface_t: a degraded lane's), so it
+// goes out another one (Ethernet beside Wi-Fi), or fails when there is none. Nothing for other adapters.
+void SZFriendsNetworkAdapterAvoidInterface(id<SZFriendsDiscoveryAdapter> adapter, NSString *endpointID, id interface);
 void SZFriendsNetworkAdapterOnNetworkChange(id<SZFriendsDiscoveryAdapter> adapter,
                                             void (^_Nullable changed)(BOOL hasNetwork));
 

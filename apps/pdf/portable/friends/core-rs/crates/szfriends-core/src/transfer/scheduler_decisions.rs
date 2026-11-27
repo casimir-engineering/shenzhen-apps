@@ -62,7 +62,13 @@ impl Scheduler {
         if lane.rate < fastest {
             max = max.min(((fastest * SLOWER_LANE_SECONDS) as u64).max(block_bytes));
         }
-        let bdp2 = (2.0 * lane.rate * lane.rtt.as_secs_f64()) as u64;
+        // Twice the measured bandwidth-delay product, and on network routes one unit more: the cap may then grow
+        // past what the lane already moves, so its measured rate (a peak over 10 s) can rise to what the route
+        // carries. Without it the cap only confirms the rate it measured, and a lane that started low (or dipped,
+        // then measured its round trip with full queues) stays there (ADR 0018 § 7).
+        let network = !matches!(lane.route, RouteMethod::Bluetooth | RouteMethod::Relay);
+        let headroom = if network { block_bytes } else { 0 };
+        let bdp2 = (2.0 * lane.rate * lane.rtt.as_secs_f64()) as u64 + headroom;
         // A lane beside a faster one that needs longer than a second per block (Bluetooth beside a slow LAN: 6 s per
         // MiB) holds one: a second one queued behind it would push its expected finish past what the faster lanes
         // need for the rest, so it would stop taking blocks early, while the round trip a second block saves is a
@@ -70,7 +76,15 @@ impl Scheduler {
         // journal).
         let faster = self.lanes.values().any(|l| l.working() && l.rate > lane.rate * 2.0);
         let slow = faster && block_bytes as f64 / lane.rate.max(1.0) > SLOW_BLOCK_SECONDS;
-        let blocks = if slow { 1 } else { 2 };
+        // The floor before anything is measured: 8 units on a network route (with 256 KiB slices, 2 MiB, about a
+        // 40 MB/s Wi-Fi's 12 ms of bandwidth-delay product twice over), 2 on Bluetooth and the relay.
+        let blocks = if slow {
+            1
+        } else if network {
+            NETWORK_FLOOR_UNITS
+        } else {
+            2
+        };
         bdp2.max(blocks * block_bytes).min(max)
     }
 
@@ -286,7 +300,8 @@ impl Scheduler {
         }
     }
 
-    /// Bluetooth beside slow lanes; direct Wi-Fi beside a LAN below 25 MB/s, where it keeps the device online.
+    /// Bluetooth beside slow lanes; direct Wi-Fi where the group has no LAN lane and the owner's rule allows it (ADR
+    /// 0022). Never beside a LAN for speed: direct Wi-Fi beside a Wi-Fi network takes airtime from it (ADR 0021).
     pub(super) fn ask_for_lanes(&mut self, eligible: &[LaneId], now: Duration) {
         let left = self.unassigned_bytes();
         if left == 0 {
@@ -297,13 +312,10 @@ impl Scheduler {
         };
         let has = |route: RouteMethod| self.lanes.values().any(|l| l.route == route);
         let direct = rate_of(&|r| !matches!(r, RouteMethod::Bluetooth | RouteMethod::Relay));
-        let lan = rate_of(&|r| r == RouteMethod::Lan);
         let worth = left as f64 > WORTH_A_LANE * direct;
         let bluetooth = !has(RouteMethod::Bluetooth) && direct < BLUETOOTH_HELPS_BELOW && worth;
-        let direct_wifi = self.config.direct_wifi_keeps_internet
-            && !has(RouteMethod::PeerToPeerWifi)
-            && lan < DIRECT_WIFI_HELPS_BELOW
-            && worth;
+        let direct_wifi =
+            self.config.direct_wifi && !has(RouteMethod::PeerToPeerWifi) && !has(RouteMethod::Lan) && worth;
         if bluetooth {
             self.request(RouteMethod::Bluetooth, now);
         }

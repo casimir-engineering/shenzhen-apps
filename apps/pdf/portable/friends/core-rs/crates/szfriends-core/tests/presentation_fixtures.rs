@@ -18,7 +18,7 @@ use szfriends_core::presentation::{
 use szfriends_core::store::{PhoneFolder, ReceivedFallback, ReceivedFile, ReceivedSource};
 
 /// Every snapshot fixture, and the suite that builds it.
-const COVERED: [&str; 46] = [
+const COVERED: [&str; 47] = [
     "badge.json",
     "list.json",
     "list-id-changed.json",
@@ -69,6 +69,9 @@ const COVERED: [&str; 46] = [
     // presentation_notifications.rs
     "views-notifications-list.json",
     "views-notifications-settings.json",
+    // Written as the helpers write it (850a89ce), for friends-protocol-check's types.transfer_route and
+    // types.transfer_segment; no builder here makes it.
+    "transfer-progress-by-route.json",
 ];
 
 fn people() -> HashMap<String, PersonFacts> {

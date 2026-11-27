@@ -3,7 +3,6 @@
 #import "service/transfer/SZFriendsSchedulerInternal.h"
 
 const double SZFriendsBluetoothHelpsBelow = 4e6;
-const double SZFriendsDirectWiFiHelpsBelow = 25e6;
 
 @implementation SZFriendsScheduleAction
 + (instancetype)kind:(SZFriendsScheduleKind)kind lane:(SZFriendsLaneID)lane transfer:(SZFriendsTransferKey)transfer
@@ -83,16 +82,37 @@ static void SZFPrune(NSMutableArray<NSArray<NSNumber *> *> *samples, double now)
 
 @implementation SZFriendsScheduler
 
-- (instancetype)initWithPhone:(BOOL)phone directWiFiKeepsInternet:(BOOL)keepsInternet {
+- (instancetype)initWithPhone:(BOOL)phone directWiFi:(BOOL)directWiFi {
     if ((self = [super init])) {
         _phone = phone;
-        _keepsInternet = keepsInternet;
+        _directWiFi = directWiFi;
         _lanes = [NSMutableDictionary dictionary];
         _transfers = [NSMutableArray array];
         _actions = [NSMutableArray array];
         _requested = [NSMutableDictionary dictionary];
     }
     return self;
+}
+
+- (void)setDirectWiFi:(BOOL)directWiFi {
+    _directWiFi = directWiFi;
+    [self closeDirectWiFiUnlessAllowed];
+}
+
+- (void)allowDirectWiFi:(BOOL)allowed {
+    _boostDirectWiFi = allowed;
+    [self closeDirectWiFiUnlessAllowed];
+}
+
+- (void)closeDirectWiFiUnlessAllowed {
+    if (_directWiFi || _boostDirectWiFi) return;
+    for (NSNumber *laneID in [self laneIDs]) {
+        SZFLane *lane = _lanes[laneID];
+        if (lane->route != SZFriendsRouteMethodPeerToPeerWiFi || lane->index == 0 || lane->closing) continue;
+        lane->closing = YES;
+        [_actions addObject:[SZFriendsScheduleAction kind:SZFriendsScheduleCloseLane lane:laneID.unsignedLongLongValue
+                                                transfer:0 block:0 route:SZFriendsRouteMethodNone]];
+    }
 }
 
 - (NSArray<SZFriendsScheduleAction *> *)takeActions {
@@ -130,14 +150,17 @@ static void SZFPrune(NSMutableArray<NSArray<NSNumber *> *> *samples, double now)
         lane->rtts = [NSMutableArray array];
         lane->deliveredAt = lane->progressAt = lane->heardAt = now;
         lane->holds = [NSMutableDictionary dictionary];
+        lane->lowSince = lane->lossySince = -1;
         // The first session is wherever the route racer put it; only a lane can be refused.
-        lane->unused = event.route == SZFriendsRouteMethodPeerToPeerWiFi && !_keepsInternet && event.index != 0;
+        lane->unused = event.route == SZFriendsRouteMethodPeerToPeerWiFi && !_directWiFi && !_boostDirectWiFi &&
+                       event.index != 0;
         lane->closing = lane->unused;
         if (lane->unused) {
             [_actions addObject:[SZFriendsScheduleAction kind:SZFriendsScheduleCloseLane lane:event.lane transfer:0
                                                         block:0 route:SZFriendsRouteMethodNone]];
         }
         _lanes[@(event.lane)] = lane;
+        [self healthLaneUp:event.lane route:event.route now:now];
     } else {
         SZFLane *gone = _lanes[@(event.lane)];
         if (gone) {
@@ -259,6 +282,7 @@ static BOOL SZFRangesFit(NSData *ranges, uint32_t blocks) {
                     continue;
                 }
                 lane->delivered += p->bytes;
+                [self noteAcked:p->lane bytes:p->bytes now:now];
                 double elapsed = MAX(now - p->deliveredAt, 0.0001);
                 [lane sampleRate:(double)(lane->delivered - p->delivered) / elapsed now:now];
                 if (p->hasSent) [lane sampleRTT:MAX(now - p->sentAt, 0) now:now];
@@ -268,6 +292,7 @@ static BOOL SZFRangesFit(NSData *ranges, uint32_t blocks) {
             }
         }
     }
+    [self watchHealthSoon:now];
     [self fill:now];
     return YES;
 }
@@ -307,6 +332,7 @@ static BOOL SZFRangesFit(NSData *ranges, uint32_t blocks) {
 - (void)cpuBound:(SZFriendsLaneID)laneID now:(double)now {
     SZFLane *lane = _lanes[@(laneID)];
     if (lane == nil) return;
+    [self noteCPUBound:laneID now:now];
     NSUInteger onRoute = 0;
     for (SZFLane *other in _lanes.allValues) onRoute += other->route == lane->route;
     if (SZFriendsOneLaneOnly(lane->route) || onRoute >= SZFriendsLanesPerRoute ||
@@ -334,6 +360,7 @@ static BOOL SZFRangesFit(NSData *ranges, uint32_t blocks) {
                                                         route:SZFriendsRouteMethodNone]];
         }
     }
+    [self watchHealth:now];
     [self fill:now];
 }
 

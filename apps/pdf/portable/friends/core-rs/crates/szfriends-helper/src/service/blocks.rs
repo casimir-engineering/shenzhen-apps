@@ -368,7 +368,11 @@ impl State {
                         queue.retain(|(b, _, _)| *b != block);
                     }
                 }
-                Action::Lane(LaneRequest::Open { route }) => self.open_lane(head, route),
+                // Another interface beside a degraded lane: this helper dials the route (its LAN adapter picks the
+                // address); a second connection there still helps a lossy path.
+                Action::Lane(LaneRequest::Open { route } | LaneRequest::OpenBeside { route, .. }) => {
+                    self.open_lane(head, route)
+                }
                 Action::Lane(LaneRequest::Close { lane }) => {
                     if lane != head {
                         self.close(lane, CloseReason::Normal);
