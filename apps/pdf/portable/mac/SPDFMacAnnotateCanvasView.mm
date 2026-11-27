@@ -1,10 +1,5 @@
-// What Annotate draws over a picture or each PDF page (SPDFMacAnnotateCanvasView.h): geometry, the composite tiles
-// and the drawing order. Gestures are in +Gestures.mm, ants, handles and rulers in +Decorations.mm.
-//
-// Tiles. The composite is cached as 256 x 256 device-pixel tiles per page and level. A level is the render scale: 1
-// (canvas pixels) for a picture at 100 % and above, where the tiles are drawn with nearest neighbour so pixels stay
-// sharp; a power of two below 1 when zoomed out, never less than the screen needs. A change only drops the tiles under
-// its damage (spdf_paint_take_damage), so an 8000 x 8000 picture redraws what one stroke touched, not the picture.
+// What Annotate draws over a picture or each PDF page (SPDFMacAnnotateCanvasView.h): geometry and the drawing order.
+// The composite tiles are in +Tiles.mm, gestures in +Gestures.mm, ants, handles and rulers in +Decorations.mm.
 #import "SPDFMacAnnotatePaletteSupport.h"
 #import "SPDFMacAnnotateCanvasViewPrivate.h"
 
@@ -17,8 +12,6 @@
 #import "SPDFMacPageRendering.h"
 
 NSNotificationName const SPDFAnnotateCanvasPointerDidMoveNotification = @"SPDFAnnotateCanvasPointerDidMove";
-
-static const int kTileSide = 256;  static const NSUInteger kMaxTiles = 600;  // device pixels; ~150 MB at most
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wincomplete-implementation"
@@ -301,111 +294,6 @@ static char kSPDFAnnotateZoomContext;
     if (self.textEditor && self.session.tool != SPDFAnnotateToolTextBox) [self commitTextEditor];  // as Paint
     [self.window invalidateCursorRectsForView:self];
     self.needsDisplay = YES;
-}
-
-#pragma mark - Tiles
-
-static NSString* TileKey(NSInteger page, int level, int tx, int ty) {
-    return [NSString stringWithFormat:@"%ld:%d:%d:%d", (long)page, level, tx, ty];
-}
-
-// A tile's box in canvas units at a level (render scale 2^level).
-static NSRect TileRect(int level, int tx, int ty) {
-    CGFloat unit = kTileSide / ldexp(1.0, level);
-    return NSMakeRect(tx * unit, ty * unit, unit, unit);
-}
-
-- (void)dropTilesOnPage:(NSInteger)page inRect:(NSRect)rect {
-    NSString* prefix = [NSString stringWithFormat:@"%ld:", (long)page];
-    for (NSString* key in _tiles.allKeys) {
-        if (![key hasPrefix:prefix]) continue;
-        NSArray* parts = [key componentsSeparatedByString:@":"];
-        NSRect tile = TileRect([parts[1] intValue], [parts[2] intValue], [parts[3] intValue]);
-        if (NSIsEmptyRect(rect) || NSIntersectsRect(tile, rect)) [_tiles removeObjectForKey:key];
-    }
-}
-
-- (int)levelForPage:(NSInteger)page {
-    CGFloat device = [self scaleForPage:page] * (self.window.backingScaleFactor ?: 2.0);
-    int level = (int)ceil(log2(MAX(device, 1.0 / 64)));
-    if (page < 0) return MIN(level, 0);  // a picture's own pixels: never more than one tile pixel per canvas pixel
-    return MAX(-6, MIN(level, 3));       // a PDF page's objects stay sharp up to 8 pixels per point
-}
-
-- (CGImageRef)tileOnPage:(NSInteger)page level:(int)level tx:(int)tx ty:(int)ty doc:(spdf_paint_doc*)doc {
-    NSString* key = TileKey(page, level, tx, ty);
-    id cached = _tiles[key];
-    if (cached) return (__bridge CGImageRef)cached;
-    int width = 0, height = 0;
-    spdf_paint_size(doc, &width, &height);
-    NSRect rect = NSIntersectionRect(TileRect(level, tx, ty), NSMakeRect(0, 0, width, height));
-    if (NSIsEmptyRect(rect)) return NULL;
-    spdf_paint_render_options options;
-    memset(&options, 0, sizeof(options));
-    options.region = (spdf_rect){(float)NSMinX(rect), (float)NSMinY(rect), (float)NSMaxX(rect), (float)NSMaxY(rect)};
-    options.scale = (float)ldexp(1.0, level);
-    if (page >= 0) options.flags |= SPDF_PAINT_RENDER_SKIP_LOCKED_BACKGROUND;
-    spdf_bitmap bitmap = {0, 0, 0, NULL};
-    char err[256];
-    if (spdf_paint_render(doc, &options, &bitmap, err, sizeof(err)) != SPDF_PAINT_OK || !bitmap.rgba) return NULL;
-    NSData* data = [NSData dataWithBytes:bitmap.rgba length:(NSUInteger)bitmap.stride * (NSUInteger)bitmap.height];
-    CGColorSpaceRef srgb = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
-    CGDataProviderRef provider = CGDataProviderCreateWithCFData((__bridge CFDataRef)data);
-    CGImageRef image = CGImageCreate((size_t)bitmap.width, (size_t)bitmap.height, 8, 32, (size_t)bitmap.stride, srgb,
-                                     kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big, provider, NULL, false,
-                                     kCGRenderingIntentDefault);
-    CGDataProviderRelease(provider);
-    CGColorSpaceRelease(srgb);
-    spdf_free_bitmap(&bitmap);
-    if (!image) return NULL;
-    if (_tiles.count >= kMaxTiles) [self evictTilesKeepingLevel:level page:page];
-    _tiles[key] = CFBridgingRelease(image);
-    return image;
-}
-
-- (void)evictTilesKeepingLevel:(int)level page:(NSInteger)page {
-    NSString* keep = [NSString stringWithFormat:@"%ld:%d:", (long)page, level];
-    for (NSString* key in _tiles.allKeys)
-        if (![key hasPrefix:keep]) [_tiles removeObjectForKey:key];
-    if (_tiles.count >= kMaxTiles) [_tiles removeAllObjects];
-}
-
-static void DrawImage(CGContextRef context, CGImageRef image, NSRect rect) {
-    CGContextSaveGState(context);
-    CGContextTranslateCTM(context, NSMinX(rect), NSMaxY(rect));
-    CGContextScaleCTM(context, 1, -1);
-    CGContextDrawImage(context, CGRectMake(0, 0, NSWidth(rect), NSHeight(rect)), image);
-    CGContextRestoreGState(context);
-}
-
-- (void)drawCanvasOfPage:(NSInteger)page inRect:(NSRect)dirty context:(CGContextRef)context {
-    spdf_paint_doc* doc = [self docForPage:page];
-    NSRect canvas = [self canvasRectForPage:page];
-    NSRect visible = NSIntersectionRect(NSIntersectionRect(canvas, dirty), self.visibleRect);
-    if (!doc || NSIsEmptyRect(visible)) return;
-    if (page < 0) [self drawCheckerboardInRect:visible];
-    CGFloat scale = [self scaleForPage:page];
-    int level = [self levelForPage:page];
-    CGFloat unit = kTileSide / ldexp(1.0, level);
-    NSRect area = NSMakeRect((NSMinX(visible) - NSMinX(canvas)) / scale, (NSMinY(visible) - NSMinY(canvas)) / scale,
-                             NSWidth(visible) / scale, NSHeight(visible) / scale);
-    int tx0 = (int)floor(NSMinX(area) / unit), tx1 = (int)floor((NSMaxX(area) - 0.001) / unit);
-    int ty0 = (int)floor(NSMinY(area) / unit), ty1 = (int)floor((NSMaxY(area) - 0.001) / unit);
-    CGContextSaveGState(context);
-    CGContextClipToRect(context, NSRectToCGRect(visible));
-    // Above 100 % a picture's pixels are drawn as squares (Paint, Preview); below, smoothly.
-    CGContextSetInterpolationQuality(context, scale >= 1.0 && page < 0 ? kCGInterpolationNone : kCGInterpolationHigh);
-    CGContextSetShouldAntialias(context, false);  // no hairline seams between tiles
-    for (int ty = MAX(0, ty0); ty <= ty1; ++ty)
-        for (int tx = MAX(0, tx0); tx <= tx1; ++tx) {
-            CGImageRef tile = [self tileOnPage:page level:level tx:tx ty:ty doc:doc];
-            if (!tile) continue;
-            NSRect rect = NSMakeRect(NSMinX(canvas) + tx * unit * scale, NSMinY(canvas) + ty * unit * scale,
-                                     CGImageGetWidth(tile) / ldexp(1.0, level) * scale,
-                                     CGImageGetHeight(tile) / ldexp(1.0, level) * scale);
-            DrawImage(context, tile, rect);
-        }
-    CGContextRestoreGState(context);
 }
 
 // A canvas made smaller shows the reader's picture of the file under it until the file is written again: what lies

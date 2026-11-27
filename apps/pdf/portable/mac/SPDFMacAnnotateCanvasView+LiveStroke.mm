@@ -1,8 +1,8 @@
 // Pencil, the brushes, the Eraser and the Color Eraser shown as their release leaves them, every frame of the drag
 // (SPDFMacAnnotateCanvasView.h). The core holds the stroke being drawn (spdf_paint_live_begin): its pixels in the
 // active layer, with the layers above and below, the pen lines the Eraser cuts, the lines the whole-line Eraser takes,
-// faded. Each new point costs only what it changes: on a picture or a canvas the tiles under that part are drawn again
-// in place; on a PDF page that part of the page is drawn, as the reader draws its picture of the page, into a picture
+// faded. Each new point costs only what it changes: on a picture or a canvas the screen tiles under that part are
+// drawn again; on a PDF page that part of the page is drawn, as the reader draws its picture of the page, into a picture
 // of the same pixels laid over the reader's until the release. The release sends the same operation (the same seed:
 // the Airbrush sprays the same dots), and the core lays exactly what was shown.
 #import "SPDFMacAnnotateCanvasViewPrivate.h"
@@ -36,7 +36,7 @@
     if (changed.x1 <= changed.x0 || changed.y1 <= changed.y0) return;
     NSRect rect = NSMakeRect(changed.x0, changed.y0, changed.x1 - changed.x0, changed.y1 - changed.y0);
     self.liveStrokeRect = NSIsEmptyRect(self.liveStrokeRect) ? rect : NSUnionRect(self.liveStrokeRect, rect);
-    if (page < 0) [self liveStrokePatchTiles:rect page:page];
+    if (page < 0) [self dropTilesOnPage:page inRect:rect];  // its screen tiles, small, drawn again
     else [self liveStrokePaintPicture:rect page:page];
     [self liveStrokeRedraw:rect page:page];
 }
@@ -106,46 +106,6 @@
 - (void)liveStrokeEnded {
     [self liveStrokeDrop];
     self.liveStrokeSeed = 0;
-}
-
-#pragma mark - A picture or a canvas: the tiles
-
-- (void)liveStrokePatchTiles:(NSRect)rect page:(NSInteger)page {
-    spdf_paint_doc* doc = [self docForPage:page];
-    int width = 0, height = 0, level = [self levelForPage:page];
-    spdf_paint_size(doc, &width, &height);
-    double s = ldexp(1.0, level), unit = 256 / s;
-    NSRect area = NSIntersectionRect(rect, NSMakeRect(0, 0, width, height));
-    if (NSIsEmptyRect(area)) return;
-    for (int ty = (int)floor(NSMinY(area) / unit); ty <= (int)floor((NSMaxY(area) - 1e-3) / unit); ++ty)
-        for (int tx = (int)floor(NSMinX(area) / unit); tx <= (int)floor((NSMaxX(area) - 1e-3) / unit); ++tx) {
-            NSString* key = [NSString stringWithFormat:@"%ld:%d:%d:%d", (long)page, level, tx, ty];
-            CGImageRef tile = (__bridge CGImageRef)_tiles[key];
-            if (!tile) continue;  // drawn when it is needed, from the canvas, which shows the stroke
-            long tw = (long)CGImageGetWidth(tile), th = (long)CGImageGetHeight(tile), stride = (long)CGImageGetBytesPerRow(tile);
-            long x0 = MAX((long)floor(NSMinX(area) * s), tx * 256L), x1 = MIN((long)ceil(NSMaxX(area) * s), tx * 256L + tw);
-            long y0 = MAX((long)floor(NSMinY(area) * s), ty * 256L), y1 = MIN((long)ceil(NSMaxY(area) * s), ty * 256L + th);
-            if (x1 <= x0 || y1 <= y0) continue;
-            spdf_paint_render_options options;
-            memset(&options, 0, sizeof(options));
-            options.region = (spdf_rect){(float)(x0 / s), (float)(y0 / s), (float)(x1 / s), (float)(y1 / s)};
-            options.scale = (float)s;
-            spdf_bitmap part = {0, 0, 0, NULL};
-            char err[256];
-            if (spdf_paint_render(doc, &options, &part, err, sizeof(err)) != SPDF_PAINT_OK || !part.rgba) continue;
-            CFDataRef bytes = CGDataProviderCopyData(CGImageGetDataProvider(tile));
-            NSMutableData* data = bytes ? [(__bridge_transfer NSData*)bytes mutableCopy] : nil;
-            for (long y = 0; data && y < MIN((long)part.height, y1 - y0); ++y)
-                memcpy((unsigned char*)data.mutableBytes + (y0 - ty * 256L + y) * stride + (x0 - tx * 256L) * 4,
-                       part.rgba + y * part.stride, (size_t)MIN((long)part.width, x1 - x0) * 4);
-            spdf_free_bitmap(&part);
-            if (!data) continue;
-            CGDataProviderRef provider = CGDataProviderCreateWithCFData((__bridge CFDataRef)data);
-            CGImageRef image = CGImageCreate((size_t)tw, (size_t)th, 8, 32, (size_t)stride, CGImageGetColorSpace(tile),
-                                             CGImageGetBitmapInfo(tile), provider, NULL, false, kCGRenderingIntentDefault);
-            CGDataProviderRelease(provider);
-            if (image) _tiles[key] = CFBridgingRelease(image);
-        }
 }
 
 #pragma mark - A PDF page: over the reader's picture

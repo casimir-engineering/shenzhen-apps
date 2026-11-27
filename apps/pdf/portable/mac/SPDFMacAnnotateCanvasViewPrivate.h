@@ -34,7 +34,7 @@ typedef NS_ENUM(NSInteger, SPDFAnnotateCanvasHandle) {
 };
 
 @interface SPDFMacAnnotateCanvasView () {
-    NSMutableDictionary<NSString*, id>* _tiles;  // "page:level:tx:ty" -> CGImageRef (SPDFMacAnnotateCanvasView.mm)
+    NSMutableDictionary<NSString*, id>* _tiles;  // "page:level:tx:ty" -> CGImageRef (+Tiles.mm)
 }
 @property(nonatomic, weak, readwrite) SPDFMacFillController* controller;
 @property(nonatomic, weak, readwrite) SPDFMacFillOverlayView* overlay;
@@ -89,8 +89,11 @@ typedef NS_ENUM(NSInteger, SPDFAnnotateCanvasHandle) {
 - (SPDFDocumentView*)documentView;           // the reader's page view under the canvas view
 - (NSArray<NSNumber*>*)pagesInView;            // -1 for a picture
 - (NSRect)viewRectForCanvasRect:(NSRect)rect page:(NSInteger)page;
+// Tiles (+Tiles.mm).
 - (int)levelForPage:(NSInteger)page;           // the tiles' render scale is 2^level
+- (double)screenTileScaleForPage:(NSInteger)page;  // > 0: a picture or canvas, in screen-pixel tiles
 - (void)dropTilesOnPage:(NSInteger)page inRect:(NSRect)rect;  // NSZeroRect: all of them
+- (void)drawCanvasOfPage:(NSInteger)page inRect:(NSRect)dirty context:(CGContextRef)context;
 - (NSPoint)viewPointForCanvasPoint:(NSPoint)point page:(NSInteger)page;
 - (void)redrawCanvasRect:(NSRect)rect page:(NSInteger)page inflate:(CGFloat)points;
 - (void)operation:(NSDictionary*)op page:(NSInteger)page done:(void (^)(NSDictionary* result))done;
