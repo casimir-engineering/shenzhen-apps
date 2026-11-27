@@ -40,6 +40,8 @@ final class NetworkDiscovery {
   private var channel: Channel?
   private var endpoints: [String: NWEndpoint] = [:]
   private var services: [String: NWListener.Service] = [:]
+  /// Entries the core withdrew: still accepting, but off the air, also when their listener is made again.
+  private var withdrawn: Set<String> = []
   private let monitor = NWPathMonitor()
   /// The owner's rule on this phone, from the path monitor: no until it first answers.
   private var peerToPeer = false
@@ -65,7 +67,7 @@ final class NetworkDiscovery {
     for name in Array(listeners.keys) {
       listeners.removeValue(forKey: name)?.cancel()
       guard let service = services[name], let listener = try? NWListener(using: parameters()) else { continue }
-      listener.service = service
+      listener.service = withdrawn.contains(name) ? nil : service
       listener.newConnectionHandler = { [weak self] connection in self?.accepted(connection, entry: name) }
       listeners[name] = listener
       listener.start(queue: queue)
@@ -85,6 +87,7 @@ final class NetworkDiscovery {
     let service = NWListener.Service(name: name, type: type, domain: nil, txtRecord: NWTXTRecord(fields))
     let listener: NWListener? = try queue.sync {
       services[name] = service
+      withdrawn.remove(name)
       if let listener = listeners[name] {
         listener.service = service
         return nil
@@ -101,12 +104,16 @@ final class NetworkDiscovery {
 
   /// Off the air; still accepting until `unregister`, for someone who found it a moment ago.
   func withdraw(name: String) {
-    queue.async { self.listeners[name]?.service = nil }
+    queue.async {
+      self.withdrawn.insert(name)
+      self.listeners[name]?.service = nil
+    }
   }
 
   func unregister(name: String) {
     queue.async {
       self.services[name] = nil
+      self.withdrawn.remove(name)
       self.listeners.removeValue(forKey: name)?.cancel()
     }
   }
@@ -129,9 +136,13 @@ final class NetworkDiscovery {
     }
   }
 
-  /// On the queue: a browser for the service type, with or without peer-to-peer Wi-Fi as the rule says now.
+  /// On the queue: a browser for the service type, with or without peer-to-peer Wi-Fi as the rule says now. What the
+  /// old one found is lost first: the new one reports again what it still sees, and a device seen only on peer-to-peer
+  /// Wi-Fi then is not left behind as a sighting.
   private func startBrowser() {
     self.browser?.cancel()
+    for name in endpoints.keys.sorted() { send(NetworkEvent(kind: "lost", name: name)) }
+    endpoints.removeAll()
     let type = self.serviceType
     let browser = NWBrowser(for: .bonjourWithTXTRecord(type: type, domain: nil), using: self.parameters())
     browser.stateUpdateHandler = { [weak self] state in
@@ -224,6 +235,7 @@ final class NetworkDiscovery {
       for listener in self.listeners.values { listener.cancel() }
       self.listeners.removeAll()
       self.services.removeAll()
+      self.withdrawn.removeAll()
       self.endpoints.removeAll()
       self.channel = nil
     }
