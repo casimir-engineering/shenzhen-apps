@@ -66,11 +66,20 @@ BOOL SZFriendsNetworkAdapterHasNetwork(id<SZFriendsDiscoveryAdapter> adapter);
 // monitor last said; NO for anything that is not a network adapter, YES in loopback mode (test helpers never use
 // AWDL). `changed` below runs when this changes too.
 BOOL SZFriendsNetworkAdapterOnWiFi(id<SZFriendsDiscoveryAdapter> adapter);
-// ADR 0018 § 7.2: the next LAN dial to `endpointID` avoids `interface` (an nw_interface_t: a degraded lane's), so it
-// goes out another one (Ethernet beside Wi-Fi), or fails when there is none. Nothing for other adapters.
-void SZFriendsNetworkAdapterAvoidInterface(id<SZFriendsDiscoveryAdapter> adapter, NSString *endpointID, id interface);
+// ADR 0018 § 7.2: the next LAN dial to `endpointID`, if within a few seconds, avoids `interface` (an nw_interface_t: a
+// degraded lane's), so it goes out another one (Ethernet beside Wi-Fi), or fails when there is none; nil forgets it.
+void SZFriendsNetworkAdapterAvoidInterface(id<SZFriendsDiscoveryAdapter> adapter, NSString *endpointID,
+                                           id _Nullable interface);
 void SZFriendsNetworkAdapterOnNetworkChange(id<SZFriendsDiscoveryAdapter> adapter,
                                             void (^_Nullable changed)(BOOL hasNetwork));
+
+@interface SZFriendsRouteRacer (PeerToPeerRefusals)
+// A session for a person on peer-to-peer Wi-Fi went live at an endpoint and was closed under the owner's rule (their
+// device does not allow direct Wi-Fi): that endpoint is not dialed there for a while, longer each time (ADR 0022).
+- (void)notePeerToPeerRefusedAtEndpoint:(NSString *)endpointID
+                                 method:(SZFriendsDiscoveryMethod)method
+                         conversationID:(NSString *)conversationID;
+@end
 
 // TXT record of the hidden entry (v=1, t=<hex tag>, c=<hex tags concatenated>) or the public one (v=1, p=1, and
 // nothing else: a public entry carries no tag). Hex because TXT values are shown verbatim by Bonjour tools and

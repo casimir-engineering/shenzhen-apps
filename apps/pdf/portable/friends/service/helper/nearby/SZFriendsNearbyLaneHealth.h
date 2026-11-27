@@ -7,8 +7,8 @@ NS_ASSUME_NONNULL_BEGIN
 @interface SZFriendsNearbyService (LaneHealth)
 // Once a block tick: each LAN lane's retransmitted share to the scheduler, its verdicts to helper.log.
 - (void)laneHealthTickOnLink:(SZFriendsPeerLink *)head;
-// One more lane on `route` that avoids degraded `lane`'s interface where the adapter can.
-- (void)openLaneOfLink:(SZFriendsPeerLink *)head route:(SZFriendsRouteMethod)route beside:(SZFriendsLaneID)lane;
+// One more lane on `route` that avoids degraded `lane`'s interface where the adapter can; NO when none was dialed.
+- (BOOL)openLaneOfLink:(SZFriendsPeerLink *)head route:(SZFriendsRouteMethod)route beside:(SZFriendsLaneID)lane;
 @end
 
 NS_ASSUME_NONNULL_END

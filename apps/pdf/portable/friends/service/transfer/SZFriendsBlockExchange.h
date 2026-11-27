@@ -51,10 +51,11 @@ extern const SZFriendsLaneID SZFriendsHeadLane; // 0
 @property(nonatomic, copy, nullable) BOOL (^pace)(NSUInteger bytes);
 // A batch is waiting to become durable: call -flushDue within a second.
 @property(nonatomic, copy, nullable) void (^onFlushNeeded)(void);
-// The scheduler asks for one more lane on `route` (dial the friend's device there with -reserveLane:) or gives one up.
-@property(nonatomic, copy, nullable) void (^onOpenLane)(SZFriendsRouteMethod route);
+// The scheduler asks for one more lane on `route` (dial the friend's device there with -reserveLane:; NO when none is
+// dialed) or gives one up.
+@property(nonatomic, copy, nullable) BOOL (^onOpenLane)(SZFriendsRouteMethod route);
 // ... or one more on `route` through another interface than `lane`'s, which degraded (ADR 0018 § 7.2).
-@property(nonatomic, copy, nullable) void (^onOpenLaneBeside)(SZFriendsRouteMethod route, SZFriendsLaneID lane);
+@property(nonatomic, copy, nullable) BOOL (^onOpenLaneBeside)(SZFriendsRouteMethod route, SZFriendsLaneID lane);
 @property(nonatomic, copy, nullable) void (^onCloseLane)(SZFriendsLaneID lane);
 // For the helper's log: a PART went out on `lane` (outgoing), or arrived on it; `late` for one that arrived after its
 // block was complete (a copy sent on two lanes, or sent again after its lane went silent), which is wasted.

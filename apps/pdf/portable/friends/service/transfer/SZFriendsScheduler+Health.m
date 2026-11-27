@@ -1,8 +1,10 @@
 // A lane that degrades while it carries a file (ADR 0018 § 7.2): the Rust core's transfer/scheduler_health.rs, ported.
 // A network lane under half its 10 s peak for 3 s while it had blocks to move gives its blocks to the others and the
 // scheduler tries one alternative (another LAN interface, the Internet, Bluetooth under 4 MB/s); a lossy LAN lane
-// (2 % retransmitted) under 70 % of its peak gets a second connection. A trial lane is kept only when the group then
-// moves 10 % more. Change both together.
+// (2 % retransmitted) under 70 % of its peak gets a second connection, within the LAN's lane limits. A lane whose
+// acknowledgements come too far apart for a 1 s rate is read from its last one before that to now. A spell is acted
+// on once, until the lane recovers or has nothing to move for 3 s; a trial whose lane the helper cannot open ends at
+// once. A trial lane is kept only when the group then moves 10 % more. Change both together.
 
 #import "service/transfer/SZFriendsScheduler.h"
 #import "service/transfer/SZFriendsSchedulerInternal.h"
@@ -30,6 +32,18 @@ static double SZFRateOver(NSArray<NSArray<NSNumber *> *> *samples, double from, 
     if (span < 0.5) return -1;
     return (double)(last[1].unsignedLongLongValue - MIN(first[1].unsignedLongLongValue, last[1].unsignedLongLongValue)) /
            span;
+}
+
+// Bytes per second from the last sample at or before `from` (the oldest kept when none is that old) to `now`, with
+// `delivered` the lane's total now: a lane whose acknowledgements are too far apart for SZFRateOver. Negative without
+// half a second.
+static double SZFRateUntilNow(NSArray<NSArray<NSNumber *> *> *samples, double from, double now, uint64_t delivered) {
+    NSArray<NSNumber *> *base = samples.firstObject;
+    for (NSArray<NSNumber *> *s in samples) {
+        if (s[0].doubleValue <= from) base = s;
+    }
+    if (base == nil || now - base[0].doubleValue < 0.5) return -1;
+    return (double)(delivered - MIN(base[1].unsignedLongLongValue, delivered)) / (now - base[0].doubleValue);
 }
 
 static void SZFKeep(NSMutableArray<NSArray<NSNumber *> *> *samples, double now, uint64_t delivered) {
@@ -100,10 +114,20 @@ static void SZFKeep(NSMutableArray<NSArray<NSNumber *> *> *samples, double now, 
             continue;
         }
         uint64_t cap = [self cap:lane blockBytes:[self unitBytes]];
-        double recent = SZFRateOver(lane->acked, now - SZFRecent, now);
         BOOL cpu = lane->cpuBoundAt > 0 && now - lane->cpuBoundAt < SZFDegradedFor;
         BOOL offered = waiting && lane->inFlight * 2 >= cap && !cpu;
-        double ratio = (offered && recent >= 0) ? recent / MAX(lane->rate, 1.0) : 1;
+        if (!offered) {
+            // The clocks measure a lane with blocks to move; the spell ends only after a long gap without any.
+            lane->lowSince = lane->lossySince = -1;
+            if (lane->unofferedSince < 0) lane->unofferedSince = now;
+            if (now - lane->unofferedSince >= SZFDegradedFor) lane->healthHandled = NO;
+            continue;
+        }
+        lane->unofferedSince = -1;
+        double recent = SZFRateOver(lane->acked, now - SZFRecent, now);
+        if (recent < 0) recent = SZFRateUntilNow(lane->acked, now - SZFRecent, now, lane->delivered);
+        if (recent < 0) continue; // no reading yet: the clocks run on
+        double ratio = recent / MAX(lane->rate, 1.0);
         if (ratio >= SZFLossyBelow) {
             lane->lowSince = lane->lossySince = -1;
             lane->healthHandled = NO;
@@ -117,15 +141,21 @@ static void SZFKeep(NSMutableArray<NSArray<NSNumber *> *> *samples, double now, 
         if (lane->healthHandled) continue;
         BOOL degraded = lane->lowSince >= 0 && now - lane->lowSince >= SZFDegradedFor;
         BOOL lossyLong = lane->lossySince >= 0 && now - lane->lossySince >= SZFDegradedFor;
-        if (!degraded && !lossyLong) continue;
+        // A second connection on a lossy LAN only within the LAN's limits; otherwise asked again later.
+        BOOL second = lossyLong && [self anotherLANAllowed:now];
+        if (!degraded && !second) continue;
         lane->healthHandled = YES;
         if (degraded) [self degrade:laneID.unsignedLongLongValue recent:recent now:now];
-        if (lossyLong) {
+        if (second) {
             [self tryRoute:SZFriendsRouteMethodLAN beside:NO lane:0 now:now];
         } else {
             [self tryAlternativeTo:laneID.unsignedLongLongValue route:lane->route now:now];
         }
     }
+}
+
+- (void)laneRefused:(SZFriendsRouteMethod)route {
+    if (_trialOn && !_trialHasLane && _trialRoute == route) _trialOn = NO;
 }
 
 // Its blocks move to the others: its peak is forgotten and what it holds beyond a second of its rate now, not yet
@@ -169,9 +199,13 @@ static void SZFKeep(NSMutableArray<NSArray<NSNumber *> *> *samples, double now, 
     return n;
 }
 
+- (BOOL)anotherLANAllowed:(double)now {
+    return [self freshRoute:SZFriendsRouteMethodLAN now:now] &&
+           [self lanesOnRoute:SZFriendsRouteMethodLAN] < SZFriendsLanesPerRoute;
+}
+
 - (void)tryAlternativeTo:(SZFriendsLaneID)laneID route:(SZFriendsRouteMethod)route now:(double)now {
-    if (route == SZFriendsRouteMethodLAN && [self freshRoute:route now:now] &&
-        [self lanesOnRoute:SZFriendsRouteMethodLAN] < SZFriendsLanesPerRoute) {
+    if (route == SZFriendsRouteMethodLAN && [self anotherLANAllowed:now]) {
         [self tryRoute:SZFriendsRouteMethodLAN beside:YES lane:laneID now:now];
     } else if ([self lanesOnRoute:SZFriendsRouteMethodInternet] == 0 &&
                [self freshRoute:SZFriendsRouteMethodInternet now:now]) {

@@ -369,8 +369,13 @@ impl State {
                         queue.retain(|(b, _, _)| *b != block);
                     }
                 }
-                // The bench dials every lane itself; one it no longer wants closes.
-                Action::Lane(LaneRequest::Open { .. } | LaneRequest::OpenBeside { .. }) => {}
+                // The bench dials every lane itself (none on asking: a trial does not wait); one no longer wanted
+                // closes.
+                Action::Lane(LaneRequest::Open { route } | LaneRequest::OpenBeside { route, .. }) => {
+                    if let Some(group) = self.lanes.groups.get_mut(&head) {
+                        group.scheduler.lane_refused(route);
+                    }
+                }
                 Action::Lane(LaneRequest::Close { lane }) => {
                     if lane != head {
                         if let Some(s) = self.sessions.get_mut(&lane) {

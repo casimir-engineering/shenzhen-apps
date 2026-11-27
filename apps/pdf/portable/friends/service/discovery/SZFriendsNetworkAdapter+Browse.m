@@ -236,10 +236,11 @@ void SZFriendsNetworkAdapterOnNetworkChange(id<SZFriendsDiscoveryAdapter> adapte
 }
 
 void SZFriendsNetworkAdapterAvoidInterface(id<SZFriendsDiscoveryAdapter> adapter, NSString *endpointID, id interface) {
-    if (![adapter isKindOfClass:[SZFriendsNetworkAdapter class]] || interface == nil) return;
+    if (![adapter isKindOfClass:[SZFriendsNetworkAdapter class]]) return;
     SZFriendsNetworkAdapter *network = (SZFriendsNetworkAdapter *)adapter;
     @synchronized(network) {
         if (network->_avoidNext == nil) network->_avoidNext = [NSMutableDictionary dictionary];
-        network->_avoidNext[endpointID] = interface;
+        // Asked for one dial that follows at once: one much later (a lane dialed elsewhere first) is not that dial.
+        network->_avoidNext[endpointID] = interface ? @[ interface, [NSDate dateWithTimeIntervalSinceNow:5] ] : nil;
     }
 }

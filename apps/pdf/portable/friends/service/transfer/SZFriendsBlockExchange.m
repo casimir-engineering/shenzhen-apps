@@ -211,12 +211,14 @@ static NSInteger SZFLeavesRank(SZFriendsRouteMethod route) {
             }
             break;
         case SZFriendsScheduleOpenLane:
-            if (_group != nil && self.onOpenLane) self.onOpenLane(action.route);
+        case SZFriendsScheduleOpenLaneBeside: {
+            BOOL beside = action.kind == SZFriendsScheduleOpenLaneBeside && self.onOpenLaneBeside;
+            BOOL dialed = _group != nil && (beside ? self.onOpenLaneBeside(action.route, action.lane)
+                                                   : self.onOpenLane && self.onOpenLane(action.route));
+            // Nothing dialed: a trial waiting for that lane is not held for it (scheduler_health.rs).
+            if (!dialed) [_scheduler laneRefused:action.route];
             break;
-        case SZFriendsScheduleOpenLaneBeside:
-            if (_group != nil && self.onOpenLaneBeside) self.onOpenLaneBeside(action.route, action.lane);
-            else if (_group != nil && self.onOpenLane) self.onOpenLane(action.route);
-            break;
+        }
         case SZFriendsScheduleCloseLane:
             if (action.lane != _control && self.onCloseLane) self.onCloseLane(action.lane);
             break;

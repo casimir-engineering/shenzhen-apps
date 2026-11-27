@@ -91,10 +91,11 @@ static inline void SZFTypical(SZFriendsRouteMethod route, double *rate, double *
     BOOL unheardNoted;
     // Placements in the order they were assigned: seq -> (transfer, block).
     NSMutableDictionary<NSNumber *, NSArray<NSNumber *> *> *holds;
-    // Its health (+Health): (time, delivered) per acknowledgement, when it went low or lossy (-1 for not), the share
-    // retransmitted, when its encrypting thread was last the limit, and whether this spell was acted on.
+    // Its health (+Health): (time, delivered) per acknowledgement, when it went low or lossy or had no blocks to move
+    // (-1 for not), the share retransmitted, when its encrypting thread was last the limit, whether this spell was
+    // acted on.
     NSMutableArray<NSArray<NSNumber *> *> *acked;
-    double lowSince, lossySince, retransmits, cpuBoundAt;
+    double lowSince, lossySince, unofferedSince, retransmits, cpuBoundAt;
     BOOL healthHandled;
 }
 - (double)eta:(uint64_t)bytes;

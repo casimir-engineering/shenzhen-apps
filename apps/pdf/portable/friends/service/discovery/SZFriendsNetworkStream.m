@@ -63,6 +63,7 @@ static NSData *DataFromDispatchData(dispatch_data_t content) {
     BOOL _hasPendingClose;
     NSError *_pendingCloseError;
     nw_interface_t _pathInterface; // the interface the connected path took (ADR 0018 § 7.2)
+    nw_data_transfer_report_t _report; // counting since ready, or since the last -collectTransportHealth:
 }
 
 @synthesize onData = _onData;
@@ -114,6 +115,7 @@ static NSData *DataFromDispatchData(dispatch_data_t content) {
         if (_isReady) break;
         _isReady = YES;
         [self classifyPath];
+        _report = nw_connection_create_new_data_transfer_report(_connection);
         [self finishReady:nil];
         break;
     case nw_connection_state_waiting:
@@ -267,13 +269,17 @@ static NSData *DataFromDispatchData(dispatch_data_t content) {
     });
 }
 
-// The connection's data-transfer report since it started: TCP bytes sent and retransmitted on all its paths.
+// TCP bytes sent and retransmitted on all the connection's paths since the last reading (the first: since it was
+// ready). A report counts from when it is made until it is collected, so one stays open between readings: each reading
+// collects it and opens the next.
 - (void)collectTransportHealth:(void (^)(uint64_t, uint64_t, id))done {
     void (^answer)(uint64_t, uint64_t, id) = [done copy];
     dispatch_async(_connectionQueue, ^{
         if (!self->_isReady || self->_closed) return answer(0, 0, nil);
         nw_interface_t interface = self->_pathInterface;
-        nw_data_transfer_report_t report = nw_connection_create_new_data_transfer_report(self->_connection);
+        nw_data_transfer_report_t report = self->_report;
+        self->_report = nw_connection_create_new_data_transfer_report(self->_connection);
+        if (report == nil) return answer(0, 0, interface);
         nw_data_transfer_report_collect(report, self->_connectionQueue, ^(nw_data_transfer_report_t collected) {
             uint64_t sent = nw_data_transfer_report_get_sent_transport_byte_count(collected, NW_ALL_PATHS);
             uint64_t again =

@@ -371,7 +371,11 @@ impl State {
                 // Another interface beside a degraded lane: this helper dials the route (its LAN adapter picks the
                 // address); a second connection there still helps a lossy path.
                 Action::Lane(LaneRequest::Open { route } | LaneRequest::OpenBeside { route, .. }) => {
-                    self.open_lane(head, route)
+                    if !self.open_lane(head, route) {
+                        if let Some(schedule) = self.sessions.groups.schedules.get_mut(&head) {
+                            schedule.scheduler.lane_refused(route); // a trial does not wait for it
+                        }
+                    }
                 }
                 Action::Lane(LaneRequest::Close { lane }) => {
                     if lane != head {

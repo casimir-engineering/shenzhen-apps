@@ -1,6 +1,7 @@
 //! A lane that degrades while it carries a file (ADR 0018 § 7.2), and what the scheduler tries then.
 //!
-//! Every network lane's acknowledged rate over the last second is compared with its peak over [`SAMPLE_WINDOW`]:
+//! Every network lane's acknowledged rate over the last second (longer when its acknowledgements come further apart,
+//! [`rate_until_now`]) is compared with its peak over [`SAMPLE_WINDOW`]:
 //!
 //! - **Degraded:** under half the peak for [`DEGRADED_FOR`] while it had blocks to move (not a slow sender: it held
 //!   at least half its cap, and its encrypting thread did not report being the limit). Its blocks move to the others
@@ -11,13 +12,17 @@
 //!   ([`BLUETOOTH_HELPS_BELOW`]); never the relay, which ADR 0020 keeps for when nothing else reaches.
 //! - **Lossy:** a LAN lane whose path retransmits [`LOSSY_RETRANSMITS`] of its packets or more (the helper reads it
 //!   from the socket, [`Scheduler::retransmits`]) and moves under [`LOSSY_BELOW`] of its peak for [`DEGRADED_FOR`]:
-//!   one more TCP connection on the same route. Two connections lose and recover their windows apart, so on a
-//!   lossy Wi-Fi together they keep more of the link busy than one does.
+//!   one more TCP connection on the same route, under the same limits as any LAN lane ([`LANES_PER_ROUTE`], and
+//!   [`TRY_AGAIN_AFTER`]). Two connections lose and recover their windows apart, so on a lossy Wi-Fi together they
+//!   keep more of the link busy than one does.
 //!
-//! An alternative is kept only when the group's acknowledged rate, from [`TRIAL_SETTLE`] after the new lane came up
-//! to [`TRIAL_JUDGED_AFTER`], beats the rate before it by [`TRIAL_HELPS_BY`]; otherwise the lane is closed. One trial
-//! at a time; a route tried is not tried again for [`TRY_AGAIN_AFTER`]. Resuming is already exact (pieces), so a
-//! block moved to another lane costs only what was in flight.
+//! A spell is acted on once: it ends when the lane moves [`LOSSY_BELOW`] of its peak again or has had no blocks to
+//! move for [`DEGRADED_FOR`], not at a moment between blocks. An alternative is kept only when the group's
+//! acknowledged rate, from [`TRIAL_SETTLE`] after the new lane came up to [`TRIAL_JUDGED_AFTER`], beats the rate
+//! before it by [`TRIAL_HELPS_BY`]; otherwise the lane is closed. One trial at a time, and none waits for a lane the
+//! helper said it cannot open ([`Scheduler::lane_refused`]); a route tried is not tried again for
+//! [`TRY_AGAIN_AFTER`]. Resuming is already exact (pieces), so a block moved to another lane costs only what was in
+//! flight.
 
 use super::*;
 
@@ -56,6 +61,8 @@ pub(super) struct Health {
     acked: VecDeque<(Duration, u64)>,
     low_since: Option<Duration>,
     lossy_since: Option<Duration>,
+    /// Since when it had no blocks to move, while it has none.
+    unoffered_since: Option<Duration>,
     /// Share of packets retransmitted, as the helper last said.
     retransmits: f64,
     cpu_bound_at: Option<Duration>,
@@ -88,6 +95,15 @@ fn rate_over(samples: &VecDeque<(Duration, u64)>, from: Duration, to: Duration) 
     let last = samples.iter().rev().find(|(t, _)| *t <= to)?;
     let span = last.0.saturating_sub(first.0).as_secs_f64();
     (span >= 0.5).then(|| last.1.saturating_sub(first.1) as f64 / span)
+}
+
+/// Bytes per second from the last sample at or before `from` (the oldest kept when none is that old) to `now`, with
+/// `delivered` the lane's total now: the rate of a lane whose acknowledgements are too far apart for [`rate_over`]
+/// (a slow but living lane). A lane that went quiet reads slower the longer it stays so.
+fn rate_until_now(samples: &VecDeque<(Duration, u64)>, from: Duration, now: Duration, delivered: u64) -> Option<f64> {
+    let base = samples.iter().rev().find(|(t, _)| *t <= from).or_else(|| samples.front())?;
+    let span = now.saturating_sub(base.0).as_secs_f64();
+    (span >= 0.5).then(|| delivered.saturating_sub(base.1) as f64 / span)
 }
 
 fn keep(samples: &mut VecDeque<(Duration, u64)>, now: Duration, delivered: u64) {
@@ -166,19 +182,27 @@ impl Scheduler {
             if matches!(lane.route, RouteMethod::Bluetooth | RouteMethod::Relay) || !lane.working() || !lane.measured {
                 continue;
             }
-            let recent = rate_over(&lane.health.acked, now.saturating_sub(RECENT), now);
             let cpu = lane.health.cpu_bound_at.is_some_and(|t| now.saturating_sub(t) < DEGRADED_FOR);
             // It had blocks to move: not starved by the sender, and the file is not ending.
             let offered = waiting && lane.in_flight * 2 >= cap && !cpu;
-            let ratio = match recent {
-                Some(r) if offered => r / lane.rate.max(1.0),
-                _ => {
-                    lane.health.low_since = None;
-                    lane.health.lossy_since = None;
+            if !offered {
+                // Its clocks measure a lane with blocks to move; the spell itself ends only after a long gap, so a
+                // lane acted on is not acted on again each time its blocks run short for a moment.
+                lane.health.low_since = None;
+                lane.health.lossy_since = None;
+                let since = *lane.health.unoffered_since.get_or_insert(now);
+                if now.saturating_sub(since) >= DEGRADED_FOR {
                     lane.health.handled = false;
-                    continue;
                 }
-            };
+                continue;
+            }
+            lane.health.unoffered_since = None;
+            let start = now.saturating_sub(RECENT);
+            let recent = rate_over(&lane.health.acked, start, now)
+                .or_else(|| rate_until_now(&lane.health.acked, start, now, lane.delivered));
+            // No reading yet: the clocks run on (a gap between acknowledgements is not a recovery).
+            let Some(recent) = recent else { continue };
+            let ratio = recent / lane.rate.max(1.0);
             if ratio >= LOSSY_BELOW {
                 lane.health.low_since = None;
                 lane.health.lossy_since = None;
@@ -201,19 +225,37 @@ impl Scheduler {
             }
             let long = |since: Option<Duration>| since.is_some_and(|t| now.saturating_sub(t) >= DEGRADED_FOR);
             let (degraded, lossy_long) = (long(lane.health.low_since), long(lane.health.lossy_since));
-            if !degraded && !lossy_long {
+            let route = lane.route;
+            // A second connection on a lossy LAN only within the LAN's limits; otherwise asked again later.
+            let second = lossy_long && self.another_lan_allowed(now);
+            if !degraded && !second {
                 continue;
             }
-            lane.health.handled = true;
-            let route = lane.route;
+            self.lanes.get_mut(&id).expect("listed").health.handled = true;
             if degraded {
-                self.degrade(id, recent.unwrap_or(0.0), now);
+                self.degrade(id, recent, now);
             }
-            let choice = if lossy_long { Some((RouteMethod::Lan, None)) } else { self.alternative(id, route, now) };
+            let choice = if second { Some((RouteMethod::Lan, None)) } else { self.alternative(id, route, now) };
             if let Some((route, beside)) = choice {
                 self.try_route(route, beside, now);
             }
         }
+    }
+
+    /// The helper could not open the lane asked for on `route` (the friend is not seen there, no free index, a
+    /// route it opens no lanes on): a trial waiting for it ends now, so another may be tried.
+    pub fn lane_refused(&mut self, route: RouteMethod) {
+        if self.group.trial.is_some_and(|t| t.lane.is_none() && t.route == route) {
+            self.group.trial = None;
+        }
+    }
+
+    /// One more LAN lane is within the rules: the LAN was not tried lately, and it has room for one.
+    fn another_lan_allowed(&self, now: Duration) -> bool {
+        let fresh =
+            self.group.tried.get(&(RouteMethod::Lan as u8)).is_none_or(|t| now.saturating_sub(*t) >= TRY_AGAIN_AFTER);
+        let lanes = self.lanes.values().filter(|l| l.route == RouteMethod::Lan && !l.closing).count();
+        fresh && lanes < LANES_PER_ROUTE
     }
 
     /// The degraded lane's blocks move to the others: its peak is forgotten (its cap and expected finish follow what
@@ -259,7 +301,7 @@ impl Scheduler {
         let count = |r: RouteMethod| self.lanes.values().filter(|l| l.route == r && !l.closing).count();
         let has = |r: RouteMethod| count(r) > 0;
         let group = self.group_rate(BEFORE_SPAN, now);
-        if route == RouteMethod::Lan && fresh(RouteMethod::Lan) && count(RouteMethod::Lan) < LANES_PER_ROUTE {
+        if route == RouteMethod::Lan && self.another_lan_allowed(now) {
             return Some((RouteMethod::Lan, Some(id)));
         }
         if !has(RouteMethod::Internet) && fresh(RouteMethod::Internet) {

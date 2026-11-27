@@ -9,7 +9,7 @@
 #import "service/helper/nearby/SZFriendsNearbyInternal.h"
 #import "service/helper/nearby/SZFriendsNearbyLaneHealth.h"
 
-static const void *SZFLaneHealthCountersKey = &SZFLaneHealthCountersKey;   // @[ sent, retransmitted ]
+static const void *SZFLaneHealthCountersKey = &SZFLaneHealthCountersKey;   // @[ sent, retransmitted ] not yet shared
 static const void *SZFLaneHealthInterfaceKey = &SZFLaneHealthInterfaceKey; // its nw_interface_t
 static const uint64_t SZFLaneHealthMinSent = 256 << 10; // a share only over at least this much sent
 
@@ -38,38 +38,45 @@ static const uint64_t SZFLaneHealthMinSent = 256 << 10; // a share only over at 
         [link.channel collectTransportHealth:^(uint64_t sent, uint64_t again, id interface) {
             dispatch_async(weakSelf.queue ?: dispatch_get_main_queue(), ^{
                 SZFriendsPeerLink *member = weakLink, *group = weakHead;
-                if (member == nil || group == nil || sent == 0) return;
+                if (member == nil || group == nil) return;
                 if (interface) objc_setAssociatedObject(member, SZFLaneHealthInterfaceKey, interface, OBJC_ASSOCIATION_RETAIN);
+                // Each reading counts since the last one; readings add up until enough was sent for a share.
                 NSArray<NSNumber *> *last = objc_getAssociatedObject(member, SZFLaneHealthCountersKey);
-                if (last == nil || last[0].unsignedLongLongValue > sent) {
-                    objc_setAssociatedObject(member, SZFLaneHealthCountersKey, @[ @(sent), @(again) ],
+                uint64_t total = last[0].unsignedLongLongValue + sent;
+                uint64_t retransmitted = last[1].unsignedLongLongValue + again;
+                if (total < SZFLaneHealthMinSent) {
+                    objc_setAssociatedObject(member, SZFLaneHealthCountersKey, @[ @(total), @(retransmitted) ],
                                              OBJC_ASSOCIATION_RETAIN);
                     return;
                 }
-                uint64_t delta = sent - last[0].unsignedLongLongValue;
-                if (delta < SZFLaneHealthMinSent) return;
-                uint64_t retransmitted = again > last[1].unsignedLongLongValue ? again - last[1].unsignedLongLongValue : 0;
-                objc_setAssociatedObject(member, SZFLaneHealthCountersKey, @[ @(sent), @(again) ], OBJC_ASSOCIATION_RETAIN);
-                [group.blocks lane:[weakSelf laneIDOfMember:member] retransmitted:(double)retransmitted / (double)delta];
+                objc_setAssociatedObject(member, SZFLaneHealthCountersKey, nil, OBJC_ASSOCIATION_RETAIN);
+                double share = (double)retransmitted / (double)total;
+                [group.blocks lane:[weakSelf laneIDOfMember:member] retransmitted:share];
             });
         }];
     }
 }
 
-- (void)openLaneOfLink:(SZFriendsPeerLink *)head route:(SZFriendsRouteMethod)route beside:(SZFriendsLaneID)lane {
+- (BOOL)openLaneOfLink:(SZFriendsPeerLink *)head route:(SZFriendsRouteMethod)route beside:(SZFriendsLaneID)lane {
     SZFriendsPeerLink *degraded = nil;
     for (SZFriendsPeerLink *member in [@[ head ] arrayByAddingObjectsFromArray:head.lanes.allObjects]) {
         if ([self laneIDOfMember:member] == lane) degraded = member;
     }
     id interface = degraded ? objc_getAssociatedObject(degraded, SZFLaneHealthInterfaceKey) : nil;
-    if (interface != nil && degraded.endpointID != nil) {
-        for (id<SZFriendsDiscoveryAdapter> adapter in self.adapters) {
-            SZFriendsNetworkAdapterAvoidInterface(adapter, degraded.endpointID, interface);
-        }
+    NSString *endpointID = interface != nil ? degraded.endpointID : nil;
+    for (id<SZFriendsDiscoveryAdapter> adapter in endpointID ? self.adapters : @[]) {
+        SZFriendsNetworkAdapterAvoidInterface(adapter, endpointID, interface);
+    }
+    BOOL dialed = [self openLaneOfLink:head route:route];
+    // The adapter takes the interface on the dial that follows at once; with none, it must not wait for a later one.
+    for (id<SZFriendsDiscoveryAdapter> adapter in endpointID && !dialed ? self.adapters : @[]) {
+        SZFriendsNetworkAdapterAvoidInterface(adapter, endpointID, nil);
+    }
+    if (endpointID && dialed) {
         SZFriendsHelperLog(@"lane %llu of %@ degraded: one more LAN lane, avoiding its interface",
                            (unsigned long long)lane, [self traceWhoOfLink:head]);
     }
-    [self openLaneOfLink:head route:route];
+    return dialed;
 }
 
 @end

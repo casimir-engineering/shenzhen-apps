@@ -447,9 +447,11 @@ static NSString *AdmissionKey(nw_connection_t connection) {
         return;
     }
     nw_parameters_t parameters = [self parametersForRoute:route interface:interface];
-    nw_interface_t avoid = nil; // a lane beside a degraded one avoids its interface (ADR 0018 § 7.2)
+    NSArray *avoid = nil; // a lane beside a degraded one avoids its interface (ADR 0018 § 7.2)
     @synchronized(self) { avoid = peerToPeer ? nil : _avoidNext[endpointID], [_avoidNext removeObjectForKey:endpointID]; }
-    if (avoid && !_options.loopbackOnly) nw_parameters_prohibit_interface(parameters, avoid);
+    if (avoid && [avoid[1] timeIntervalSinceNow] > 0 && !_options.loopbackOnly) {
+        nw_parameters_prohibit_interface(parameters, avoid[0]);
+    }
     nw_connection_t connection = nw_connection_create(endpoint, parameters);
     SZFriendsNetworkStream *stream = [[SZFriendsNetworkStream alloc] initWithConnection:connection
                                                                         connectionQueue:_queue];

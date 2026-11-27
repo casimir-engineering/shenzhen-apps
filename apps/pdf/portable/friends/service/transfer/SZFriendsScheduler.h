@@ -94,9 +94,11 @@ extern const double SZFriendsBluetoothHelpsBelow;  // 4 MB/s
 @end
 
 // ADR 0018 § 7.2 (SZFriendsScheduler+Health.m): the share of `lane`'s bytes its connection retransmitted lately, as
-// the socket says; the trials judged since the last call; the group's acknowledged rate over `span`.
+// the socket says; a lane asked for on `route` that the helper could not open (a trial waiting for it ends); the
+// trials judged since the last call; the group's acknowledged rate over `span`.
 @interface SZFriendsScheduler (Health)
 - (void)retransmits:(SZFriendsLaneID)lane share:(double)share now:(double)now;
+- (void)laneRefused:(SZFriendsRouteMethod)route;
 - (NSArray<SZFriendsLaneVerdict *> *)takeVerdicts;
 - (double)groupRateOver:(double)span now:(double)now;
 @end

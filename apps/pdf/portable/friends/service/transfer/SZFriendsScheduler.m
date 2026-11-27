@@ -156,7 +156,7 @@ static double SZFWindowBest(NSMutableData *samples, double value, double now, BO
         lane->rtts = [NSMutableData data];
         lane->deliveredAt = lane->progressAt = lane->heardAt = now;
         lane->holds = [NSMutableDictionary dictionary];
-        lane->lowSince = lane->lossySince = -1;
+        lane->lowSince = lane->lossySince = lane->unofferedSince = -1;
         // The first session is wherever the route racer put it; only a lane can be refused.
         lane->unused = event.route == SZFriendsRouteMethodPeerToPeerWiFi && !_directWiFi && !_boostDirectWiFi &&
                        event.index != 0;
