@@ -30,7 +30,7 @@ impl State {
     /// A PART that came on `lane` of `id`'s group (`id` itself without lanes): its HAVE goes back on that lane, so it
     /// follows the parts and the sender measures that lane's round trip (§ 3, § 7).
     pub(crate) fn part_on(&mut self, id: u64, lane: u64, frame: &Frame) {
-        if self.again_block_frame(id, frame) {
+        if self.again_block_frame_on(id, lane, frame) {
             return;
         }
         let (Some(transfer), Some(conversation)) = (Self::block_wire(frame), self.conversation_of(id)) else { return };

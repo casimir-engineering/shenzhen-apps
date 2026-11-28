@@ -146,6 +146,45 @@ impl State {
     /// HASHES, PART or HAVE of a copy by blocks Get again runs on this session (ADR 0018 § 4): `true` when it was
     /// one, whichever side this computer is.
     pub(crate) fn again_block_frame(&mut self, id: u64, frame: &Frame) -> bool {
+        self.again_block_frame_on(id, id, frame)
+    }
+
+    /// As [`State::again_block_frame`], for a frame that came on `lane` of `id`'s group.
+    pub(crate) fn again_block_frame_on(&mut self, id: u64, lane: u64, frame: &Frame) -> bool {
+        let handled = self.copy_or_pull_frame(id, frame);
+        if handled && frame.frame_type == FrameType::Part {
+            self.acknowledge_pieces_of_part(lane, frame);
+        }
+        handled
+    }
+
+    /// On Bluetooth the pieces a copy's or a pull's PART completes go back at once in a HAVE's Pieces (ADR 0018 § 3),
+    /// as a friend's transfer's do and as the Mac's helper sends them: the side serving it paces its radio by them
+    /// (`radio_pace.rs`). Whole blocks still come in the Ranges of the HAVEs the copy sends; the serving side needs
+    /// nothing else from these. A block's parts come in order on one session, so a piece is whole when a part reaches
+    /// its end.
+    fn acknowledge_pieces_of_part(&mut self, lane: u64, frame: &Frame) {
+        let Some(s) = self.sessions.map.get(&lane) else { return };
+        if !s.channel.pieces() || s.meta.race_route(&s.channel) != szfriends_core::wire::RouteMethod::Bluetooth {
+            return;
+        }
+        let (Some(wire), Some(offset), Some(data)) =
+            (frame.get(tag::ID), frame.integer(tag::OFFSET), frame.get(tag::DATA))
+        else {
+            return;
+        };
+        let piece = 1u64 << szfriends_core::wire::consts::PIECE_SHIFT;
+        let (first, whole) = (offset / piece, (offset + data.len() as u64) / piece);
+        if wire.len() != 16 || whole <= first {
+            return;
+        }
+        let pieces = [(first as u32, (whole - first) as u32)];
+        for have in szfriends_core::transfer::frames::have_with_pieces(wire, &[], &[], &pieces) {
+            self.send_on(lane, &have);
+        }
+    }
+
+    fn copy_or_pull_frame(&mut self, id: u64, frame: &Frame) -> bool {
         if matches!(frame.frame_type, FrameType::Hashes | FrameType::Part) && self.pull_frame(id, frame) {
             return true; // a pull from several holders (pulls.rs)
         }

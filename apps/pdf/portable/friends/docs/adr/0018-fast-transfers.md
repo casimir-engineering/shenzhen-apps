@@ -405,8 +405,8 @@ Each with its cost and benefit; the journal keeps the full list, including those
    longer waits on the disk (§ 3), which matters more as radios get faster. Amended 2026-11-29 for the Rust helper: an
    Android phone's stack takes 170 to 236 KB/s into an L2CAP channel while its radio carries 43 to 98, so its messages
    waited seconds behind file data; its Bluetooth links are now paced to the radio by the receiver's piece HAVEs
-   (`service/radio_pace.rs`), with 4 KiB parts and an 8 KiB write budget, and the Mac acknowledges pieces of copies and
-   pulls over Bluetooth as it does a transfer's. CoreBluetooth holds back on its own, so the Mac keeps 16 KiB. The pace
+   (`service/radio_pace.rs`), with 4 KiB parts and an 8 KiB write budget, and the Mac and the Rust helper acknowledge
+   pieces of copies and pulls over Bluetooth as they do a transfer's (to a peer that sets Pieces, bit 3). CoreBluetooth holds back on its own, so the Mac keeps 16 KiB. The pace
    holds only writes that carry PARTs (only those are acknowledged); a radio that stalls keeps its last rate and the
    stack takes no more than a quarter second of it and two pieces, and a delivery that falls while the stack still
    holds data is a slower radio, not an empty stack (simulated: an 8 s stall leaves 48 KB queued instead of 1.1 MB, and
