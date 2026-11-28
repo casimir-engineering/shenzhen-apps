@@ -5,7 +5,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
 
-use szfriends_crypto::noise::{Handshake, Transport};
+use szfriends_crypto::noise::{Handshake, SealJob, Transport};
 use szfriends_wire::consts::{RESPONDER_HANDSHAKE_MAX, SESSION_MAJOR};
 use szfriends_wire::{Fields, NoiseCipher, Pattern, RouteMethod};
 
@@ -82,6 +82,45 @@ pub struct Transmit {
     pub counted: bool,
 }
 
+/// One write for the link as [`SecureChannel::poll_write`] hands it out: bytes as they go, or transport messages whose
+/// nonces and order are fixed and whose sealing is left to the link's writer (on its own thread, so the session's
+/// thread only decides what goes next). Either way the bytes on the wire are exactly what
+/// [`SecureChannel::poll_transmit`] would have given.
+#[derive(Debug)]
+pub enum LinkWrite {
+    Bytes(Vec<u8>),
+    Seal(SealJob),
+}
+
+impl LinkWrite {
+    /// The bytes it puts on the link.
+    pub fn len(&self) -> usize {
+        match self {
+            LinkWrite::Bytes(bytes) => bytes.len(),
+            LinkWrite::Seal(job) => job.framed_len(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Its bytes appended to `out`, sealed here if they are a job.
+    pub fn append_to(&self, out: &mut Vec<u8>) {
+        match self {
+            LinkWrite::Bytes(bytes) => out.extend_from_slice(bytes),
+            LinkWrite::Seal(job) => job.seal_framed_into(out),
+        }
+    }
+
+    pub fn into_bytes(self) -> Vec<u8> {
+        match self {
+            LinkWrite::Bytes(bytes) => bytes,
+            LinkWrite::Seal(job) => job.seal_framed(),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum State {
     Idle,
@@ -115,7 +154,8 @@ pub struct SecureChannel {
     pub(super) inbound: Vec<u8>,
     pub(super) control_queue: VecDeque<Vec<u8>>,
     pub(super) bulk_queue: VecDeque<Vec<u8>>,
-    pub(super) transmit: VecDeque<Transmit>,
+    /// Writes in order, each counted against the in-flight budget or not.
+    pub(super) transmit: VecDeque<(LinkWrite, bool)>,
     pub(super) outstanding: VecDeque<(usize, bool)>,
     pub(super) in_flight: usize,
     pub(super) close_written: bool,
@@ -273,11 +313,20 @@ impl SecureChannel {
         self.events.pop_front()
     }
 
-    /// The next write for the link, in order.
+    /// The next write for the link, in order, sealed now.
     pub fn poll_transmit(&mut self) -> Option<Transmit> {
-        let item = self.transmit.pop_front()?;
-        self.outstanding.push_back((item.bytes.len(), item.counted));
-        Some(item)
+        let (write, counted) = self.transmit.pop_front()?;
+        self.outstanding.push_back((write.len(), counted));
+        Some(Transmit { bytes: write.into_bytes(), counted })
+    }
+
+    /// The next write for the link, in order, its transport messages perhaps still to seal: a driver whose writer runs
+    /// on a thread of its own seals them there ([`LinkWrite::append_to`]). Each counts as one write for
+    /// [`SecureChannel::write_completed`], as from [`SecureChannel::poll_transmit`].
+    pub fn poll_write(&mut self) -> Option<LinkWrite> {
+        let (write, counted) = self.transmit.pop_front()?;
+        self.outstanding.push_back((write.len(), counted));
+        Some(write)
     }
 
     /// The oldest write handed out is on the link: its bytes leave the in-flight budget and more may follow.

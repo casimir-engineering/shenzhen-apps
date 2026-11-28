@@ -24,7 +24,9 @@ use zeroize::{Zeroize, Zeroizing};
 use szfriends_wire::consts::NOISE_MESSAGE_MAX;
 use szfriends_wire::{NoiseCipher, Pattern};
 
+mod seal;
 mod transport;
+pub use seal::SealJob;
 pub use transport::{Transport, AES_SESSION_LABEL};
 
 pub const DH_LEN: usize = 32;

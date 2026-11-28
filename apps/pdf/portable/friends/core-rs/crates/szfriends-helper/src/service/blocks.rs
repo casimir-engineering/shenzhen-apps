@@ -12,7 +12,7 @@ use szfriends_core::session::lanes::LaneRequest;
 use szfriends_core::store::{BlockPart, StoreError, TransferRecord};
 use szfriends_core::transfer::scheduler::Action;
 use szfriends_core::transfer::slices::SliceSend;
-use szfriends_core::transfer::{compress, frames, BlockServe, ServeError};
+use szfriends_core::transfer::{compress, frames, BlockServe, ReadAhead, ServeError};
 use szfriends_core::wire::{tag, CloseReason, Frame, FrameType, RouteMethod};
 
 use super::{hex, unhex, State};
@@ -25,9 +25,9 @@ const BULK_DEPTH: usize = 4;
 const BULK_SMALL_FRAMES: usize = 64;
 
 /// On a LAN or direct Wi-Fi link: parts queued ahead of the link. Four held a phone's sending near 20 MB/s, since the
-/// service loop refills the queue once per pass; sixteen (about 1 MB, 25 ms at 40 MB/s) keep the link busy between
-/// passes while a message still overtakes them quickly.
-const BULK_DEPTH_FAST: usize = 16;
+/// service loop refills the queue once per pass; thirty-two (about 2 MB) are more than the link's 1 MiB in flight
+/// (`sessions.rs`), so one pass leaves both full. A message never waits behind them: it goes ahead of the queue.
+const BULK_DEPTH_FAST: usize = 32;
 
 /// Room for another part: fewer than four frames queued (sixteen on a LAN or direct Wi-Fi link), or more but all of
 /// them small.
@@ -45,7 +45,6 @@ const WINDOW_BYTES: u64 = 64 << 20;
 #[derive(Debug)]
 pub struct BlockSend {
     pub serve: BlockServe,
-    pub record: TransferRecord,
     /// Each lane's parts not yet handed to its channel: (block, part, the block's last part).
     pub lanes: HashMap<u64, VecDeque<(u32, Frame, bool)>>,
     /// The receiver has the leaves (a HAVE came back): parts may go on lanes, which could overtake HASHES on the
@@ -57,6 +56,8 @@ pub struct BlockSend {
     /// Pieces acknowledged, and the checked blocks slices are cut from (ADR 0018 § 3; the scheduler's units are
     /// slices).
     pub slices: SliceSend,
+    /// The blocks the scheduler places next, read and checked on a thread of their own (`blocks_parts.rs`).
+    pub reader: ReadAhead,
 }
 
 /// A receiver reports the pieces that arrived at least every 256 KiB of parts (after every part on Bluetooth).
@@ -186,7 +187,8 @@ impl State {
         }
         let session = self.sessions.map.get_mut(&id)?;
         session.expecting.insert(hex(&wire), format!("done:{offer}"));
-        let send = BlockSend { serve, record, lanes: HashMap::new(), lanes_ok: false, leaves_lane, slices: slice_send };
+        let reader = ReadAhead::new(record.staged_path.clone(), geometry);
+        let send = BlockSend { serve, lanes: HashMap::new(), lanes_ok: false, leaves_lane, slices: slice_send, reader };
         session.block_senders.insert(offer.to_owned(), send);
         Some(true)
     }
@@ -432,6 +434,7 @@ impl State {
         for &lane in &lanes {
             self.flush_writes(lane);
         }
+        self.read_ahead(head);
     }
 
     /// The scheduler gave `slice` of `transfer` to `lane`: its block read and checked against its leaf (once, kept for
@@ -455,9 +458,10 @@ impl State {
         let geometry = *send.serve.geometry();
         let block = send.slices.block_of_unit(&geometry, slice);
         if send.slices.cached(block).is_none() {
-            let checked = match self.store.read_outgoing_block(&send.record, &geometry, block) {
-                Ok(data) => send.serve.check_block(block, &data).map(|()| data),
-                Err(_) => Err(ServeError::Changed),
+            // Read and checked ahead on the reader's thread, as a rule; here when it was not asked for.
+            let checked = match send.serve.leaf(block) {
+                Some(leaf) => send.reader.take(block, &leaf),
+                None => Err(ServeError::Changed),
             };
             let Ok(data) = checked else {
                 if let Some(s) = self.sessions.map.get_mut(&head) {

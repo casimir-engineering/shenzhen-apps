@@ -11,6 +11,7 @@ use szfriends_core::store::sync_log::YOU;
 use szfriends_core::store::{sync_files, unix_now, Relation};
 use szfriends_core::sync::holds_transfer;
 use szfriends_core::sync::{again_state, set_again_state, AgainFile, AgainMessage, AgainRequester, AgainServer};
+use szfriends_core::transfer::ServeError;
 use szfriends_core::wire::{tag, Frame, FrameType, Pattern};
 
 use super::State;
@@ -236,7 +237,7 @@ impl State {
                     );
                     serving.logged = (std::time::Instant::now(), serving.sent_bytes);
                 }
-                let Serving { serve, path, sync, .. } = serving;
+                let Serving { serve, sync, reader, .. } = serving;
                 let sync = *sync;
                 if let Some(part) = serve.next_part() {
                     super::meter::count(&self.meter, &part, session.meta.race_route(&session.channel));
@@ -248,11 +249,13 @@ impl State {
                     continue;
                 }
                 let Some(block) = serve.next_block() else { break };
-                let (offset, length) = serve.geometry().span(block);
-                let mut data = vec![0u8; length];
-                let read = std::fs::File::open(&*path)
-                    .and_then(|f| szfriends_core::transfer::tree::read_exact_at(&f, &mut data, offset));
-                if read.is_err() || serve.load_block(block, data).is_err() {
+                // Read and checked ahead on the reader's thread, as a rule; the blocks asked after it go there next.
+                let read = serve.leaf(block).ok_or(ServeError::Changed).and_then(|leaf| reader.take(block, &leaf));
+                let loaded = read.and_then(|data| serve.load_checked(block, data));
+                let ahead: Vec<_> =
+                    serve.upcoming(reader.depth()).into_iter().filter_map(|b| Some((b, serve.leaf(b)?))).collect();
+                reader.ahead(&ahead);
+                if loaded.is_err() {
                     // Changed or gone since it was checked: the other side hears it is gone (and the You row stops
                     // saying it is being copied).
                     self.again.serving.remove(&key);

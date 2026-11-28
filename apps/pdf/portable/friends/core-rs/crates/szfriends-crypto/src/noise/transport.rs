@@ -2,6 +2,8 @@
 //! nonces counted here so batches can be sealed and opened on several cores, REKEY, and a session's switch to
 //! AES-256-GCM from its second message in each direction (ADR 0018 § 9.2 (c)).
 
+use std::sync::Arc;
+
 use snow::params::CipherChoice;
 use snow::resolvers::{CryptoResolver, DefaultResolver};
 use snow::types::Cipher;
@@ -10,6 +12,7 @@ use zeroize::Zeroizing;
 use szfriends_wire::consts::{FRAME_PLAINTEXT_MAX, NOISE_MESSAGE_MAX, NOISE_TAG_LEN};
 use szfriends_wire::NoiseCipher;
 
+use super::seal::SealJob;
 use super::{map_error, NoiseError};
 
 /// `"SZFriends AES session v1"`: what the AES-256-GCM key of a session's later messages is derived with (ADR 0018
@@ -25,12 +28,21 @@ fn resolve_cipher(choice: NoiseCipher) -> Result<Box<dyn Cipher>, NoiseError> {
 }
 
 /// A key and the cipher set to it.
-type KeyedCipher = (Zeroizing<[u8; 32]>, Box<dyn Cipher>);
+type KeyedCipher = (Zeroizing<[u8; 32]>, Arc<dyn Cipher>);
+
+/// A cipher set to `key`, shared with the seal jobs reserved under it ([`Transport::reserve`]): REKEY makes a new one
+/// rather than changing it under a job still to be sealed.
+fn keyed(choice: NoiseCipher, key: &[u8; 32]) -> Result<Arc<dyn Cipher>, NoiseError> {
+    let mut cipher = resolve_cipher(choice)?;
+    cipher.set(key);
+    Ok(Arc::from(cipher))
+}
 
 /// One direction's CipherState: its key, kept for REKEY and for the switch to AES-256-GCM, and the cipher set to it.
 struct Direction {
     key: Zeroizing<[u8; 32]>,
-    cipher: Box<dyn Cipher>,
+    choice: NoiseCipher,
+    cipher: Arc<dyn Cipher>,
     /// Armed by [`Transport::aes_from_second_message`] and not yet switched: messages from nonce 1 on go under
     /// AES-256-GCM with the key derived from `key` as it is when message 1 is first sealed or opened.
     aes_from_second: bool,
@@ -40,9 +52,8 @@ struct Direction {
 
 impl Direction {
     fn new(choice: NoiseCipher, key: Zeroizing<[u8; 32]>) -> Result<Self, NoiseError> {
-        let mut cipher = resolve_cipher(choice)?;
-        cipher.set(&key);
-        Ok(Self { key, cipher, aes_from_second: false, next: None })
+        let cipher = keyed(choice, &key)?;
+        Ok(Self { key, choice, cipher, aes_from_second: false, next: None })
     }
 
     fn cipher_for(&self, nonce: u64) -> &dyn Cipher {
@@ -62,8 +73,7 @@ impl Direction {
             .map_err(|_| NoiseError::Argument)?;
         mac.update(AES_SESSION_LABEL);
         let key = Zeroizing::new(<[u8; 32]>::from(mac.finalize().into_bytes()));
-        let mut aes = resolve_cipher(NoiseCipher::AesGcm)?;
-        aes.set(&key);
+        let aes = keyed(NoiseCipher::AesGcm, &key)?;
         self.next = Some((key, aes));
         Ok(())
     }
@@ -74,6 +84,7 @@ impl Direction {
             if let Some((key, cipher)) = self.next.take() {
                 self.key = key;
                 self.cipher = cipher;
+                self.choice = NoiseCipher::AesGcm;
                 self.aes_from_second = false;
             }
         }
@@ -86,7 +97,7 @@ impl Direction {
         let mut out = Zeroizing::new([0u8; 32 + NOISE_TAG_LEN]);
         self.cipher.encrypt(u64::MAX, &[], &[0u8; 32], &mut out[..]);
         self.key.copy_from_slice(&out[..32]);
-        self.cipher.set(&self.key);
+        self.cipher = keyed(self.choice, &self.key).expect("the cipher this direction already uses");
     }
 }
 
@@ -110,9 +121,9 @@ impl std::fmt::Debug for Transport {
 }
 
 /// A batch goes to other cores only when it is worth a thread: at least two messages and this many bytes.
-const PARALLEL_MIN_BYTES: usize = 96 * 1024;
+pub(super) const PARALLEL_MIN_BYTES: usize = 96 * 1024;
 /// Threads for one batch at most, the caller's included.
-const PARALLEL_THREADS: usize = 4;
+pub(super) const PARALLEL_THREADS: usize = 4;
 
 /// Runs `work` over `items` in order, on up to [`PARALLEL_THREADS`] threads when the batch is large enough.
 fn map_batch<T: Sync, R: Send>(items: &[T], bytes: usize, work: impl Fn(usize, &T) -> R + Sync) -> Vec<R> {
@@ -211,6 +222,28 @@ impl Transport {
         self.sending += sealed.len() as u64;
         self.send.commit(self.sending);
         Ok(sealed)
+    }
+
+    /// Several frames' nonces counted now, in order, exactly as [`Transport::encrypt_many`] would use them, and the
+    /// sealing left to whoever writes them ([`SealJob::seal_framed`], on the link's own thread): the caller decides the
+    /// order of every message (and of REKEY) here, the cores sealing them can be elsewhere. All or nothing: on an error
+    /// no nonce is used. `parallel`: a large job is sealed on several cores.
+    pub fn reserve(&mut self, plaintexts: Vec<Vec<u8>>, parallel: bool) -> Result<SealJob, NoiseError> {
+        if plaintexts.iter().any(|p| p.len() > FRAME_PLAINTEXT_MAX) {
+            return Err(NoiseError::Size);
+        }
+        let first = self.sending;
+        let count = plaintexts.len() as u64;
+        // The last nonce is reserved: a job that would reach it fails whole, as encrypt_many does.
+        if count > 0 && first.checked_add(count).is_none() {
+            return Err(NoiseError::Nonce);
+        }
+        self.send.prepare(first + count.saturating_sub(1))?;
+        let from_second = self.send.next.as_ref().map(|(_, aes)| aes.clone());
+        let job = SealJob::new(first, plaintexts, self.send.cipher.clone(), from_second, parallel);
+        self.sending += count;
+        self.send.commit(self.sending);
+        Ok(job)
     }
 
     /// Any failure closes the session: there is no resynchronisation.

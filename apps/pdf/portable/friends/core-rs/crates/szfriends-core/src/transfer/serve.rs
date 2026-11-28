@@ -58,6 +58,11 @@ impl BlockServe {
         }
     }
 
+    /// Block `block`'s leaf, what a read of it must match.
+    pub fn leaf(&self, block: u32) -> Option<Leaf> {
+        self.leaves.get(block as usize).copied()
+    }
+
     pub fn geometry(&self) -> &Geometry {
         &self.geometry
     }
@@ -162,6 +167,19 @@ impl BlockServe {
     /// The block `next_block` named, as read from the snapshot.
     pub fn load_block(&mut self, block: u32, data: Vec<u8>) -> Result<(), ServeError> {
         if data.len() != self.geometry.span(block).1 || tree::leaf(block, &data) != self.leaves[block as usize] {
+            return Err(ServeError::Changed);
+        }
+        self.load_checked(block, data)
+    }
+
+    /// The blocks `next_block` will name after the current one, lowest first, at most `count`: what to read ahead.
+    pub fn upcoming(&self, count: usize) -> Vec<u32> {
+        self.queue.iter().take(count).copied().collect()
+    }
+
+    /// As [`BlockServe::load_block`], for data already checked against [`BlockServe::leaf`] (read ahead, `ReadAhead`).
+    pub fn load_checked(&mut self, block: u32, data: Vec<u8>) -> Result<(), ServeError> {
+        if data.len() != self.geometry.span(block).1 {
             return Err(ServeError::Changed);
         }
         self.queue.remove(&block);

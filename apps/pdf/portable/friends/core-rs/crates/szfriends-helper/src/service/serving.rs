@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use szfriends_core::transfer::BlockServe;
+use szfriends_core::transfer::{BlockServe, ReadAhead};
 
 use super::State;
 
@@ -21,7 +21,6 @@ const QUIET_AFTER: Duration = Duration::from_secs(30);
 #[derive(Debug)]
 pub struct Serving {
     pub serve: BlockServe,
-    pub path: PathBuf,
     pub sync: bool,
     /// The tree's root, for BLOCKS FOLLOW sent again.
     pub root: [u8; 32],
@@ -33,12 +32,15 @@ pub struct Serving {
     pub(crate) started: Instant,
     pub(crate) sent_bytes: u64,
     pub(crate) logged: (Instant, u64),
+    /// The blocks asked next, read and checked on a thread of their own (`again.rs`'s `pump_again`).
+    pub(crate) reader: ReadAhead,
 }
 
 impl Serving {
     pub fn new(serve: BlockServe, path: PathBuf, sync: bool, root: [u8; 32]) -> Self {
         let now = Instant::now();
-        Self { serve, path, sync, root, heard_at: now, shown: sync, started: now, sent_bytes: 0, logged: (now, 0) }
+        let reader = ReadAhead::new(Some(path), *serve.geometry());
+        Self { serve, sync, root, heard_at: now, shown: sync, started: now, sent_bytes: 0, logged: (now, 0), reader }
     }
 
     /// The other side asked for blocks or acknowledged some.

@@ -11,7 +11,7 @@ use szfriends_wire::stream::Preamble;
 use szfriends_wire::{HandshakePayload, NoiseCipher, Pattern, RouteMethod};
 use zeroize::Zeroizing;
 
-use super::channel::{Role, SecureChannel, State, Transmit};
+use super::channel::{LinkWrite, Role, SecureChannel, State};
 use super::SessionError;
 
 /// What the full path of IK message 1 costs a responder: two X25519 operations and one certificate check.
@@ -92,7 +92,7 @@ impl SecureChannel {
         if !self.is_initiator() {
             self.responder_replied = true; // from here a refusal no longer hides behind the refusal deadline
         }
-        self.transmit.push_back(Transmit { bytes, counted: false });
+        self.transmit.push_back((LinkWrite::Bytes(bytes), false));
     }
 
     fn finish_handshake(&mut self, now: Duration) {

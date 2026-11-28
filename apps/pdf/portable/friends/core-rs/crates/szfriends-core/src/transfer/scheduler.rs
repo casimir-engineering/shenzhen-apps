@@ -165,6 +165,14 @@ impl Transfer {
     fn bytes(&self, block: u32) -> u64 {
         self.geometry.span(block).1 as u64
     }
+
+    /// The unassigned blocks' bytes without visiting each: every block but the last is whole.
+    fn unassigned_bytes(&self) -> u64 {
+        let last = self.geometry.blocks.saturating_sub(1);
+        let (tail, tail_count) =
+            self.unassigned.range(last..).fold((0, 0), |(bytes, count), &b| (bytes + self.bytes(b), count + 1));
+        (self.unassigned.len() as u64 - tail_count) * self.geometry.block_bytes() + tail
+    }
 }
 
 #[derive(Debug)]
@@ -353,6 +361,12 @@ impl Scheduler {
                 }
             }
         }
+    }
+
+    /// The units it would place next, lowest first, at most `count`: what a sender reads ahead of the lanes.
+    pub fn upcoming(&self, key: TransferKey, count: usize) -> Vec<u32> {
+        let Some(t) = self.transfers.iter().find(|t| t.key == key) else { return Vec::new() };
+        t.unassigned.iter().take(count).copied().collect()
     }
 
     /// The receiver's WANT: these blocks are missing. A block already open is wanted again because it failed its
