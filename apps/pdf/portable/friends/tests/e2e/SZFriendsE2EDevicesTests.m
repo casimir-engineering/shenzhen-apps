@@ -39,7 +39,7 @@ int main(int argc, const char *argv[]) {
             {"devices: a removal reaches a sibling and a friend, and the removed computer stops",
              SZFE2EDevicesScenarioRevoke},
             {"devices: deleting one chat, then all history, reaches every computer", SZFE2EDevicesScenarioErase},
-            {"devices: You carries a file everywhere; a large file waits on its computer until Get",
+            {"devices: You lists a file everywhere; files wait on their computer until Download here",
              SZFE2EDevicesScenarioYou},
             {"devices: a friend reaches one computer; a queued message leaves once, from either",
              SZFE2EDevicesScenarioFriendReachesOne},

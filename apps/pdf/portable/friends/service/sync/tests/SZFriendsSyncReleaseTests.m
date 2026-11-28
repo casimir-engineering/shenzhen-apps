@@ -43,8 +43,11 @@ static void TestDeletedCopyIsReleasedAndGetBringsItBack(void) {
     SZFriendsTransferRecord *file = SZFSStageFile(a, @"mei", @"f1", 20000);
     [a.engine captureLocalChanges];
     Session(a, b);
+    SZFSExpect([b.store transferRecordWithID:file.transferID] == nil, @"listed on b, not copied by itself");
+    SZFSExpect([b.engine requestFile:file.transferID error:NULL], @"Download here");
+    Session(a, b);
     SZFriendsTransferRecord *copy = [b.store transferRecordWithID:file.transferID];
-    SZFSExpect(copy.receivedPath != nil && [b.engine localPathOfFile:file.transferID] != nil, @"a small file copies");
+    SZFSExpect(copy.receivedPath != nil && [b.engine localPathOfFile:file.transferID] != nil, @"copied once asked");
     Session(a, b);
     SZFSExpect(Holds(a, file.transferID, b) && Holds(b, file.transferID, b), @"b holds it, as a knows");
 
@@ -76,7 +79,7 @@ static void TestSenderHoldsWhileTheFileIsUnchanged(void) {
     NSArray<SZFSDevice *> *devices = SZFSDevices(@"source", 2);
     SZFSDevice *a = devices[0], *b = devices[1];
     SZFSAddFriend(a, 0x90, @"mei");
-    SZFriendsTransferRecord *file = SZFSStageFile(a, @"mei", @"big", SZFriendsSyncAutoCopyMax + 1);
+    SZFriendsTransferRecord *file = SZFSStageFile(a, @"mei", @"big", 25000001);
     SZFSExpect(file.sourcePath != nil && file.sourceModifiedNs != 0, @"where it was sent from is kept");
     // Delivered: the snapshot goes, and the file it was sent from still holds the same bytes.
     [NSFileManager.defaultManager removeItemAtPath:file.stagedPath error:NULL];

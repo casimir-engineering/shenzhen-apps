@@ -47,7 +47,7 @@ the lead accepts them.
 - [0014 Sync between one person's devices](0014-sync.md) (Proposed): every change an event signed by its device,
   captured by comparing the store with what was last recorded; merges by set, maximum, last writer and tombstones
   that win; anti-entropy over SYNC frames between our own devices found by tags only they match; friends reach any of
-  our devices; files copy up to 25 MB by themselves. Interfaces: `friends/service/sync/SZFriendsSync.h`,
+  our devices; files copy up to 25 MB by themselves (superseded by 0023: none does). Interfaces: `friends/service/sync/SZFriendsSync.h`,
   `friends/service/store/SZFriendsStoreSync.h`.
 - [0015 The portable core](0015-portable-core.md) (Proposed): Friends on Windows, Linux, Android and iOS as a Rust
   core implementing the same wire formats and the same view contract, a helper process on desktops and in-process on
@@ -135,3 +135,7 @@ and 0007 (search no longer holds mentions' IDs and keys).
   each side says so in its handshake (capability bit 6) and in BOOST's Abilities (bit 4), and older helpers never get
   direct Wi-Fi; a Mac wakes AWDL exactly while off Wi-Fi, never beside a LAN for speed (both 25 MB/s triggers gone);
   no device leaves its network silently.
+- [0023 Download here](0023-download-here.md) (Accepted, the owner's rule): no file copies to another of the person's
+  computers by itself, in You or from a friend, whatever its size; each lists it and copies it when the person presses
+  Download here there (`fetch_from_device`, formerly Get). No wire change: copies are the receiver's requests, so a
+  released helper keeps pulling by itself and an updated one serves it.

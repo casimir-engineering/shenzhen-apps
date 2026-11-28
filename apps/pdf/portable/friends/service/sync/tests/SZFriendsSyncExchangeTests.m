@@ -131,6 +131,10 @@ static void TestFileCopies(void) {
     SZFriendsTransferRecord *staged = SZFSStageFile(a, @"mei", @"f1", 300 * 1024 + 17);
     [a.engine captureLocalChanges];
     SZFSPipe *pipe = SZFSConnect(a, b);
+    SZFSExpect([b.store transferRecordWithID:staged.transferID] == nil && [b.store syncFileWithID:staged.transferID],
+               @"listed on B, not copied by itself");
+    SZFSExpect([b.engine requestFile:staged.transferID error:NULL], @"Download here");
+    pipe = SZFSConnect(a, b);
     SZFriendsTransferRecord *copy = [b.store transferRecordWithID:staged.transferID];
     NSData *original = SZFSFileBytes(staged.stagedPath);
     SZFSExpect(copy.receivedPath != nil && [SZFSFileBytes(copy.receivedPath) isEqualToData:original],
@@ -152,6 +156,7 @@ static void TestCopyResumes(void) {
     SZFriendsTransferRecord *file = SZFSStageFile(c, @"mei", @"f1", 1024 * 1024 + 5);
     [c.engine captureLocalChanges];
     SZFSDeliver(c, d);
+    [d.engine requestFile:file.transferID error:NULL];
     SZFSPipe *cut = [[SZFSPipe alloc] init];
     cut.toA = [NSMutableArray array];
     cut.toB = [NSMutableArray array];
@@ -223,7 +228,7 @@ static void TestCancelGet(void) {
     NSArray<SZFSDevice *> *devices = SZFSDevices(@"cancel", 2);
     SZFSDevice *a = devices[0], *b = devices[1];
     SZFSAddFriend(a, 0x90, @"mei");
-    SZFriendsTransferRecord *large = SZFSStageFile(a, @"mei", @"big", SZFriendsSyncAutoCopyMax + 1);
+    SZFriendsTransferRecord *large = SZFSStageFile(a, @"mei", @"big", 25000001);
     [a.engine captureLocalChanges];
     SZFSDeliver(a, b);
     SZFSExpect([b.engine filesWanted].count == 0, @"a large file waits to be asked for");

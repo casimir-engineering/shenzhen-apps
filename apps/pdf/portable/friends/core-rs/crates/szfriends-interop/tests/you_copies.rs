@@ -1,6 +1,7 @@
 //! The You row on the computer a file is copied from, between whole Rust helpers on the loopback test network, with
-//! copies by blocks: "Copying to your other computers · N%" while the other computer copies it, rising, then "On all
-//! your computers" once it has it; and when the other computer goes away mid-copy, the row stops saying it copies.
+//! copies by blocks: once the other computer presses Download here, "Copying to your other computers · N%" while it
+//! copies it, rising, then "On all your computers" once it has it; and when the other computer goes away mid-copy,
+//! the row stops saying it copies.
 //! (The Mac helper's row stayed at "Copying… 0%" after copies by blocks came, 18e999d8.)
 
 use std::cell::Cell;
@@ -25,6 +26,12 @@ fn send_to_you(first: &mut Client, mib: usize, token: &str) -> String {
     let source = first.make_file(&format!("Drawing {mib}.step"), mib << 20);
     let files = json!({"conversation_id": "you", "files": [{"path": source}], "client_token": token});
     first.send("send_files", files)["transfer_ids"][0].as_str().expect("a transfer").to_owned()
+}
+
+/// Waits on `second`'s You chat until the file is listed there with Download here, and presses it.
+fn download_here(second: &mut Client, chat: &str, transfer: &str) {
+    second.snapshot(chat, "listed with Download here", |d| item(d, transfer).is_some_and(|i| i["state"] == "on_device"));
+    second.send("fetch_from_device", json!({"transfer_id": transfer}));
 }
 
 /// Waits on `first`'s You chat until the row is "Copying to your other computers" with more than `above` of the file
@@ -52,23 +59,26 @@ fn the_you_row_follows_a_copy_by_blocks_and_clears() {
     second.send("activate", json!({}));
     nearby_devices::join(&mut first, &mut second);
     let chat = first.open("you");
+    let there = second.open("you");
 
     // A copy that goes through: the row rises, then says the file is everywhere.
     let transfer = send_to_you(&mut first, 128, "a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0");
+    download_here(&mut second, &there, &transfer);
     let some = copying_past(&mut first, &chat, &transfer, 0.0);
     first.snapshot(&chat, "the copy done", |d| {
         item(d, &transfer).is_some_and(|i| {
             assert!(i["state"] != "sending" || i.pointer("/progress/fraction").and_then(Value::as_f64) >= Some(some));
-            i["state"] == "delivered"
+            i["state"] == "delivered" && i["status_label"] == "On all your computers"
         })
     });
 
     // The other computer goes away half-way: the row no longer says it copies (it copies when that one is back).
     let transfer = send_to_you(&mut first, 256, "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1");
+    download_here(&mut second, &there, &transfer);
     copying_past(&mut first, &chat, &transfer, 0.2);
     drop(second);
     let waiting =
-        first.snapshot(&chat, "the copy stopped", |d| item(d, &transfer).is_some_and(|i| i["state"] == "queued"));
+        first.snapshot(&chat, "the copy stopped", |d| item(d, &transfer).is_some_and(|i| i["state"] != "sending"));
     let row = item(&waiting, &transfer).expect("checked");
-    assert_eq!(row["status_label"], "Copies to your other computers when they connect", "{row}");
+    assert_eq!(row["status_label"], "Ready to download on your other computers", "{row}");
 }

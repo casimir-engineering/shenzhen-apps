@@ -270,22 +270,29 @@ impl SyncEngine {
         })
     }
 
-    /// The items of `conversation` every other authorized device of ours holds (the You row's "On all your
-    /// computers"): an event that carried the item reached each, and for a file, each holds its bytes.
-    pub fn items_on_every_device(&self, store: &Store, conversation: &str) -> BTreeSet<String> {
+    /// The items of `conversation` every other authorized device of ours holds an event that carried, files by their
+    /// records whether or not their bytes are there: a You file every other computer lists, ready to download there.
+    pub fn items_listed_on_every_device(&self, store: &Store, conversation: &str) -> BTreeSet<String> {
         let others = self.other_device_keys(store);
         let Some(held) = others.iter().map(|device| self.vector_held_by(store, device)).collect::<Option<Vec<_>>>()
         else {
             return BTreeSet::new(); // a device that never said what it holds holds nothing we know of
         };
         let origins = sync_history::origins_in_conversation(&store.conn, conversation).unwrap_or_default();
-        let mut everywhere: BTreeSet<String> = origins
+        origins
             .into_iter()
             .filter(|(_, origins)| {
                 held.iter().all(|v| origins.iter().any(|(author, seq)| vector_covers(v, author, *seq)))
             })
             .map(|(item, _)| item)
-            .collect();
+            .collect()
+    }
+
+    /// The items of `conversation` every other authorized device of ours holds (the You row's "On all your
+    /// computers"): an event that carried the item reached each, and for a file, each holds its bytes.
+    pub fn items_on_every_device(&self, store: &Store, conversation: &str) -> BTreeSet<String> {
+        let others = self.other_device_keys(store);
+        let mut everywhere = self.items_listed_on_every_device(store, conversation);
         for file in sync_files::sync_files(&store.conn).unwrap_or_default() {
             let Some(item) = file.item_id.filter(|_| file.conversation_id == conversation) else { continue };
             // A file is there once its bytes are, not when its record is.

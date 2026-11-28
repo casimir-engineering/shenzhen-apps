@@ -155,11 +155,16 @@ impl SnapshotBuilder {
                 spoken_key = "you.transfer.spoken.sending";
                 ("sending", s.text_with("you.transfer.status.sending", &values))
             }
-            None if facts.you_items_everywhere.contains(&item.item_id) => {
+            None if facts.you_items_everywhere.contains(&item.item_id)
+                || facts.you_items_listed.contains(&item.item_id) =>
+            {
+                // Every other computer lists it; each downloads it only when the person asks there (Download here).
+                let held = facts.you_items_everywhere.contains(&item.item_id);
                 // Nothing left to stop: Open and Show where the copy is here, else nothing.
                 let here = item.local_path.as_deref().is_some_and(|p| !p.is_empty());
                 actions = if here { transfer.get("actions").cloned().unwrap_or(json!([])) } else { json!([]) };
-                ("delivered", s.text("you.transfer.status.delivered"))
+                let key = if held { "you.transfer.status.delivered" } else { "you.transfer.status.listed" };
+                ("delivered", s.text(key))
             }
             None => {
                 spoken_key = "you.transfer.spoken.queued";

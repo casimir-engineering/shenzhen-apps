@@ -96,7 +96,7 @@ static void TestFileRecordsAndPolicy(void) {
     [a.store ensureYouConversation:NULL];
     SZFriendsTransferRecord *small = SZFSStageFile(a, @"mei", @"f1", 200 * 1024);
     SZFriendsTransferRecord *large = SZFSStageFile(a, @"mei", @"f2", 25000001);
-    SZFriendsTransferRecord *mine = SZFSStageFile(a, SZFriendsYouConversationID, @"f3", 30000000);
+    SZFSStageFile(a, SZFriendsYouConversationID, @"f3", 30000000);
     SZFriendsOutboxEntry *offer = [[SZFriendsOutboxEntry alloc] init];
     offer.entryID = @"offer1";
     offer.conversationID = @"mei";
@@ -111,12 +111,12 @@ static void TestFileRecordsAndPolicy(void) {
     SZFSExpect([b.store itemWithID:@"f3" inConversation:SZFriendsYouConversationID] != nil, @"You is on every device");
     NSMutableArray<NSString *> *wanted = [NSMutableArray array];
     for (SZFriendsSyncFileRecord *file in [b.engine filesWanted]) [wanted addObject:file.transferID];
-    SZFSExpect([wanted containsObject:small.transferID] && [wanted containsObject:mine.transferID] &&
-                   ![wanted containsObject:large.transferID],
-               @"small and You files copy by themselves, a large one waits: %@", wanted);
-    SZFSExpect([b.engine requestFile:large.transferID error:NULL], @"Get");
-    SZFSExpect([[b.engine filesWanted].firstObject.transferID isEqualToString:large.transferID],
-               @"asked for comes first");
+    SZFSExpect(wanted.count == 0, @"nothing copies by itself, small, large or in You: %@", wanted);
+    SZFSExpect([b.engine requestFile:large.transferID error:NULL] && [b.engine requestFile:small.transferID error:NULL],
+               @"Download here");
+    SZFSExpect([b.engine filesWanted].count == 2 &&
+                   [[b.engine filesWanted].firstObject.transferID isEqualToString:small.transferID],
+               @"what was asked for, oldest first");
     SZFSExpect([a.engine filesWanted].count == 0, @"A holds them all");
     SZFSExpect([b.store syncableOutboxEntries].count == 0, @"file offers stay with the device holding the file");
 }

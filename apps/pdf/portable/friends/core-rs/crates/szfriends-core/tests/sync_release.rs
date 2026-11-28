@@ -12,7 +12,6 @@ use std::time::{Duration, SystemTime};
 use sync_support::{identity, joined, sync, Device};
 use szfriends_core::store::sync_files;
 use szfriends_core::store::{Person, Relation, TransferRecord};
-use szfriends_core::sync::AUTO_COPY_MAX;
 
 fn holds(on: &Device, transfer_id: &str, holder: &Device) -> bool {
     let file = sync_files::sync_file(on.store.connection(), transfer_id).unwrap().expect("the file record");
@@ -48,7 +47,10 @@ fn a_deleted_copy_is_released_everywhere_and_get_brings_it_back() {
     let file = stage_file(&mut a, "Plan.pdf", 20_000);
     let id = file.transfer_id.clone();
     sync(&mut a, &mut b).unwrap();
-    let copy = received_path(&b, &id).expect("a small file copies");
+    assert!(b.engine.files_wanted(&b.store).is_empty(), "listed on b, not copied by itself");
+    b.engine.request_file(&b.store, &id).unwrap();
+    sync(&mut a, &mut b).unwrap();
+    let copy = received_path(&b, &id).expect("copied once asked");
     assert!(b.engine.local_path_of_file(&b.store, &id).is_some());
     sync(&mut a, &mut b).unwrap();
     assert!(holds(&a, &id, &b) && holds(&b, &id, &b), "b holds it, as a knows");
@@ -83,7 +85,7 @@ fn the_sender_holds_a_file_while_the_one_it_was_sent_from_is_unchanged() {
     let mut devices = joined(&["alice", "bob"]);
     let mut b = devices.pop().unwrap();
     let mut a = devices.pop().unwrap();
-    let file = stage_file(&mut a, "Site photos.zip", AUTO_COPY_MAX + 1);
+    let file = stage_file(&mut a, "Site photos.zip", 25_000_001);
     let id = file.transfer_id.clone();
     let source = file.source_path.clone().expect("where it was sent from is kept");
     assert_ne!(file.source_mtime_ns, 0);
@@ -133,7 +135,9 @@ fn a_file_in_androids_downloads_is_held_through_the_publisher() {
     let mut a = devices.pop().unwrap();
     let id = stage_file(&mut a, "Plan.pdf", 20_000).transfer_id;
     sync(&mut a, &mut b).unwrap();
-    let copy = received_path(&b, &id).expect("a small file copies");
+    b.engine.request_file(&b.store, &id).unwrap();
+    sync(&mut a, &mut b).unwrap();
+    let copy = received_path(&b, &id).expect("copied once asked");
     let media = Arc::new(MediaStore(Mutex::new(Some(20_000)), Path::new(&copy).to_owned()));
     let defaults = ReceivedDefaults { external: Some(media.clone()), ..ReceivedDefaults::default() };
     b.store.set_received_defaults(defaults);

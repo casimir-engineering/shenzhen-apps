@@ -328,7 +328,7 @@ composer on the reply already shows the sent message. Field types are in § Sche
 | `deny_join` | `join_id` | Turn it away, or withdraw a code shown (§ Joining) |
 | `revoke_device` | `device_id` | Remove another computer from this profile, after the action's confirmation (§ Devices) |
 | `rename_device` | `name` | The name this computer has in Your computers on every computer of the profile (§ Devices) |
-| `fetch_from_device` | `transfer_id` | Copy here a file another of the person's computers holds (Get, § Devices) |
+| `fetch_from_device` | `transfer_id` | Copy here a file another of the person's computers holds (Download here, § Devices) |
 | `fetch_from_friend` | `transfer_id` | Get a file a friend sent again, from that friend, when none of the person's computers has it anymore (Get again, § Getting a file again; helper capability `files.again`) |
 | `boost_transfer` | `transfer_id` | Go faster on a transfer's Wi-Fi Direct question (§ Fast transfers; client capability `transfers.boost`). `stale` once the question is gone |
 | `skip_boost` | `transfer_id` | Not now on that question: it goes, and is never asked again for that transfer. `stale` once the question is gone |
@@ -706,10 +706,10 @@ One friend's history and composer, or the request card for a pending request.
   before the file is accepted (§ Thumbnails). `null` means there is none, and views draw the type's icon themselves
   from `file.type_identifier`, or from `file.extension` when a toolkit has no use for the identifier.
 - `highlight_item_id` names the message to scroll to and highlight after a search or a citation.
-- A file another of the person's computers holds is a transfer in state `on_device` with Get, then `fetching`
-  (§ Devices). The conversation `you` is the person's own (§ Devices, You). A file no longer where it was saved is
-  `missing`, and a friend's file can then be fetched from that friend again (`fetching`, or `gone` when they no
-  longer have it; § Getting a file again).
+- A file another of the person's computers holds is a transfer in state `on_device` with Download here, then
+  `fetching` (§ Devices). The conversation `you` is the person's own (§ Devices, You). A file no longer where it was
+  saved is `missing`, and a friend's file can then be fetched from that friend again (`fetching`, or `gone` when they
+  no longer have it; § Getting a file again).
 - `request` replaces history and composer while a request is pending: the comparison code both screens show,
   with Accept, Decline and Block (incoming, Block destructive and armed), or Cancel request (outgoing).
   `comparison_code` is `null` when no session has derived one yet; `code_prompt` then says when it will be
@@ -1262,14 +1262,17 @@ your computers" and `details_available` false, no `request`, and a composer whos
 whose `note` is null unless something here has not reached every computer yet: "What you send here reaches your other
 computers when ShenzhenPDF, Shenzhen Files or Shenzhen 3D is open on them." `send_message` and `send_files` to `you`
 work as to a friend. A message's `status` is `queued` "Waiting for your other computers" until every computer has it,
-then `delivered` "On all your computers"; a file is `queued` ("Copies to your other computers when they connect"),
-`sending` ("Copying to your other computers · 40%") or `delivered` ("On all your computers"). Files in You copy to every
-computer whatever their size.
+then `delivered` "On all your computers"; a file is `queued` ("Shows on your other computers when they connect") until
+every other computer lists it, then `delivered` ("Ready to download on your other computers", with Open and Show),
+`sending` ("Copying to your other computers · 40%") while one of them downloads it, and `delivered` ("On all your
+computers") once every one has it. On the other computers a file in You is listed like any file another computer holds
+(§ Files another computer holds) and copies only after Download here ([ADR 0023](docs/adr/0023-download-here.md)).
 
-**Files another computer holds.** A file one of the person's other computers received is in the history here at once;
-files up to 25 MB copy here by themselves, and a larger one waits on the computer that has it: its transfer item has
-`state` `on_device`, `status_label` "On Raph’s Mac mini" and the action `fetch_from_device` ("Get", primary), sent with
-the item's `transfer_id` (`fixtures/snapshots/devices-conversation-mei-files.json`). After Get, `state` is `fetching`:
+**Files another computer holds.** A file one of the person's other computers received or sent (in You or to a friend)
+is in the history here at once, and waits on the computer that has it, whatever its size: nothing copies here by itself
+([ADR 0023](docs/adr/0023-download-here.md)). Its transfer item has `state` `on_device`, `status_label` "On Raph’s Mac
+mini" and the action `fetch_from_device` ("Download here", primary), sent with the item's `transfer_id`
+(`fixtures/snapshots/devices-conversation-mei-files.json`). After Download here, `state` is `fetching`:
 with `progress` and "Copying from Raph’s Mac mini · 25%" while it copies, together with `route`, the route of the
 session it comes by (§ Shared objects Route; views draw it as the conversation header's, its icon and "Nearby, on
 your network"), and through the relay a `route_note` with the time it takes ("Through the Friends relay, about 3 min"),
@@ -1278,9 +1281,9 @@ workstation is nearby with ShenzhenPDF, Shenzhen Files or Shenzhen 3D open" ("on
 capability `online`) while that computer is not connected; Cancel (`cancel_transfer`) stops it and the item returns to
 `on_device`. Once here it is `received` with its `path`, as any received file. A computer that no longer has a
 file's bytes (the person moved or deleted it there, or a file it sent is gone from where it was) stops counting as one
-that holds it on every computer, so no computer offers Get from it. Errors of `fetch_from_device`: `not_found` ("This
-file isn’t on your other computers anymore."), `not_allowed` when it is already here, `disk_full`. A file moved or
-deleted here is fetched the same way (§ Getting a file again).
+that holds it on every computer, so no computer offers Download here from it. Errors of `fetch_from_device`: `not_found`
+("This file isn’t on your other computers anymore."), `not_allowed` when it is already here, `disk_full`. A file moved
+or deleted here is fetched the same way (§ Getting a file again).
 
 **Deleting history on several computers.** `delete_history` deletes on every computer of the profile (ADR 0014,
 tombstones), so while the profile has two or more computers the words say so: Settings' `history.note` "Stored on all
@@ -1301,9 +1304,9 @@ published file is no longer where it was saved, at its size, has no `file.path`,
 where its bytes still are. The same holds for a file another computer received whose bytes no computer of the profile
 holds anymore. In order:
 
-1. Another of the person's computers holds it: `on_device`, "On Raph’s Mac mini" with Get (`fetch_from_device`),
-   exactly as a file that was never here (§ Devices). Get copies it into the folder received files go to. It never
-   copies by itself, whatever its size: the person moved or deleted it here.
+1. Another of the person's computers holds it: `on_device`, "On Raph’s Mac mini" with Download here
+   (`fetch_from_device`), exactly as a file that was never here (§ Devices). Download here copies it into the folder
+   received files go to; as every file, it never copies by itself.
 2. A friend sent it and none of the person's computers holds it: `state` `missing`, `status_label` "Moved or
    deleted", and the action `fetch_from_friend` ("Get again", primary), sent with the item's `transfer_id`, for a
    client with the capability `files.again` while that person is a friend. After Get again the item is `fetching`:
@@ -1323,9 +1326,9 @@ photos.zip, ZIP archive, 48.2 MB. Mei Lin doesn’t have this file anymore."
 
 **Errors of `fetch_from_friend`:** `not_found` ("This file isn’t in this chat anymore.") for an unknown transfer or one
 whose history was deleted; `not_allowed` when the file is on this computer already, another computer of the profile
-holds it (Get applies), it is not a file a friend sent this person, that person is not a friend now, or this computer
-was removed from the profile; `disk_full` when the file does not fit. A friend's helper without `files.again` never
-answers: the item stays `fetching` with the waiting words.
+holds it (Download here applies), it is not a file a friend sent this person, that person is not a friend now, or this
+computer was removed from the profile; `disk_full` when the file does not fit. A friend's helper without `files.again`
+never answers: the item stays `fetching` with the waiting words.
 
 ## Joining
 

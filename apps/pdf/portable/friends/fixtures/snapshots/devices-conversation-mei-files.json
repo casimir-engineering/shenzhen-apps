@@ -61,7 +61,7 @@
         "actions": [
           {
             "action": "fetch_from_device",
-            "label": "Get",
+            "label": "Download here",
             "style": "primary"
           }
         ],

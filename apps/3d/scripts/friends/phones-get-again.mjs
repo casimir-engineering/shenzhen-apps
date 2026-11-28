@@ -3,7 +3,7 @@
 // with real taps: Shenzhen 3D's debug build with Friends on an Android emulator (the core in the app's process) and
 // ShenzhenPDF's real Friends dropdown on the Mac (friends-ui-e2e's phone flow, offscreen) share one profile; a friend
 // (the core's `loopback-peer`) sends them a file. The person deletes it and gets it back: on the phone from the Mac
-// (Get), on the Mac from the phone (Get), on the phone from the friend once neither has it (Get again), and, after the
+// (Download here), on the Mac from the phone (Download here), on the phone from the friend once neither has it (Get again), and, after the
 // friend changed the file they sent, hears "Fay doesn’t have this file anymore."
 //
 //   node scripts/friends/phones-get-again.mjs --serial emulator-NNNN --tools <dir> --mac <dir> --manifest <file>
@@ -15,7 +15,7 @@
 // the animal manifest. Phone and Mac meet on the core's loopback test network: the phone's entries reach the Mac's
 // directory through adb (phones-exchange-android.mjs), and `szfriends-testnet dir` joins that directory to the Mac
 // helper's Bonjour test type on lo0. Joining and the friend's file are set up through each side's client protocol;
-// every Get, Get again and Accept is a tap on the phone (the emulator's own touch input) or a click in the dropdown.
+// every Download here, Get again and Accept is a tap on the phone (the emulator's own touch input) or a click in the dropdown.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs/promises";
 import { randomBytes } from "node:crypto";
@@ -110,7 +110,7 @@ try {
     (r) => r.title === "Fay")?.conversation_id, "Fay on the Mac");
   check("the Mac joined the phone's profile, and lists Fay");
 
-  // Fay sends a file; the phone accepts it with a tap; it copies to the Mac by itself.
+  // Fay sends a file; the phone accepts it with a tap; the Mac lists it and copies it after Download here.
   const source = path.join(work, "fay-files", FILE);
   await fs.mkdir(path.dirname(source), { recursive: true });
   await fs.writeFile(source, Buffer.from(Array.from({ length: 150_000 }, (_, i) => (i * 7) % 251)));
@@ -121,41 +121,43 @@ try {
   await tap(buttonIn(id0, "Accept"), "Accept on Fay's file");
   await until(async () => (await phoneItem(id0))?.buttons.includes("Share…"), "the file received on the phone");
   const onPhone = await phonePath(id0);
+  await mac("open", { title: "Fay" });
+  await mac("press", { near: FILE, label: "Download here" });
   const onMac = await until(() => macPath(fayInMac, id0), "the copy on the Mac");
   if (!phoneHas(onPhone)) throw Error(`the phone's file is not at ${onPhone}`);
-  check("Fay's file is accepted with a tap, and copies to the Mac by itself");
+  check("Fay's file is accepted with a tap, and copies to the Mac after Download here, clicked in the dropdown");
   await shot("1-received");
 
-  // On the phone: deleted, then Get from the Mac.
+  // On the phone: deleted, then Download here from the Mac.
   phone.adb("shell", `run-as ${PACKAGE} rm "${onPhone}"`);
   await phoneOpenChat();
   const onDevice = await until(async () => {
     const item = await phoneItem(id0);
-    return item?.buttons.includes("Get") && item.text.includes("On Test computer mac") && item;
-  }, "On Test computer mac · Get on the phone");
+    return item?.buttons.includes("Download here") && item.text.includes("On Test computer mac") && item;
+  }, "On Test computer mac · Download here on the phone");
   await shot("2-on-mac");
-  await tap(buttonIn(id0, "Get"), "Get");
+  await tap(buttonIn(id0, "Download here"), "Download here");
   await until(async () => (await phoneItem(id0))?.buttons.includes("Share…"), "the file back on the phone");
   const back = await phonePath(id0);
   if (!phoneHas(back)) throw Error("the phone's copy is not there");
-  check(`phone: deleted, then "${onDevice.text.split("\n").find((l) => l.startsWith("On "))}" · Get, tapped: back`);
+  check(`phone: deleted, then "${onDevice.text.split("\n").find((l) => l.startsWith("On "))}" · Download here, tapped: back`);
   await shot("3-back-from-mac");
 
-  // On the Mac: deleted, then Get from the phone, clicked in the dropdown.
+  // On the Mac: deleted, then Download here from the phone, clicked in the dropdown.
   await fs.rm(onMac, { force: true });
   // The phone as the Mac names it: its own name from the system (Settings ▸ About), never "Computer".
   const phoneName = phone.adb("shell", "settings", "get", "global", "device_name").trim();
   await mac("open", { title: "Fay" });
   await mac("text", { near: FILE, text: `On ${phoneName}` });
   await mac("shot", { name: "on-phone" });
-  await mac("press", { near: FILE, label: "Get" });
+  await mac("press", { near: FILE, label: "Download here" });
   const macBack = await until(async () => {
     const at = await macPath(fayInMac, id0);
     return at && (await fs.stat(at).catch(() => null)) && at;
   }, "the file back on the Mac");
   if (Buffer.compare(await fs.readFile(macBack), await fs.readFile(source)) !== 0) throw Error("not the same bytes");
   await mac("shot", { name: "back-from-phone" });
-  check(`Mac: deleted, then "On ${phoneName}" · Get, clicked in the dropdown: back, the same bytes`);
+  check(`Mac: deleted, then "On ${phoneName}" · Download here, clicked in the dropdown: back, the same bytes`);
 
   // Deleted on both: Get again asks Fay.
   async function deleteEverywhere() {

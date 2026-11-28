@@ -1,7 +1,7 @@
-// Files between own devices (friends-multi-device.md § Sync, Files): every device knows every transfer record at once;
-// the bytes copy by themselves up to SZFriendsSyncAutoCopyMax, always in the You conversation, and otherwise when the
-// person asks ("On MacBook Pro · Get"). The copy itself runs on a session (SZFriendsSyncExchange.m); here is which
-// files to copy, where their bytes are, and what a finished copy becomes.
+// Files between own devices (friends-multi-device.md § Sync, Files): every device knows every transfer record at once,
+// and the bytes copy only when the person asks on this device ("On MacBook Pro · Download here"), in You as anywhere
+// else. The copy itself runs on a session (SZFriendsSyncExchange.m); here is which files to copy, where their bytes
+// are, and what a finished copy becomes.
 
 #import "service/sync/SZFriendsSyncInternal.h"
 
@@ -41,26 +41,22 @@ NSString *_Nullable SZFriendsSyncLocalPathOfTransfer(SZFriendsTransferRecord *tr
 
 - (NSArray<SZFriendsSyncFileRecord *> *)filesWanted {
     NSData *me = self.identity.publicKey;
-    NSMutableArray<SZFriendsSyncFileRecord *> *asked = [NSMutableArray array], *automatic = [NSMutableArray array];
+    NSMutableArray<SZFriendsSyncFileRecord *> *asked = [NSMutableArray array];
     for (SZFriendsSyncFileRecord *file in [self.store syncFiles]) {
         SZFriendsTransferRecord *here = [self.store transferRecordWithID:file.transferID];
         if (here != nil && SZFriendsSyncLocalPathOfTransfer(here) != nil) continue; // its bytes are here
         BOOL elsewhere = NO;
         for (NSData *holder in file.holders) elsewhere = elsewhere || ![holder isEqualToData:me];
         if (!elsewhere) continue;
+        // Only what the person asked for here (Download here): a file another computer has is listed, never pulled.
         if ([self.store syncStateForKey:SZFriendsSyncWantKey(file.transferID)] != nil) [asked addObject:file];
-        // What the person moved or deleted here comes back only when they ask (Get).
-        else if (here == nil && SZFriendsSyncCopiesAutomatically(file.size, file.conversationID)) {
-            [automatic addObject:file];
-        }
     }
     NSComparator older = ^NSComparisonResult(SZFriendsSyncFileRecord *a, SZFriendsSyncFileRecord *b) {
         NSComparisonResult order = [a.createdAt compare:b.createdAt];
         return order != NSOrderedSame ? order : [a.transferID compare:b.transferID];
     };
     [asked sortUsingComparator:older];
-    [automatic sortUsingComparator:older];
-    return [asked arrayByAddingObjectsFromArray:automatic];
+    return asked;
 }
 
 - (BOOL)requestFile:(NSString *)transferID error:(NSError **)error {

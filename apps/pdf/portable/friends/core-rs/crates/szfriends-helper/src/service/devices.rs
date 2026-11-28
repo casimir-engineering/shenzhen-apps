@@ -295,6 +295,7 @@ impl State {
             computers,
             files,
             you_items_everywhere: self.you_items_everywhere(),
+            you_items_listed: self.you_items_listed(),
             you_copying: self.you_copying(),
             ..DevicesFacts::default()
         }
@@ -311,6 +312,16 @@ impl State {
         conn.prepare("SELECT item_id FROM messages WHERE conversation_id = ?1 AND direction = ?2")
             .and_then(|mut s| s.query_map(rusqlite::params![YOU, outgoing], |r| r.get(0))?.collect())
             .unwrap_or_default()
+    }
+
+    /// You items every other computer of ours lists (a file there is ready to download on them); none while this
+    /// is the only computer.
+    fn you_items_listed(&self) -> std::collections::BTreeSet<String> {
+        let engine = &self.devices.engine;
+        if engine.other_device_keys(&self.store).is_empty() {
+            return std::collections::BTreeSet::new();
+        }
+        engine.items_listed_on_every_device(&self.store, YOU)
     }
 
     /// approve_join, deny_join, join_profile, enter_join_code, cancel_join, revoke_device, rename_device,

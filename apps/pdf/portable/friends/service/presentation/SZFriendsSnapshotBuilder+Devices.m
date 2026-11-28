@@ -21,6 +21,7 @@ static const NSUInteger SZFriendsDeviceNameMaxBytes = 64;
     if ((self = [super init])) {
         _computers = @[];
         _youItemsEverywhere = [NSSet set];
+        _youItemsListed = [NSSet set];
         _youCopying = @{};
         _files = @{};
         _now = [NSDate dateWithTimeIntervalSince1970:0];
@@ -479,9 +480,11 @@ static const NSUInteger SZFriendsDeviceNameMaxBytes = 64;
         status = [s text:@"you.transfer.status.sending" values:values];
         progress = [self progressWithFraction:fraction];
         spokenKey = @"you.transfer.spoken.sending";
-    } else if ([facts.youItemsEverywhere containsObject:item.itemID]) {
+    } else if ([facts.youItemsEverywhere containsObject:item.itemID] ||
+               [facts.youItemsListed containsObject:item.itemID]) {
+        BOOL held = [facts.youItemsEverywhere containsObject:item.itemID]; // else listed there, with Download here
         state = @"delivered";
-        status = [s text:@"you.transfer.status.delivered"];
+        status = [s text:held ? @"you.transfer.status.delivered" : @"you.transfer.status.listed"];
         // Nothing left to stop: Open and Show where the copy is here, else nothing.
         actions = item.localPath.length ? transfer[@"actions"] : @[];
     } else {

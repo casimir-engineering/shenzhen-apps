@@ -221,6 +221,12 @@ fn get_says_when_there_is_no_room() {
         item["file"]["path"].as_str().map(str::to_owned).filter(|p| std::path::Path::new(p).is_file())
     };
     let chat = bo.send("open_conversation", json!({"conversation_id": "you"}))["subscription"].clone();
+    bo.snapshot(chat.as_str().unwrap(), "listed with Download here", |d| {
+        d["items"].as_array().is_some_and(|items| {
+            items.iter().any(|i| i["transfer_id"] == transfer.as_str() && i["state"] == "on_device")
+        })
+    });
+    bo.send("fetch_from_device", json!({"transfer_id": transfer}));
     let copied = bo.snapshot(chat.as_str().unwrap(), "the copy on the new computer", |d| path_of(d).is_some());
     std::fs::remove_file(path_of(&copied["data"]).unwrap()).unwrap();
     let room = b.0.join(szfriends_helper::service::TEST_FREE_BYTES_FILE);

@@ -106,8 +106,8 @@ pub fn get_again(
     assert_eq!(gone["actions"], json!([]), "{gone}");
 }
 
-/// On one profile: `first` sends a file to You, which copies to `second` by itself; the person deletes it on
-/// `second`, which then shows it on `first` with Get, and Get brings it back.
+/// On one profile: `first` sends a file to You, which `second` lists with Download here and copies once pressed; the
+/// person deletes it on `second`, which then shows it on `first` with Download here again, and that brings it back.
 pub fn get_from_own_computer(first: &mut Client, second: &mut Client) {
     for client in [&mut *first, &mut *second] {
         let list = client.subscribe("list", json!({}));
@@ -121,6 +121,10 @@ pub fn get_from_own_computer(first: &mut Client, second: &mut Client) {
     let token: String = format!("{:0<32}", hex::encode(name.as_bytes())).chars().take(32).collect();
     let files = json!({"conversation_id": "you", "files": [{"path": source}], "client_token": token});
     let transfer = first.send("send_files", files)["transfer_ids"][0].as_str().expect("a transfer").to_owned();
+    item_when(second, "you", &transfer, "listed on the other computer, with Download here", |i| {
+        i["state"] == "on_device" && has_action(i, "fetch_from_device")
+    });
+    second.send("fetch_from_device", json!({"transfer_id": transfer}));
     let copy = received_path(second, "you", &transfer, "the copy on the other computer");
     assert_eq!(std::fs::read(&copy).ok(), std::fs::read(&source).ok(), "copied whole");
     std::fs::remove_file(&copy).expect("the person deletes the copy");
@@ -133,7 +137,8 @@ pub fn get_from_own_computer(first: &mut Client, second: &mut Client) {
     assert_eq!(std::fs::read(&back).ok(), std::fs::read(&source).ok(), "the same bytes, back again");
 }
 
-/// One profile on `a` and `b`, and a friend `f` of `a`'s: a file `f` sends is received on `a` and copied to `b`;
+/// One profile on `a` and `b`, and a friend `f` of `a`'s: a file `f` sends is received on `a` and copied to `b` once
+/// `b` presses Download here;
 /// deleted on `a`, Get copies it from `b`; deleted on `b`, Get copies it from `a`; deleted on both, `b` gets it
 /// again from `f` (`f_name`).
 pub fn received_everywhere(a: &mut Client, b: &mut Client, f: &mut Client, f_name: &str, a_name: &str) {
@@ -141,6 +146,10 @@ pub fn received_everywhere(a: &mut Client, b: &mut Client, f: &mut Client, f_nam
     let a_in_f = conversation_titled(f, a_name);
     let (transfer, _, on_a) = send_file(f, &a_in_f, a, &f_in_a, "Bracket.stl");
     let f_in_b = conversation_titled(b, f_name);
+    item_when(b, &f_in_b, &transfer, "listed on the second computer, with Download here", |i| {
+        i["state"] == "on_device" && has_action(i, "fetch_from_device")
+    });
+    b.send("fetch_from_device", json!({"transfer_id": transfer}));
     let on_b = received_path(b, &f_in_b, &transfer, "the copy on the second computer");
 
     std::fs::remove_file(&on_a).expect("deleted on the first computer");

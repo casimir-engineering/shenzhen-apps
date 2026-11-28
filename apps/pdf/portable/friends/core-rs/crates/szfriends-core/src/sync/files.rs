@@ -1,5 +1,5 @@
-//! Files between own devices (`SZFriendsSyncFiles.m`): every device knows every transfer record at once; the bytes
-//! copy by themselves up to 25 MB, always in You, and otherwise when the person asks ("On <device> · Get"). The copy
+//! Files between own devices (`SZFriendsSyncFiles.m`): every device knows every transfer record at once, and the bytes
+//! copy only when the person asks on this device ("On <device> · Download here"), in You as anywhere else. The copy
 //! runs on a session (`exchange.rs`); here is which files to copy, where their bytes are, and what a finished copy
 //! becomes.
 
@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use rusqlite::types::Value;
 
 use super::engine::SyncEngine;
-use super::{copies_automatically, SyncError};
+use super::SyncError;
 use crate::store::destination::{mark_published, ReceivedSource};
 use crate::store::sync_files::{self, SyncFile};
 use crate::store::sync_log;
@@ -68,12 +68,12 @@ impl SyncEngine {
         local_path_of_transfer(store, &transfer)
     }
 
-    /// Records whose bytes are on another device and not here: asked for first, then the ones that copy by
-    /// themselves, oldest first.
+    /// Records whose bytes are on another device and not here that the person asked for (Download here), oldest
+    /// first. Nothing copies by itself.
     pub fn files_wanted(&self, store: &Store) -> Vec<SyncFile> {
         let conn = &store.conn;
         let me = self.device_key();
-        let (mut asked, mut automatic) = (Vec::new(), Vec::new());
+        let mut asked = Vec::new();
         for file in sync_files::sync_files(conn).unwrap_or_default() {
             let here = sync_files::transfer(conn, &file.transfer_id).ok().flatten();
             if here.as_ref().is_some_and(|t| holds_transfer(store, t)) {
@@ -82,22 +82,18 @@ impl SyncEngine {
             if !file.holders.iter().any(|h| *h != me) {
                 continue;
             }
+            // Only what the person asked for here: a file another computer has is listed, never pulled.
             if sync_log::state(conn, &want_key(&file.transfer_id)).is_ok_and(|v| v != Value::Null) {
                 asked.push(file);
-            } else if here.is_none() && copies_automatically(file.size, &file.conversation_id) {
-                // What the person moved or deleted here comes back only when they ask (Get).
-                automatic.push(file);
             }
         }
         let older =
             |a: &SyncFile, b: &SyncFile| a.created_at.total_cmp(&b.created_at).then(a.transfer_id.cmp(&b.transfer_id));
         szfriends_wire::order::sort_by(&mut asked, older);
-        szfriends_wire::order::sort_by(&mut automatic, older);
-        asked.extend(automatic);
         asked
     }
 
-    /// "Get": copy this file's bytes here at the next chance, whatever its size.
+    /// "Download here": copy this file's bytes here at the next chance, whatever its size.
     pub fn request_file(&mut self, store: &Store, transfer_id: &str) -> Result<(), SyncError> {
         if sync_files::sync_file(&store.conn, transfer_id)?.is_none() {
             return Err(SyncError::Malformed("no such file record"));
