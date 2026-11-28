@@ -139,3 +139,9 @@ and 0007 (search no longer holds mentions' IDs and keys).
   computers by itself, in You or from a friend, whatever its size; each lists it and copies it when the person presses
   Download here there (`fetch_from_device`, formerly Get). No wire change: copies are the receiver's requests, so a
   released helper keeps pulling by itself and an updated one serves it.
+- [0024 Friends protocol 1 and 2](0024-friends-protocol-1-and-2.md) (Accepted, the owner's request): protocol 1 is
+  every release up to ShenzhenPDF and Shenzhen Files 26.11.19-1 and Shenzhen 3D 0.2.10, protocol 2 every helper since
+  (handshake bit 8, which also says bits 6 and 7 and BOOST's Abilities bit 4 are known); same frames, so a protocol 2
+  helper keeps sessions with protocol 1 peers without direct Wi-Fi, AES sessions or a boost (PROTOCOL.md § Friends
+  protocol 1 and 2); their support goes after 2027-06-30, every path tagged `FRIENDS-PROTOCOL-1: remove after
+  2027-06-30`.

@@ -38,7 +38,7 @@ the update it is listed with Download here and nothing is pulled. What already a
 
 **Mixed versions.** No wire change, no capability bit. A copy is always the receiving computer's request (WANT, or a
 pull's tree request), so each computer decides for itself: an updated computer pulls nothing until Download here; a
-computer on a released helper (session protocol 1, ADR 0014 as it was) keeps pulling files up to 25 MB and You files
+computer on a released helper (Friends protocol 1, ADR 0024; ADR 0014 as it was) keeps pulling files up to 25 MB and You files
 by itself, and an updated computer serves it as before. A file sent to You from a released helper says "Copies to
 your other computers when they connect" there until an updated computer downloads it.
 

@@ -22,6 +22,7 @@ them is a bug; decide which and fix it in the same change.
 - [Devices](#devices)
 - [Notifications](#notifications)
 - [Fast transfers](#fast-transfers)
+- [Friends protocol 1 and 2](#friends-protocol-1-and-2)
 - [Static strings](#static-strings)
 - [Limits](#limits)
 - [Schemas](#schemas)
@@ -860,7 +861,7 @@ The new computer's side of joining a person's existing profile, with the helper 
   the direct link does not count: that shares the radio, which slows the network it sits beside. Each side says how it
   is in its handshake (capability bit 6, read afresh for every session and lane) and in BOOST's Abilities (bit 4); a
   session or lane on `p2p_wifi` closes as soon as it is up unless both handshakes set the bit, and a side that never
-  sets it (any helper before the rule) never gets direct Wi-Fi. A Mac wakes AWDL exactly while it is on no Wi-Fi
+  sets it (a Friends protocol 1 helper, § Friends protocol 1 and 2) never gets direct Wi-Fi. A Mac wakes AWDL exactly while it is on no Wi-Fi
   network. Direct Wi-Fi is never added beside a LAN for speed. Anywhere else, or when unsure, it is skipped and the
   next route carries the session; friends' files and a profile's own devices alike. No device leaves its network
   silently: a phone that would leave its Wi-Fi for a boost asks first and rejoins it by itself afterwards. The relay is the last resort
@@ -2824,6 +2825,35 @@ result.messages[].sent_at: string
 result.messages[].text: string
 result.truncated: bool
 ```
+
+## Friends protocol 1 and 2
+
+What two helpers speak to each other over a session, not this document's version (still 1.0) and not the host's
+protocol numbers (HOST-PROTOCOL.md). Views need no change for either: both speak the same frames at session minor 4;
+protocol 2 only adds handshake capability bits and one BOOST Abilities bit, so where a protocol 1 peer is involved
+the helper decides and the snapshot shows the result ([ADR 0024](docs/adr/0024-friends-protocol-1-and-2.md)).
+
+- **Friends protocol 1**: every release up to ShenzhenPDF and Shenzhen Files 26.11.19-1 and Shenzhen 3D 0.2.10 (tags
+  `pdf/26.11.19-1`, `files/26.11.19-1`, `3d/preview-0.2.10`). Its handshakes set none of capability bits 6, 7 and 8,
+  its sessions are ChaChaPoly throughout, it copies files between one person's computers by itself, it uses direct
+  Wi-Fi without the owner's rule, and its Rust helper names no pieces in the HAVEs of a copy or a pull.
+- **Friends protocol 2**: every helper since. Each handshake with fast transfers sets bit 8; a helper that sets it
+  also knows bits 6 and 7 and BOOST's Abilities bit 4, so a missing bit 6 or 7 from it means "not now" or "no
+  hardware AES". Logs name the peer's protocol on every session that comes up ("Friends protocol 2").
+
+Support for protocol 1 peers is removed after **2027-06-30**; until then a protocol 2 helper behaves with one as
+follows. Every path in the code that exists only for a protocol 1 peer carries the comment
+`FRIENDS-PROTOCOL-1: remove after 2027-06-30`.
+
+| Difference | Protocol 1 | Protocol 2 | A protocol 2 helper with a protocol 1 peer |
+|---|---|---|---|
+| Protocol marker | No bit 8 | Bit 8 in every handshake with fast transfers | Opens the session as usual and logs "Friends protocol 1" |
+| Session cipher (ADR 0018 § 9.2 (c)) | ChaChaPoly throughout | Bit 7 where the processor has hardware AES; when both set it, AES-256-GCM from each direction's second message | No bit 7 from the peer: ChaChaPoly throughout, as between two protocol 1 helpers |
+| Direct Wi-Fi rule (ADR 0022) | Direct Wi-Fi whenever a route offers it, on a Wi-Fi network too | Bit 6 while this device is on no Wi-Fi network, or is a phone on mobile data; a session or lane on `p2p_wifi` stays open only when both handshakes set it | Never direct Wi-Fi with it: a session or lane on `p2p_wifi` closes as soon as it is up (not counted as a failure; when this side dialled, that endpoint is left off direct Wi-Fi a while) and the next route carries the conversation and its files |
+| Wi-Fi Direct boost (ADR 0019, 0022) | BOOST without Abilities bit 4 | Bit 4 in PROPOSE and READY while the rule allows it here; a boost needs it from both | Declines its PROPOSE, and its READY to ours, as unsupported: the file stays on the route it had |
+| Piece HAVEs on Bluetooth copies (ADR 0018 § 3) | The Rust helper names no pieces for a copy or a pull (the Mac's helper always did) | Every helper names the pieces each PART completes, on Bluetooth, to a peer that sets bit 3 | Sends piece HAVEs to it (a protocol 1 peer sets bit 3 and reads Pieces); serving a copy to a protocol 1 Rust helper over Bluetooth, hears none within 1 s and leaves that link unpaced, as before the pace |
+| Bluetooth dial between a Mac and an Android phone | The Mac dials at once; the phone dials with 27-byte packets | The phone asks for full-size packets and the 2M PHY before the channel opens; the Mac waits 8 s for a phone whose last session here set bit 8 | A Mac dials a protocol 1 phone at once (its own dial is faster than that phone's); a protocol 2 phone and a protocol 1 Mac may both dial, and the race keeps one session |
+| Copies between one person's computers (ADR 0023) | A computer pulls files up to 25 MB, and You files of any size, by itself | Nothing copies until the person presses Download here on that computer | Serves every pull the protocol 1 computer makes, as before; pulls nothing from it until Download here. No bit: a copy is always the receiver's request |
 
 ## Changing this protocol
 

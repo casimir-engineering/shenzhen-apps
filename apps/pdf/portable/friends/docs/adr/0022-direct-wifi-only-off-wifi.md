@@ -92,7 +92,7 @@ not told it leaves it.
 
 - A Mac on Wi-Fi never wakes AWDL for Friends; transfers on one Wi-Fi run on the LAN alone, without the stalls.
 - Two Macs (or a Mac and an iPhone) both off Wi-Fi still find each other over AWDL; with a helper from before the rule
-  they use another route.
+  (Friends protocol 1, ADR 0024) they use another route.
 - Boosts happen only between devices off Wi-Fi or phones on mobile data; a computer on Wi-Fi and a phone on another
   Wi-Fi stay on Bluetooth (or the Internet).
 - Two capability bits used, one string added on phones; nothing for the host or the relay.
