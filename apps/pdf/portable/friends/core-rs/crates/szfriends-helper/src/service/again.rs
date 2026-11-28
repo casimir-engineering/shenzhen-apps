@@ -216,7 +216,8 @@ impl State {
         for key in keys {
             loop {
                 let Some(session) = self.sessions.map.get_mut(&id) else { return };
-                if !session.channel.is_established() || !super::blocks::bulk_has_room(&session.channel) {
+                let route = session.meta.race_route(&session.channel);
+                if !session.channel.is_established() || !super::blocks::bulk_has_room(&session.channel, route) {
                     return;
                 }
                 let Some(serving) = self.again.serving.get_mut(&key) else { break };

@@ -24,12 +24,19 @@ const BULK_DEPTH: usize = 4;
 /// Many small parts (small files) queue by bytes, up to this many frames: a burst fills the other side's reads.
 const BULK_SMALL_FRAMES: usize = 64;
 
-/// Room for another part: fewer than four frames queued, or more but all of them small.
-pub(crate) fn bulk_has_room(channel: &szfriends_core::session::SecureChannel) -> bool {
+/// On a LAN or direct Wi-Fi link: parts queued ahead of the link. Four held a phone's sending near 20 MB/s, since the
+/// service loop refills the queue once per pass; sixteen (about 1 MB, 25 ms at 40 MB/s) keep the link busy between
+/// passes while a message still overtakes them quickly.
+const BULK_DEPTH_FAST: usize = 16;
+
+/// Room for another part: fewer than four frames queued (sixteen on a LAN or direct Wi-Fi link), or more but all of
+/// them small.
+pub(crate) fn bulk_has_room(channel: &szfriends_core::session::SecureChannel, route: RouteMethod) -> bool {
+    let depth = if matches!(route, RouteMethod::Lan | RouteMethod::PeerToPeerWifi) { BULK_DEPTH_FAST } else { BULK_DEPTH };
     let frames = channel.queued_frames().1;
-    frames < BULK_DEPTH
+    frames < depth
         || (frames < BULK_SMALL_FRAMES
-            && channel.queued_bulk_bytes() < BULK_DEPTH * szfriends_core::wire::consts::PART_BYTES_MAX)
+            && channel.queued_bulk_bytes() < depth * szfriends_core::wire::consts::PART_BYTES_MAX)
 }
 /// The serve's own window; the scheduler sizes what each lane holds (2 × rate × round trip), within § 3's limits.
 const WINDOW_BYTES: u64 = 64 << 20;
@@ -394,7 +401,9 @@ impl State {
                         .sessions
                         .map
                         .get(&lane)
-                        .is_some_and(|s| s.channel.is_established() && bulk_has_room(&s.channel));
+                        .is_some_and(|s| {
+                            s.channel.is_established() && bulk_has_room(&s.channel, s.meta.race_route(&s.channel))
+                        });
                     if !room {
                         break;
                     }
