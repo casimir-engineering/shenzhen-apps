@@ -27,6 +27,11 @@ struct Current {
     sent: usize,
 }
 
+/// What a computer serving a Get or a copy to another of the person's computers may have sent and not yet seen in a
+/// HAVE: 32 MiB, so the asker's own cap is what bounds a copy. At 8 MiB a phone's LAN copy waited on HAVEs whenever
+/// they took longer than a third of a second to come back, at under 20 MB/s.
+pub const SERVE_WINDOW_BYTES: u64 = 32 << 20;
+
 #[derive(Debug)]
 pub struct BlockServe {
     id: Vec<u8>,
