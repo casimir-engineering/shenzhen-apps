@@ -187,13 +187,17 @@ static SPDFGroupActionButton* Icon(NSString* symbol, NSString* help, id target, 
     if (!isfinite(scroll)) scroll = 0;
     if (_hasSnapshot && [_groups isEqualToArray:groups ?: @[]] && [_search.stringValue isEqual:query] &&
         [_expanded isEqualToSet:expanded] && _searchCollapsed==[state[@"groupSearchCollapsed"] boolValue] && fabs(_savedScroll-scroll)<.5) return;
+    // The first time the list shows after the app opens, every group is open and the open document is in the middle.
+    BOOL opening = !_hasSnapshot;
+    if (opening) for (NSDictionary* group in groups) if ([group[@"id"] isKindOfClass:NSString.class]) [expanded addObject:group[@"id"]];
     _restoring = YES; _hasSnapshot = YES; _groups = groups.copy ?: @[];
     if (![_search.stringValue isEqual:query]) _search.stringValue = query;
-    _searchCollapsed = [state[@"groupSearchCollapsed"] boolValue];
-    _expanded = expanded; _savedScroll = scroll; _pendingScrollRestore = YES;
+    _searchCollapsed = [state[@"groupSearchCollapsed"] boolValue] && !opening;
+    _expanded = expanded; _savedScroll = scroll; _pendingScrollRestore = YES; _pendingSelectedReveal |= opening;
     [self rebuildRows]; [self.view layoutSubtreeIfNeeded];
     [self restoreScrollIfReady];
     _restoring = NO;
+    if (opening) [self publishState];  // later refreshes keep them open (they compare with the saved state)
 }
 - (void)rebuildRows {
     NSMutableArray* rows = [NSMutableArray array]; NSUInteger hidden = 0, matched = 0;
