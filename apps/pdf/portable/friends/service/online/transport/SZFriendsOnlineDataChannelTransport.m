@@ -14,6 +14,13 @@ void SZFriendsOnlineConfigureStack(void) {
         // applies when the pool's threads are spawned, so it must precede the first peer connection. No logger is
         // installed, so libdatachannel and libjuice log nothing: addresses never reach a log (ADR 0011).
         rtcSetThreadPoolSize(1);
+#ifdef SZFRIENDS_TEST_SCTP_RECV_KB
+        // Test builds only (FRIENDS_TEST_BUILD_FLAGS): usrsctp's receive buffer, the window this side offers.
+        rtcSctpSettings sctp;
+        memset(&sctp, 0, sizeof sctp);
+        sctp.recvBufferSize = SZFRIENDS_TEST_SCTP_RECV_KB * 1024;
+        rtcSetSctpSettings(&sctp);
+#endif
     });
 }
 

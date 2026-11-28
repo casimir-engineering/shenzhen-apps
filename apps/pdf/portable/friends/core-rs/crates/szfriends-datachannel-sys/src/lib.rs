@@ -172,6 +172,13 @@ pub fn log_to_stderr(warnings: bool) {
     unsafe { ffi::rtcInitLogger(level, Some(on_log)) };
 }
 
+/// The stack's log at `level` (rtc.h's numbers: 3 warning, 4 info, 5 debug) to stderr; test builds only, since its
+/// lines carry addresses. Needs SZFRIENDS_DATACHANNEL_LOGGING=1 at build time for libjuice's own lines.
+pub fn log_to_stderr_at(level: u8) {
+    // SAFETY: `on_log` is a valid callback for the life of the process.
+    unsafe { ffi::rtcInitLogger(ffi::rtcLogLevel::from(level), Some(on_log)) };
+}
+
 /// One worker thread for every peer connection (ADR 0009 § Configuration; the stack's default is one per core). It
 /// applies when the pool's threads are spawned, so call it once, before the first peer connection.
 pub fn set_thread_pool_size(count: u32) {

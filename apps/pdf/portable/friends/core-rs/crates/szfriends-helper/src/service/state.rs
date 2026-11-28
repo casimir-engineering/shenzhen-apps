@@ -89,6 +89,7 @@ impl State {
             pulls: pulls::PullArea::default(),
             notify,
             dirty: false,
+            views_at: None,
             stopped: None,
         }
     }

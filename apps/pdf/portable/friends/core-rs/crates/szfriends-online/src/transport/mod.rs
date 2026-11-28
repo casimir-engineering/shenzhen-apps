@@ -189,6 +189,10 @@ pub fn configure_stack() {
     static ONCE: std::sync::Once = std::sync::Once::new();
     ONCE.call_once(|| {
         szfriends_datachannel_sys::set_thread_pool_size(1);
+        // Test builds only: SZFRIENDS_TEST_STACK_LOG=<rtc.h level> when the core is compiled.
+        if let Some(level) = option_env!("SZFRIENDS_TEST_STACK_LOG").and_then(|l| l.parse::<u8>().ok()) {
+            szfriends_datachannel_sys::log_to_stderr_at(level);
+        }
         // Test: SZFRIENDS_TEST_SCTP="<cc>,<max burst>" when the core is compiled (test builds only).
         if let Some(spec) = option_env!("SZFRIENDS_TEST_SCTP") {
             let mut parts = spec.split(',').map(|p| p.trim().parse::<u8>().ok());

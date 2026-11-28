@@ -403,9 +403,16 @@ pub(crate) struct State {
     pub notify: notifications::NotifyArea,
     /// Something changed since the views were last brought up to date.
     pub dirty: bool,
+    /// When the views were last brought up to date: while a copy runs every PART marks them changed, and building
+    /// every view's snapshot after each one took most of a phone core (LAN copies held near 15 MB/s), so they are
+    /// brought up to date at most every VIEWS_EVERY.
+    pub views_at: Option<std::time::Instant>,
     /// Answered once the thread has closed the store (shutdown).
     stopped: Option<Sender<()>>,
 }
+
+/// How often the views are brought up to date at most (`State::views_at`).
+const VIEWS_EVERY: Duration = Duration::from_millis(100);
 
 fn run(mut state: State, inbox: Receiver<Input>) {
     #[cfg(feature = "online")]
@@ -414,7 +421,11 @@ fn run(mut state: State, inbox: Receiver<Input>) {
     state.start_nearby();
     let mut later = std::collections::VecDeque::new();
     loop {
-        let wait = state.next_wakeup().min(Duration::from_millis(250));
+        let mut wait = state.next_wakeup().min(Duration::from_millis(250));
+        if state.dirty {
+            let since = state.views_at.map_or(VIEWS_EVERY, |at| at.elapsed());
+            wait = wait.min(VIEWS_EVERY.saturating_sub(since));
+        }
         let next = match later.pop_front() {
             Some(input) => Ok(input),
             None => inbox.recv_timeout(wait),
@@ -446,8 +457,9 @@ fn run(mut state: State, inbox: Receiver<Input>) {
         }
         state.service_sessions();
         state.notify_pass(state.dirty);
-        if state.dirty {
+        if state.dirty && state.views_at.is_none_or(|at| at.elapsed() >= VIEWS_EVERY) {
             state.dirty = false;
+            state.views_at = Some(std::time::Instant::now());
             state.schedule_sync_capture();
             state.update_views();
         }
