@@ -31,11 +31,53 @@ static CFRunLoopRef StreamRunLoop(void) {
             }
         }];
         thread.name = @"Shenzhen Friends streams";
-        thread.qualityOfService = NSQualityOfServiceUtility;
+        // User-initiated, not utility: the thread reads a Bluetooth channel one SDU (2 KiB from a phone) at a time,
+        // and the Mac hands the sender more credit only once the last one was read, so every late wake-up is time
+        // the radio stands still.
+        thread.qualityOfService = NSQualityOfServiceUserInitiated;
         [thread start];
         dispatch_semaphore_wait(ready, DISPATCH_TIME_FOREVER);
     });
     return runLoop;
+}
+
+// While a stream moves bytes the helper (a menu-bar-less agent, so App Nap applies to it) holds a latency-critical
+// activity: napped, its stream thread woke about every 75 ms, which let a phone send 2 KiB per wake-up (26 KB/s).
+// Released after kAwakeIdle without a byte, so an idle Bluetooth session leaves App Nap alone.
+static const NSTimeInterval kAwakeIdle = 5;
+
+static void OnStreamThread(dispatch_block_t block);
+
+// Every call on the stream thread; the activity's state lives there too.
+static id<NSObject> sAwake;
+static uint64_t sLastMoved;
+static BOOL sAwakeCheckPending;
+
+static void CheckAwake(void) {
+    sAwakeCheckPending = NO;
+    double idle = (clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - sLastMoved) / 1e9;
+    if (idle >= kAwakeIdle) {
+        if (sAwake) [[NSProcessInfo processInfo] endActivity:sAwake];
+        sAwake = nil;
+        return;
+    }
+    sAwakeCheckPending = YES;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)((kAwakeIdle - idle + 0.1) * NSEC_PER_SEC)),
+                   dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+                       OnStreamThread(^{
+                           CheckAwake();
+                       });
+                   });
+}
+
+static void KeepAwake(void) {
+    sLastMoved = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    if (sAwake == nil) {
+        sAwake = [[NSProcessInfo processInfo]
+            beginActivityWithOptions:NSActivityUserInitiatedAllowingIdleSystemSleep | NSActivityLatencyCritical
+                              reason:@"Moving Friends data over Bluetooth"];
+    }
+    if (!sAwakeCheckPending) CheckAwake();
 }
 
 static void OnStreamThread(dispatch_block_t block) {
@@ -151,6 +193,7 @@ static void OnStreamThread(dispatch_block_t block) {
     dispatch_once(&once, ^{
         log = os_log_create("com.intuition.shenzhen-friends", "streams");
     });
+    KeepAwake();
     uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
     if (_meterSince == 0) _meterSince = now;
     _meterRead += read;
