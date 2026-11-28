@@ -5,7 +5,7 @@
 
 <a href="https://github.com/casimir-engineering/shenzhen-files/releases/latest/download/ShenzhenFiles-mac-arm64.dmg"><img src="https://img.shields.io/badge/Download%20for%20macOS-Apple%20Silicon-2ea44f?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS (Apple Silicon)" height="46"></a>
 
-<sub>Latest <b>26.11.19-1</b> · Apple Silicon</sub>
+<sub>Latest <b>26.11.29-1</b> · Apple Silicon</sub>
 
 <a href="https://github.com/casimir-engineering/shenzhen-files/releases/latest">All releases</a> · <a href="https://github.com/casimir-engineering/shenzhen-files">Source</a>
 
@@ -35,9 +35,11 @@ Message people nearby or by their Friends ID, and send them files. **⌘J** open
 - Paste (⌘V) to attach files copied in Finder, or a screenshot.
 - When new messages arrive while you read older ones, **New message ↓** takes you to them.
 - Each friend's row shows the latest message in your conversation.
-- Files go over every connection you share at once, such as your network and Bluetooth, and pick up where they stopped.
+- Files go over every connection you share at once, such as your network and Bluetooth LE, and pick up where they stopped.
 - See how each file travels: an icon for each way it's using, and a bar showing how much each one carried, with the size, percentage, speed and time left.
-- Friends always tries a direct connection first, and stops using the relay as soon as one works.
+- Friends always tries a direct connection first, also while your Mac uses a VPN, and stops using the relay as soon as one works.
+- Direct Wi-Fi to a nearby Mac or phone is used only when neither of you is on a Wi-Fi network, so your Wi-Fi keeps its full speed.
+- Files on one of your computers show on your others at once. Choose **Download here** on the ones you want there.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme-friends-transfer-dark.png">
