@@ -100,8 +100,6 @@ pub const BODY_MAX: usize = 60_000;
 pub const MESSAGE_MAX: usize = 64_000;
 /// Scope and subject.
 pub const LABEL_MAX: usize = 80;
-/// Files at most this large copy to the person's other devices by themselves; You's always.
-pub const AUTO_COPY_MAX: u64 = 25_000_000;
 pub const FILE_PART_MAX: usize = 48 * 1024;
 /// An event whose clock is further than this ahead of ours is refused.
 pub const LAMPORT_MARGIN: u64 = 1 << 32;
@@ -128,10 +126,6 @@ pub const STATE_PRESENCE_RETELL: &str = "presence_retell";
 pub(crate) const TAG_CONVERSATION: u8 = 1;
 /// FILE HELD: u64 1, the author no longer holds the bytes (ADR 0016). Absent: it holds them.
 pub(crate) const TAG_RELEASED: u8 = 2;
-
-pub fn copies_automatically(size: u64, conversation_id: &str) -> bool {
-    size <= AUTO_COPY_MAX || conversation_id == crate::store::sync_log::YOU
-}
 
 fn keyed_secret(key: &[u8], domain: &str, device: &[u8]) -> Option<[u8; 32]> {
     (key.len() == 32 && device.len() == 32)

@@ -249,7 +249,7 @@ static NSData *SZFriendsSyncSeqValue(uint64_t seq) {
     return YES;
 }
 
-- (NSSet<NSString *> *)itemsOnEveryDeviceInConversation:(NSString *)conversationID {
+- (NSSet<NSString *> *)itemsListedOnEveryDeviceInConversation:(NSString *)conversationID {
     NSMutableSet<NSString *> *everywhere = [NSMutableSet set];
     NSArray<NSData *> *others = self.otherDeviceKeys;
     NSMutableArray<SZFriendsSyncVector *> *held = [NSMutableArray array];
@@ -270,6 +270,12 @@ static NSData *SZFriendsSyncSeqValue(uint64_t seq) {
         }
         if (all) [everywhere addObject:itemID];
     }
+    return everywhere;
+}
+
+- (NSSet<NSString *> *)itemsOnEveryDeviceInConversation:(NSString *)conversationID {
+    NSMutableSet<NSString *> *everywhere = [[self itemsListedOnEveryDeviceInConversation:conversationID] mutableCopy];
+    NSArray<NSData *> *others = self.otherDeviceKeys;
     for (SZFriendsSyncFileRecord *file in [self.store syncFiles]) {
         if (![file.conversationID isEqualToString:conversationID] || file.itemID == nil) continue;
         BOOL all = YES;

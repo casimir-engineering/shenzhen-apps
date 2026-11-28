@@ -81,8 +81,9 @@ NSDictionary<NSString *, NSString *> *SZFriendsEnglishCatalogDevices(void) {
                                        @"them.",
         @"you.status.queued" : @"Waiting for your other computers",
         @"you.status.delivered" : @"On all your computers",
-        @"you.transfer.status.queued" : @"Copies to your other computers when they connect",
+        @"you.transfer.status.queued" : @"Shows on your other computers when they connect",
         @"you.transfer.status.sending" : @"Copying to your other computers · {percent}%",
+        @"you.transfer.status.listed" : @"Ready to download on your other computers",
         @"you.transfer.status.delivered" : @"On all your computers",
         // The You row's route tooltip: each of the person's other computers connected now, one per line, with how
         // it is connected ({route} is a route label, "Nearby, on your network"); read aloud joined by "; ".
@@ -93,10 +94,10 @@ NSDictionary<NSString *, NSString *> *SZFriendsEnglishCatalogDevices(void) {
         @"you.route.alone" : @"No other computers yet",
         @"you.route.none_connected" : @"Your other computers aren’t connected right now",
 
-        // A file another of the person's computers holds and this one does not have yet (too large to copy by
-        // itself). {device} is that computer's name.
+        // A file another of the person's computers holds and this one does not have yet: listed here, and copied
+        // only when the person presses Download here. {device} is that computer's name.
         @"transfer.status.on_device" : @"On {device}",
-        @"transfer.action.fetch" : @"Get",
+        @"transfer.action.fetch" : @"Download here",
         @"transfer.status.fetching" : @"Copying from {device} · {percent}%",
         @"transfer.status.fetch_waiting" : @"Copies when {device} is nearby with {apps} open",
         @"transfer.status.fetch_waiting.online" : @"Copies when {device} is online or nearby with {apps} open",

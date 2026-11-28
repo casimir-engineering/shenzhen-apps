@@ -12,7 +12,6 @@ NSErrorDomain const SZFriendsSyncErrorDomain = @"SZFriendsSyncErrorDomain";
 const NSUInteger SZFriendsSyncBodyMax = 60000;
 const NSUInteger SZFriendsSyncMessageMax = 64000;
 const NSUInteger SZFriendsSyncLabelMax = 80;
-const uint64_t SZFriendsSyncAutoCopyMax = 25000000;
 const uint64_t SZFriendsSyncLamportMargin = 1ull << 32;
 const NSTimeInterval SZFriendsSyncSecretRenewalWait = 600;
 const NSUInteger SZFriendsSyncFilePartMax = 48 * 1024;
@@ -29,10 +28,6 @@ NSError *SZFriendsSyncMakeError(SZFriendsSyncError code, NSString *why) {
 BOOL SZFriendsSyncFail(NSError **error, SZFriendsSyncError code, NSString *why) {
     if (error) *error = SZFriendsSyncMakeError(code, why);
     return NO;
-}
-
-BOOL SZFriendsSyncCopiesAutomatically(uint64_t size, NSString *conversationID) {
-    return size <= SZFriendsSyncAutoCopyMax || [conversationID isEqualToString:SZFriendsYouConversationID];
 }
 
 static NSData *_Nullable SZFriendsSyncKeyedSecret(NSData *key, NSString *domain, NSData *deviceKey) {

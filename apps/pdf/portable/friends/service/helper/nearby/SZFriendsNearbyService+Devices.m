@@ -279,10 +279,9 @@ NSString *SZFriendsDeviceIDForKey(NSData *deviceKey) {
 // Read once per pass: which transfers are here, which keys are our other computers and what they are called.
 - (NSDictionary<NSString *, SZFriendsDeviceFileFacts *> *)fileFactsWithEngine:(SZFriendsSyncEngine *)engine {
     SZFriendsStore *store = self.services.store;
-    // Rows here, and which of them still have their bytes (what the person moved or deleted does not).
-    NSMutableSet<NSString *> *rows = [NSMutableSet set], *here = [NSMutableSet set];
+    // Which transfers still have their bytes here (what the person moved or deleted does not).
+    NSMutableSet<NSString *> *here = [NSMutableSet set];
     for (SZFriendsTransferRecord *transfer in [store allTransferRecords]) {
-        [rows addObject:transfer.transferID];
         if (SZFriendsSyncLocalPathOfTransfer(transfer) != nil) [here addObject:transfer.transferID];
     }
     NSSet<NSData *> *ours = [NSSet setWithArray:engine.otherDeviceKeys];
@@ -314,9 +313,8 @@ NSString *SZFriendsDeviceIDForKey(NSData *deviceKey) {
         if (holder == nil) continue;
         SZFriendsDeviceFileFacts *facts = [[SZFriendsDeviceFileFacts alloc] init];
         facts.deviceName = names[holder] ?: SZFriendsHelperDeviceName();
-        facts.fetching = [engine isFileRequested:file.transferID] ||
-                         (![rows containsObject:file.transferID] &&
-                          SZFriendsSyncCopiesAutomatically(file.size, file.conversationID));
+        // Listed until the person presses Download here on this computer; nothing copies by itself.
+        facts.fetching = [engine isFileRequested:file.transferID];
         facts.holderConnected = connected;
         facts.fraction = [copying[file.transferID] doubleValue];
         // The session carrying the copy, as the conversation's route shows a friend's file.
@@ -355,6 +353,7 @@ NSString *SZFriendsDeviceIDForKey(NSData *deviceKey) {
         }
     } else {
         [everywhere unionSet:[engine itemsOnEveryDeviceInConversation:SZFriendsYouConversationID]];
+        facts.youItemsListed = [engine itemsListedOnEveryDeviceInConversation:SZFriendsYouConversationID];
     }
     facts.youItemsEverywhere = everywhere;
     NSMutableDictionary<NSString *, NSNumber *> *serving = [NSMutableDictionary dictionary];

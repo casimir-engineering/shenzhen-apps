@@ -102,12 +102,6 @@ static void TestVectors(void) {
                @"truncated refused");
 }
 
-static void TestCopyPolicy(void) {
-    SZFSExpect(SZFriendsSyncCopiesAutomatically(25000000, @"abc"), @"25 MB copies by itself");
-    SZFSExpect(!SZFriendsSyncCopiesAutomatically(25000001, @"abc"), @"larger waits for Get");
-    SZFSExpect(SZFriendsSyncCopiesAutomatically(4000000000ull, SZFriendsYouConversationID), @"You copies any size");
-}
-
 static void TestDeviceTagSecrets(void) {
     NSData *secret = SZFSRoot32(0x21), *laptop = SZFSRoot32(0x31), *desktop = SZFSRoot32(0x32);
     NSData *forLaptop = SZFriendsSyncDeviceTagSecret(secret, laptop);
@@ -128,5 +122,4 @@ void SZFSRunCodecTests(void) {
     TestFieldsRoundTrip();
     TestEventSignatures();
     TestVectors();
-    TestCopyPolicy();
 }

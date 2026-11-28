@@ -66,6 +66,9 @@ pub struct DevicesFacts {
     pub you_preview: Option<ItemFacts>,
     /// You items every other computer holds, by item id.
     pub you_items_everywhere: BTreeSet<String>,
+    /// You items every other computer lists, by item id, files among them whose bytes are not everywhere yet: a file
+    /// there is ready to download on the other computers.
+    pub you_items_listed: BTreeSet<String>,
     /// You files being copied to another computer now, by transfer id: how much of the file that copy has.
     pub you_copying: BTreeMap<String, f64>,
     /// Files on another computer and not here, by transfer id.

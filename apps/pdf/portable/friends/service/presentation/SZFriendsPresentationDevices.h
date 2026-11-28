@@ -48,6 +48,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, strong, nullable) SZFriendsItemFacts *youPreview;
 // You items every other computer holds, by item id: "On all your computers".
 @property(nonatomic, copy) NSSet<NSString *> *youItemsEverywhere;
+// You items every other computer lists, by item id, files among them whose bytes are not everywhere yet: a file there
+// is ready to download on the other computers.
+@property(nonatomic, copy) NSSet<NSString *> *youItemsListed;
 // You files being copied to another computer now, by transfer id: how much of the file that copy has.
 @property(nonatomic, copy) NSDictionary<NSString *, NSNumber *> *youCopying;
 // Files on another computer and not here, by transfer id.

@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use szfriends_core::presentation::DeviceFileFacts;
 use szfriends_core::store::sync_files;
-use szfriends_core::sync::{copies_automatically, holds_transfer};
+use szfriends_core::sync::holds_transfer;
 
 use super::devices::local_device_name;
 use super::State;
@@ -43,9 +43,8 @@ impl State {
                 connected = connected || live;
             }
             let Some(holder) = holder else { continue };
-            // What the person moved or deleted here copies only after Get.
-            let fetching = self.devices.engine.is_file_requested(&self.store, &file.transfer_id)
-                || (row.is_none() && copies_automatically(file.size, &file.conversation_id));
+            // Listed until the person presses Download here on this computer; nothing copies by itself.
+            let fetching = self.devices.engine.is_file_requested(&self.store, &file.transfer_id);
             let facts = DeviceFileFacts {
                 device_name: names.get(&holder).cloned().unwrap_or_else(local_device_name),
                 fetching,

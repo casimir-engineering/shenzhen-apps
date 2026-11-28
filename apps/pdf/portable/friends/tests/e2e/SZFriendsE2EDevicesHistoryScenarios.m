@@ -1,7 +1,7 @@
 // friends-e2e-devices-check: one history on every computer (PROTOCOL.md § Devices). Deleting one chat on one computer,
 // then all history on the other while the first is apart, empties those chats everywhere (the apart one once it is
-// back) and keeps the friend; a file sent to You lands on the other computer; a large file from a friend stays on the
-// computer that received it until Get copies it.
+// back) and keeps the friend; a file sent to You is listed on the other computer and lands there after Download here;
+// a file from a friend stays on the computer that received it until Download here copies it.
 
 #import "SZFriendsE2EDevices.h"
 
@@ -96,7 +96,8 @@ BOOL SZFE2EDevicesScenarioYou(SZFE2EWorld *world) {
     NSString *benAtStudio = nil, *benAtLaptop = nil, *anaAtBen = nil;
     if (!SZFE2EStartProfile(world, &studio, &laptop, &ben, &benAtStudio, &benAtLaptop, &anaAtBen)) return NO;
 
-    // A file to yourself: it lands on the laptop, and the studio then says it is on every computer.
+    // A file to yourself: listed on the laptop, which downloads it only when asked; the studio then says it is on
+    // every computer.
     NSString *pages = [world fileOfSize:3 * 1024 * 1024 named:@"Pages 3 to 5.pdf"];
     NSDictionary *reply = [studio.client intent:@"send_files" fields:@{@"conversation_id" : @"you",
                                                                       @"files" : @[ @{@"path" : pages} ],
@@ -105,6 +106,20 @@ BOOL SZFE2EDevicesScenarioYou(SZFE2EWorld *world) {
     CHECK(toSelf != nil, "send_files to You: %@", reply);
     NSString *youOnStudio = [studio.client openConversation:@"you"];
     NSString *youOnLaptop = [laptop.client openConversation:@"you"];
+    CHECK(SZFE2EWaitUntil(20, ^BOOL {
+              NSDictionary *item = SZFE2ETransfer(laptop, youOnLaptop, toSelf);
+              return [item[@"state"] isEqual:@"on_device"] && SZFE2EHasAction(item, @"fetch_from_device");
+          }),
+          "the laptop lists it with Download here: %@", SZFE2ETransfer(laptop, youOnLaptop, toSelf));
+    CHECK(SZFE2EWaitUntil(10, ^BOOL {
+              return [SZFE2ETransfer(studio, youOnStudio, toSelf)[@"status_label"]
+                  isEqual:@"Ready to download on your other computers"];
+          }),
+          "the studio says the laptop can download it: %@", SZFE2ETransfer(studio, youOnStudio, toSelf));
+    SZFE2EPump(1);
+    CHECK([SZFE2ETransfer(laptop, youOnLaptop, toSelf)[@"state"] isEqual:@"on_device"], "nothing copies by itself");
+    reply = [laptop.client intent:@"fetch_from_device" fields:@{@"transfer_id" : toSelf}];
+    CHECK([reply[@"ok"] boolValue], "Download here: %@", reply);
     CHECK(SZFE2EWaitUntil(20, ^BOOL {
               NSDictionary *item = SZFE2ETransfer(laptop, youOnLaptop, toSelf);
               id path = item[@"file"][@"path"];
@@ -152,7 +167,7 @@ BOOL SZFE2EDevicesScenarioYou(SZFE2EWorld *world) {
           }),
           "the other computer shows where it is: %@", SZFE2ETransfer(other, atOther, large));
     SZFE2EPump(1);
-    CHECK([SZFE2ETransfer(other, atOther, large)[@"state"] isEqual:@"on_device"], "over 25 MB, it waits for Get");
+    CHECK([SZFE2ETransfer(other, atOther, large)[@"state"] isEqual:@"on_device"], "it waits for Download here");
     reply = [other.client intent:@"fetch_from_device" fields:@{@"transfer_id" : large}];
     CHECK([reply[@"ok"] boolValue], "Get: %@", reply);
     return SZFE2EReceivedIntact(other, atOther, large, audit, 30);

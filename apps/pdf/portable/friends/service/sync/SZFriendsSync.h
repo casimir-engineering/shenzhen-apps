@@ -56,9 +56,6 @@ typedef NS_ENUM(uint8_t, SZFriendsSyncKind) {
 extern const NSUInteger SZFriendsSyncBodyMax;        // 60,000 bytes: one event fits one SYNC frame
 extern const NSUInteger SZFriendsSyncMessageMax;     // 64,000 bytes: a SYNC frame's payload
 extern const NSUInteger SZFriendsSyncLabelMax;       // 80 bytes: scope and subject
-// Files at most this large copy to the person's other devices by themselves; larger ones when asked. Files in the
-// You conversation always copy.
-extern const uint64_t SZFriendsSyncAutoCopyMax;      // 25 MB (25,000,000 bytes)
 extern const NSUInteger SZFriendsSyncFilePartMax;    // 48 KiB of file per FILE_PART message
 // An event whose Lamport clock is further than this ahead of ours is refused, so no device can push the clocks to
 // their end (where last writer wins would stop working) in a few events.
@@ -66,9 +63,6 @@ extern const uint64_t SZFriendsSyncLamportMargin;    // 2^32
 // How long each authorized device after the first waits, per place in the order, before drawing new secrets after a
 // removal the devices before it have not acted on.
 extern const NSTimeInterval SZFriendsSyncSecretRenewalWait; // 600 s
-
-// Whether a file's bytes copy to this device without being asked.
-BOOL SZFriendsSyncCopiesAutomatically(uint64_t size, NSString *conversationID);
 
 // The presence secret one of our devices advertises its tags under, nearby (SZFriendsPresenceTag): BLAKE2b-256 keyed
 // with the own-devices secret over "SZFriends own device v1" || its device key. Friends never hold the own-devices
@@ -229,6 +223,9 @@ BOOL SZFriendsSyncVectorCovers(SZFriendsSyncVector *vector, NSData *author, uint
 // The items of `conversationID` (messages by their events, files by their bytes) every other device holds: what a
 // snapshot of You shows as on all your computers, read in two queries whatever the number of items.
 - (NSSet<NSString *> *)itemsOnEveryDeviceInConversation:(NSString *)conversationID;
+// The items of `conversationID` every other device holds an event that carried (files by their records, whether or not
+// their bytes are there): a You file every other computer lists, ready to download there.
+- (NSSet<NSString *> *)itemsListedOnEveryDeviceInConversation:(NSString *)conversationID;
 @end
 
 // Where this device has a transfer's bytes (ADR 0016): a received file where it was saved, at its size; for one of
@@ -236,10 +233,10 @@ BOOL SZFriendsSyncVectorCovers(SZFriendsSyncVector *vector, NSData *author, uint
 NSString *_Nullable SZFriendsSyncLocalPathOfTransfer(SZFriendsTransferRecord *transfer);
 
 @interface SZFriendsSyncEngine (Files)
-// Files: transfer records whose bytes are on another device and not here, the ones that copy by themselves (or were
-// asked for) first.
+// Files: transfer records whose bytes are on another device and not here that the person asked for (Download here),
+// oldest first. Nothing copies by itself.
 - (NSArray<SZFriendsSyncFileRecord *> *)filesWanted;
-// "Get": copy this file's bytes here at the next chance, whatever its size.
+// "Download here": copy this file's bytes here at the next chance, whatever its size.
 - (BOOL)requestFile:(NSString *)transferID error:(NSError **)error;
 // Get was pressed for it (and the copy has not finished).
 - (BOOL)isFileRequested:(NSString *)transferID;

@@ -69,9 +69,9 @@ computer, not an app.
   commit and syncs the message to the others. Any of your devices may deliver a queued message to a friend
   (message ids make duplicates harmless), so a message written on a laptop that went to sleep still leaves from
   the desktop.
-- **Files.** Transfer records sync at once. File bodies up to 25 MB copy to your other devices automatically;
-  larger ones show "On MacBook Pro · Get" and copy when asked. Files in **You** copy to every device regardless of
-  size, since moving them is the point.
+- **Files.** Transfer records sync at once. File bodies copy to another device only when asked there: every other
+  device shows "On MacBook Pro · Download here" (ADR 0023, the owner's rule of 2026-11-28; files up to 25 MB, and
+  any file in **You**, used to copy by themselves).
 
 ## Host
 

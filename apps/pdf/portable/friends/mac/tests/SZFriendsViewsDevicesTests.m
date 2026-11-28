@@ -354,8 +354,8 @@ static void SZFTestOtherComputersFiles(void) {
         if ([state isEqualToString:@"fetching"] && fetching) waiting = item;
         if ([state isEqualToString:@"fetching"] && !fetching) fetching = item;
     }
-    SZFExpect(onDevice.actionButtons.count == 1 && [onDevice.actionButtons[0].title isEqualToString:@"Get"],
-              @"a file on another computer offers Get");
+    SZFExpect(onDevice.actionButtons.count == 1 && [onDevice.actionButtons[0].title isEqualToString:@"Download here"],
+              @"a file on another computer offers Download here");
     NSArray *labels = [SZFTestSubviews(onDevice, NSTextField.class) valueForKey:@"stringValue"];
     SZFExpect([labels containsObject:@"On Raph’s Mac mini"], @"it says where the file is: %@", labels);
     [onDevice.actionButtons[0] performClick:nil];

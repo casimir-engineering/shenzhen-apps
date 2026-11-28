@@ -109,8 +109,8 @@ static void test_files_on_other_computers(SZFGHarness *harness) {
     szfg_conv_layout(conv);
     GtkWidget *root = szfg_conv_root(conv);
     EXPECT(szfg_find_label(root, "On Raph’s Mac mini") != NULL, "a file on another computer says where it is");
-    GtkWidget *get = szfg_find_button(root, "Get");
-    EXPECT(get && gtk_widget_has_css_class(get, "suggested-action"), "and offers Get");
+    GtkWidget *get = szfg_find_button(root, "Download here");
+    EXPECT(get && gtk_widget_has_css_class(get, "suggested-action"), "and offers Download here");
     guint before = szfg_fake_frames(harness, "fetch_from_device", NULL, NULL);
     if (get) g_signal_emit_by_name(get, "clicked");
     EXPECT(szfg_conv_wait_frames(harness, "fetch_from_device", before) &&

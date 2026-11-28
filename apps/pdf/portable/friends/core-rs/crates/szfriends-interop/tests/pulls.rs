@@ -95,7 +95,7 @@ fn a_copy_pulls_from_every_holder_and_survives_a_stale_or_vanishing_one() {
     item_when(&mut first, &fay_in_first, &transfer, "the offer", |i| i.to_string().contains("accept_offer"));
     first.send("accept_offer", json!({"transfer_id": transfer}));
     let on_first = path_when(&mut first, &fay_in_first, &transfer, "received on the first computer");
-    // Larger than what copies by itself: the second computer shows it with Get.
+    // Nothing copies by itself: the second computer shows it with Download here.
     item_when(&mut second, &fay_in_second, &transfer, "on the first computer", |i| {
         i["actions"].as_array().is_some_and(|a| a.iter().any(|a| a["action"] == "fetch_from_device"))
     });
