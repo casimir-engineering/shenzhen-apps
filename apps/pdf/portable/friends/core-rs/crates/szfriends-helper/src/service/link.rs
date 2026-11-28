@@ -3,15 +3,18 @@
 //! closing writes everything still queued, sends FIN, and reads on for up to two seconds so the peer's last bytes are
 //! not answered with a reset (the interop suite's link, which this mirrors). Over a stream the platform owns (a
 //! Bluetooth channel), bytes cross through its channels and the end is said in order after the last write. A friend
-//! reached online gets the same two threads over the data channel's stream.
+//! reached online gets the same two threads over the data channel's stream. The writer seals the session's transport
+//! messages itself (`LinkWrite`), so the service's thread only orders them, and over TCP gathers the writes waiting
+//! into one.
 
 use std::io::{ErrorKind, Read, Write};
 use std::net::{Shutdown, TcpStream};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{channel, Sender};
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use szfriends_core::session::LinkWrite;
 #[cfg(feature = "online")]
 use szfriends_online::transport::{ChannelStream, StreamInput};
 
@@ -67,8 +70,31 @@ impl Pace {
 }
 
 enum WriterMessage {
-    Bytes(Vec<u8>),
+    Write(LinkWrite),
     Finish,
+}
+
+/// One TCP write gathers the writes already waiting, up to this many bytes: fewer, larger system calls.
+const GATHER_BYTES: usize = 1 << 20;
+
+/// The writes waiting behind `first` (until `Finish`, kept for after them), sealed here on the writer's thread into
+/// one buffer: the session's thread only decided their order and nonces. How many writes it holds, and whether
+/// `Finish` came.
+fn gather(first: LinkWrite, inbox: &Receiver<WriterMessage>, out: &mut Vec<u8>) -> (usize, bool) {
+    out.clear();
+    first.append_to(out);
+    let mut writes = 1;
+    while out.len() < GATHER_BYTES {
+        match inbox.try_recv() {
+            Ok(WriterMessage::Write(next)) => {
+                next.append_to(out);
+                writes += 1;
+            }
+            Ok(WriterMessage::Finish) => return (writes, true),
+            Err(_) => break,
+        }
+    }
+    (writes, false)
 }
 
 #[derive(Debug)]
@@ -115,9 +141,11 @@ impl Link {
         });
         let (writer, inbox) = channel::<WriterMessage>();
         std::thread::spawn(move || {
+            // One message at a time, as the platform's channel takes them; sealed here, off the session's thread.
             while let Ok(message) = inbox.recv() {
                 match message {
-                    WriterMessage::Bytes(bytes) => {
+                    WriterMessage::Write(write) => {
+                        let bytes = write.into_bytes();
                         let length = bytes.len();
                         Pace::silenced(&pace);
                         outgoing(Some(bytes));
@@ -171,20 +199,23 @@ impl Link {
         let (writer, inbox) = channel::<WriterMessage>();
         let mut out = stream.try_clone()?;
         std::thread::spawn(move || {
+            let mut buffer = Vec::new();
             while let Ok(message) = inbox.recv() {
-                match message {
-                    WriterMessage::Bytes(bytes) => {
-                        Pace::silenced(&pace);
-                        if out.write_all(&bytes).is_err() {
-                            let _ = events.send(wrap(LinkEvent::Eof(id)));
-                            return;
-                        }
-                        Pace::carried(&mut pace, bytes.len());
-                        if events.send(wrap(LinkEvent::Written(id))).is_err() {
-                            return;
-                        }
+                let WriterMessage::Write(first) = message else { break };
+                let (writes, finish) = gather(first, &inbox, &mut buffer);
+                Pace::silenced(&pace);
+                if out.write_all(&buffer).is_err() {
+                    let _ = events.send(wrap(LinkEvent::Eof(id)));
+                    return;
+                }
+                Pace::carried(&mut pace, buffer.len());
+                for _ in 0..writes {
+                    if events.send(wrap(LinkEvent::Written(id))).is_err() {
+                        return;
                     }
-                    WriterMessage::Finish => break,
+                }
+                if finish {
+                    break;
                 }
             }
             let _ = out.flush();
@@ -219,7 +250,9 @@ impl Link {
         std::thread::spawn(move || {
             while let Ok(message) = inbox.recv() {
                 match message {
-                    WriterMessage::Bytes(bytes) => {
+                    WriterMessage::Write(write) => {
+                        // Sealed here, off the session's thread; the data channel takes the stream as it comes.
+                        let bytes = write.into_bytes();
                         Pace::silenced(&pace);
                         if !out.write(&bytes) {
                             let _ = events.send(wrap(LinkEvent::Eof(id)));
@@ -239,8 +272,10 @@ impl Link {
         Self { writer, finished: false }
     }
 
-    pub fn write(&self, bytes: Vec<u8>) {
-        let _ = self.writer.send(WriterMessage::Bytes(bytes));
+    /// A write the channel handed out ([`szfriends_core::session::SecureChannel::poll_write`]), sealed and written
+    /// in order on the writer's thread.
+    pub fn write(&self, write: LinkWrite) {
+        let _ = self.writer.send(WriterMessage::Write(write));
     }
 
     /// Everything written so far goes out, then FIN.

@@ -4,6 +4,28 @@
 use super::*;
 
 impl State {
+    /// As the helper's: the blocks of the slices the scheduler places next read and checked ahead.
+    pub(super) fn read_ahead(&mut self, head: u64) {
+        let Some(session) = self.sessions.get_mut(&head) else { return };
+        let Some(group) = self.lanes.groups.get_mut(&head) else { return };
+        for (offer, send) in session.blocks.senders.iter_mut() {
+            let geometry = *send.serve.geometry();
+            let per_block = 1usize << (geometry.shift - send.slices.units(&geometry).shift);
+            let key = group.key(offer);
+            let mut blocks: Vec<(u32, szfriends_core::transfer::Leaf)> = Vec::new();
+            for unit in group.scheduler.upcoming(key, send.reader.depth() * per_block) {
+                let block = send.slices.block_of_unit(&geometry, unit);
+                if blocks.last().is_some_and(|(b, _)| *b == block) || send.slices.cached(block).is_some() {
+                    continue;
+                }
+                if let Some(leaf) = send.serve.leaf(block) {
+                    blocks.push((block, leaf));
+                }
+            }
+            send.reader.ahead(&blocks);
+        }
+    }
+
     /// As the helper's: pieces arrived, reported at least every 256 KiB, after every part on Bluetooth (§ 3).
     pub(super) fn pieces_arrived(&mut self, id: u64, lane: u64, transfer: &str, bytes: usize) {
         if !self.sessions.get(&id).is_some_and(|s| s.channel.pieces()) {

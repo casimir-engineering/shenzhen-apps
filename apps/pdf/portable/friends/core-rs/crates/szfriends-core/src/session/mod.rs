@@ -3,7 +3,8 @@
 //!
 //! The channel is sans-IO: it never touches a socket, a thread or a clock. Its driver feeds it the bytes the route
 //! delivered ([`SecureChannel::receive`]) and the time ([`SecureChannel::handle_timeout`] at
-//! [`SecureChannel::poll_timeout`]), writes what [`SecureChannel::poll_transmit`] hands out in order, reports each
+//! [`SecureChannel::poll_timeout`]), writes what [`SecureChannel::poll_transmit`] (or [`SecureChannel::poll_write`],
+//! sealing on its writer's thread) hands out in order, reports each
 //! write done ([`SecureChannel::write_completed`]), and reads [`Event`]s. The same state machine then runs over TCP,
 //! L2CAP, a data channel or a test's memory pipe, and every timer is testable without waiting. It mirrors
 //! `SZFriendsSecureChannel` rule for rule, and the transcripts the helper exports (`objc-session.json`) replay through
@@ -30,7 +31,9 @@ use szfriends_wire::consts;
 use szfriends_wire::{Fields, Frame};
 use zeroize::Zeroizing;
 
-pub use channel::{HandshakeOptions, ListenerHooks, ProfileDecision, RemoteKeyPolicy, SecureChannel, Transmit};
+pub use channel::{
+    HandshakeOptions, LinkWrite, ListenerHooks, ProfileDecision, RemoteKeyPolicy, SecureChannel, Transmit,
+};
 pub use chunk::{
     chunk_bytes_for_route, send_window_for_route, transfer_liveness, ChunkReceiver, ChunkSender, FlowError,
 };

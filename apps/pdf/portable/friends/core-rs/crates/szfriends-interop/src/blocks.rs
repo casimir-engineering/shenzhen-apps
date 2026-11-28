@@ -13,7 +13,7 @@ use szfriends_core::session::{chunk_bytes_for_route, monotonic_now};
 use szfriends_core::store::{BlockPart, StoreError, TransferRecord, TransferState};
 use szfriends_core::transfer::scheduler::Action;
 use szfriends_core::transfer::slices::SliceSend;
-use szfriends_core::transfer::{compress, frames, BlockServe};
+use szfriends_core::transfer::{compress, frames, BlockServe, ReadAhead};
 use szfriends_core::wire::{tag, Frame, FrameType, RouteMethod};
 
 use crate::hex_bytes;
@@ -37,7 +37,6 @@ const WINDOW_BYTES: u64 = 64 << 20;
 /// One of our files going by blocks on one session's group.
 pub(crate) struct BlockSend {
     serve: BlockServe,
-    record: TransferRecord,
     /// Each lane's parts not yet handed to its channel: (block, part, the block's last part).
     pub(crate) lanes: HashMap<u64, VecDeque<(u32, Frame, bool)>>,
     /// The receiver has the leaves (a HAVE came back; a WANT comes before them): parts may go on lanes.
@@ -47,6 +46,8 @@ pub(crate) struct BlockSend {
     pub(crate) leaves_lane: u64,
     /// Pieces acknowledged and checked blocks, for slices (ADR 0018 § 3).
     slices: SliceSend,
+    /// As the helper: the blocks placed next, read and checked ahead on a thread of their own.
+    reader: ReadAhead,
 }
 
 /// As the helper: pieces reported at least every 256 KiB of parts, after every part on Bluetooth.
@@ -225,7 +226,8 @@ impl State {
         for frame in serve.hashes_frames() {
             self.send_frame(leaves_lane, &frame);
         }
-        let send = BlockSend { serve, record, lanes: HashMap::new(), lanes_ok: false, leaves_lane, slices: slice_send };
+        let reader = ReadAhead::new(record.staged_path.clone(), geometry);
+        let send = BlockSend { serve, lanes: HashMap::new(), lanes_ok: false, leaves_lane, slices: slice_send, reader };
         self.sessions.get_mut(&id)?.blocks.senders.insert(offer.to_owned(), send);
         Some(true)
     }
@@ -414,6 +416,7 @@ impl State {
                 }
             }
         }
+        self.read_ahead(head);
     }
 
     /// The scheduler gave `slice` of `transfer` to `lane`: its block read and checked against its leaf once, its pieces
@@ -432,8 +435,8 @@ impl State {
         let geometry = *send.serve.geometry();
         let block = send.slices.block_of_unit(&geometry, slice);
         if send.slices.cached(block).is_none() {
-            let read = self.store.read_outgoing_block(&send.record, &geometry, block).ok();
-            let Some(data) = read.filter(|data| send.serve.check_block(block, data).is_ok()) else {
+            let read = send.serve.leaf(block).and_then(|leaf| send.reader.take(block, &leaf).ok());
+            let Some(data) = read else {
                 self.sessions.get_mut(&head).expect("live").blocks.senders.remove(&offer);
                 let _ = self.store.snapshot_changed(&offer);
                 self.emit(json!({ "event": "transfer_failed", "transfer": offer, "why": "the snapshot changed" }));

@@ -6,7 +6,7 @@ use szfriends_crypto::noise::NoiseError;
 use szfriends_wire::consts::NOISE_TAG_LEN;
 use szfriends_wire::{tag, CloseReason, Frame, FrameType, Pattern};
 
-use super::channel::{SecureChannel, State, Transmit};
+use super::channel::{LinkWrite, SecureChannel, State};
 use super::{Event, SessionError};
 
 /// Types only the channel sends and handles; callers never send them and [`Event::Frame`] never carries them.
@@ -127,7 +127,7 @@ impl SecureChannel {
             let plaintext = if from_control { self.control_queue.pop_front() } else { self.bulk_queue.pop_front() };
             let plaintext = plaintext.expect("checked above");
             let is_close = plaintext[0] == FrameType::Close as u8;
-            if !self.write_transport_plaintext(&plaintext, now) {
+            if !self.write_transport_plaintext(plaintext, now) {
                 return;
             }
             if is_close {
@@ -163,18 +163,14 @@ impl SecureChannel {
             return Some(false);
         }
         let frames: Vec<Vec<u8>> = self.bulk_queue.drain(..count).collect();
-        let refs: Vec<&[u8]> = frames.iter().map(Vec::as_slice).collect();
-        let Some(Ok(messages)) = self.transport.as_mut().map(|t| t.encrypt_many(&refs)) else {
+        // Nonces counted now, in this order; the cores seal them where the link writes (`poll_write`).
+        let Some(Ok(job)) = self.transport.as_mut().map(|t| t.reserve(frames, true)) else {
             self.fail(SessionError::Expired, now);
             return Some(false);
         };
-        let mut out = Vec::with_capacity(bytes);
-        for message in &messages {
-            out.extend_from_slice(&(message.len() as u16).to_be_bytes());
-            out.extend_from_slice(message);
-        }
-        self.in_flight += out.len();
-        self.transmit.push_back(Transmit { bytes: out, counted: true });
+        let write = LinkWrite::Seal(job);
+        self.in_flight += write.len();
+        self.transmit.push_back((write, true));
         self.bytes_since_send_rekey += plaintext as u64;
         self.note_sent(now);
         Some(true)
@@ -192,13 +188,13 @@ impl SecureChannel {
             || now.saturating_sub(self.last_send_rekey_at) >= self.config.rekey_after
     }
 
-    fn write_transport_plaintext(&mut self, plaintext: &[u8], now: Duration) -> bool {
+    fn write_transport_plaintext(&mut self, plaintext: Vec<u8>, now: Duration) -> bool {
         if !self.check_session_age(now) {
             return false;
         }
         if self.rekey_due(now) {
             // REKEY under the old key, then Rekey() on this direction: the peer switches at exactly this message.
-            if !self.encrypt_and_write(&[FrameType::Rekey as u8], now) {
+            if !self.encrypt_and_write(vec![FrameType::Rekey as u8], now) {
                 return false;
             }
             if let Some(transport) = self.transport.as_mut() {
@@ -208,25 +204,25 @@ impl SecureChannel {
             self.bytes_since_send_rekey = 0;
             self.last_send_rekey_at = now;
         }
+        let length = plaintext.len() as u64;
         if !self.encrypt_and_write(plaintext, now) {
             return false;
         }
-        self.bytes_since_send_rekey += plaintext.len() as u64;
+        self.bytes_since_send_rekey += length;
         true
     }
 
-    fn encrypt_and_write(&mut self, plaintext: &[u8], now: Duration) -> bool {
-        let encrypted = self.transport.as_mut().map(|transport| transport.encrypt(plaintext));
-        let Some(Ok(message)) = encrypted else {
+    /// One message's nonce counted now; it is sealed where the link writes it (`poll_write`), or by `poll_transmit`.
+    fn encrypt_and_write(&mut self, plaintext: Vec<u8>, now: Duration) -> bool {
+        let reserved = self.transport.as_mut().map(|transport| transport.reserve(vec![plaintext], false));
+        let Some(Ok(job)) = reserved else {
             // Only the reserved last nonce can fail here; a fresh Diffie-Hellman is the only way on.
             self.fail(SessionError::Expired, now);
             return false;
         };
-        let mut bytes = Vec::with_capacity(2 + message.len());
-        bytes.extend_from_slice(&(message.len() as u16).to_be_bytes());
-        bytes.extend_from_slice(&message);
-        self.in_flight += bytes.len();
-        self.transmit.push_back(Transmit { bytes, counted: true });
+        let write = LinkWrite::Seal(job);
+        self.in_flight += write.len();
+        self.transmit.push_back((write, true));
         self.note_sent(now);
         true
     }

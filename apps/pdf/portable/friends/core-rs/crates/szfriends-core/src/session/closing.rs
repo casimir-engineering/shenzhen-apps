@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use szfriends_wire::{tag, CloseReason, Frame, FrameType};
 
-use super::channel::{Role, SecureChannel, State, Transmit};
+use super::channel::{LinkWrite, Role, SecureChannel, State};
 use super::{Event, SessionError};
 
 impl SecureChannel {
@@ -79,7 +79,7 @@ impl SecureChannel {
         if let Some(Ok(message)) = self.transport.as_mut().map(|t| t.encrypt(&plaintext)) {
             let mut bytes = (message.len() as u16).to_be_bytes().to_vec();
             bytes.extend_from_slice(&message);
-            self.transmit.push_back(Transmit { bytes, counted: false });
+            self.transmit.push_back((LinkWrite::Bytes(bytes), false));
         }
     }
 

@@ -2,6 +2,7 @@
 //! WANTs, PARTs and NONEs, and the same file by blocks when both ends have fast transfers.
 
 use super::*;
+use crate::transfer::serve::SERVE_WINDOW_BYTES;
 
 impl SyncExchange {
     pub(super) fn start_next_copy(&mut self, engine: &SyncEngine, store: &Store) {
@@ -208,8 +209,9 @@ impl SyncExchange {
                         return None;
                     }
                     let wire = hex::decode(&id).ok()?;
+                    let window = SERVE_WINDOW_BYTES;
                     let mut serve =
-                        crate::transfer::BlockServe::new(&wire, geometry, hashed.leaves, FILE_PART_MAX, 8 << 20);
+                        crate::transfer::BlockServe::new(&wire, geometry, hashed.leaves, FILE_PART_MAX, window);
                     serve.want(&ranges).ok()?;
                     Some((hashed.root, serve, path))
                 })();

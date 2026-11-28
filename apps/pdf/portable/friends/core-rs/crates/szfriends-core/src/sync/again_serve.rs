@@ -12,6 +12,7 @@ use super::exchange::matches_digest;
 use super::files::local_path_of_transfer;
 use crate::store::sync_files;
 use crate::store::{modified_ns, Relation, Store};
+use crate::transfer::serve::SERVE_WINDOW_BYTES;
 
 /// A WANT for another file within this long of the last WANT for an unfinished one is "not now".
 pub const ONE_FILE_SECONDS: f64 = 60.0;
@@ -119,7 +120,8 @@ impl AgainServer {
             }
         };
         let wire = hex::decode(id).map_err(|_| none(NONE_GONE))?;
-        let mut serve = crate::transfer::BlockServe::new(&wire, geometry, hashed.leaves, AGAIN_PART_MAX, 8 << 20);
+        let mut serve =
+            crate::transfer::BlockServe::new(&wire, geometry, hashed.leaves, AGAIN_PART_MAX, SERVE_WINDOW_BYTES);
         serve.want(ranges).map_err(|_| none(NONE_GONE))?;
         let limits = self.friends.entry(conversation_id.to_owned()).or_default();
         limits.current = Some((id.clone(), now, false));

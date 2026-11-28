@@ -4,6 +4,29 @@
 use super::*;
 
 impl State {
+    /// Each file the group sends by blocks: the blocks of the slices the scheduler places next, not already read,
+    /// read and checked ahead on the file's reader thread, so placing one never waits for the disk or the hash.
+    pub(super) fn read_ahead(&mut self, head: u64) {
+        let Some(session) = self.sessions.map.get_mut(&head) else { return };
+        let Some(schedule) = self.sessions.groups.schedules.get_mut(&head) else { return };
+        for (offer, send) in session.block_senders.iter_mut() {
+            let geometry = *send.serve.geometry();
+            let per_block = 1usize << (geometry.shift - send.slices.units(&geometry).shift);
+            let key = schedule.key(offer);
+            let mut blocks: Vec<(u32, szfriends_core::transfer::Leaf)> = Vec::new();
+            for unit in schedule.scheduler.upcoming(key, send.reader.depth() * per_block) {
+                let block = send.slices.block_of_unit(&geometry, unit);
+                if blocks.last().is_some_and(|(b, _)| *b == block) || send.slices.cached(block).is_some() {
+                    continue;
+                }
+                if let Some(leaf) = send.serve.leaf(block) {
+                    blocks.push((block, leaf));
+                }
+            }
+            send.reader.ahead(&blocks);
+        }
+    }
+
     /// A PART that came on `lane` of `id`'s group (`id` itself without lanes): its HAVE goes back on that lane, so it
     /// follows the parts and the sender measures that lane's round trip (§ 3, § 7).
     pub(crate) fn part_on(&mut self, id: u64, lane: u64, frame: &Frame) {

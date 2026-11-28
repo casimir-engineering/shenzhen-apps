@@ -103,8 +103,8 @@ impl State {
         loop {
             let Some(s) = self.sessions.get_mut(&id) else { return };
             // Only while not holding: a write taken from the channel must reach the link.
-            while let Some(write) = (!holding).then(|| s.channel.poll_transmit()).flatten() {
-                s.link.write(write.bytes);
+            while let Some(write) = (!holding).then(|| s.channel.poll_write()).flatten() {
+                s.link.write(write);
             }
             let Some(event) = s.channel.poll_event() else { break };
             self.handle_event(id, event);
@@ -114,8 +114,8 @@ impl State {
         self.pump(id);
         self.pump_blocks(id);
         let Some(s) = self.sessions.get_mut(&id) else { return };
-        while let Some(write) = (!holding).then(|| s.channel.poll_transmit()).flatten() {
-            s.link.write(write.bytes);
+        while let Some(write) = (!holding).then(|| s.channel.poll_write()).flatten() {
+            s.link.write(write);
         }
         if !holding && s.channel.is_closed() && !s.finished {
             s.finished = true;

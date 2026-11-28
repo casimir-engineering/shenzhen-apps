@@ -110,6 +110,8 @@ pub fn is_request_answer(entry: &OutboxEntry) -> bool {
 
 /// One write on a Bluetooth link (the Mac's SZFriendsL2CAPPreferredWriteSize); four of them are the in-flight budget.
 const BLUETOOTH_WRITE_SIZE: usize = 16 * 1024;
+/// One write on a LAN or direct Wi-Fi link; four of them are its in-flight budget.
+const FAST_WRITE_SIZE: usize = 256 * 1024;
 
 impl State {
     /// A session id handed out before its channel existed (the key policy names its session).
@@ -129,11 +131,15 @@ impl State {
         let mut channel = channel;
         let capabilities = self.session_capabilities | self.direct_wifi_capability();
         // Bluetooth keeps a quarter of the bytes in the link's hands (64 KiB, as the Mac's L2CAP channels): at 100 to
-        // 200 KB/s that is under half a second, so a HAVE or an ask queued now never waits seconds behind file data.
-        let preferred_write_size = if meta.dialed_route == szfriends_core::wire::RouteMethod::Bluetooth {
-            BLUETOOTH_WRITE_SIZE
-        } else {
-            szfriends_core::session::ChannelConfig::default().preferred_write_size
+        // 200 KB/s that is under half a second, so a HAVE or an ask queued now never waits seconds behind file data. A
+        // LAN or direct Wi-Fi link keeps 1 MiB (45 ms at 24 MB/s): a phone's kernel buffer holds only some 10 ms of
+        // its Wi-Fi, and with 256 KiB the link went idle whenever the service's thread was late for one pass.
+        let preferred_write_size = match meta.dialed_route {
+            szfriends_core::wire::RouteMethod::Bluetooth => BLUETOOTH_WRITE_SIZE,
+            szfriends_core::wire::RouteMethod::Lan | szfriends_core::wire::RouteMethod::PeerToPeerWifi => {
+                FAST_WRITE_SIZE
+            }
+            _ => szfriends_core::session::ChannelConfig::default().preferred_write_size,
         };
         channel.set_config(szfriends_core::session::ChannelConfig {
             capabilities,
@@ -223,8 +229,8 @@ impl State {
             s.channel.handle_timeout(now);
         }
         while let Some(s) = self.sessions.map.get_mut(&id) {
-            while let Some(write) = (!batched).then(|| s.channel.poll_transmit()).flatten() {
-                s.link.write(write.bytes);
+            while let Some(write) = (!batched).then(|| s.channel.poll_write()).flatten() {
+                s.link.write(write);
             }
             let Some(event) = s.channel.poll_event() else { break };
             if let Event::Frame(frame) = &event {
@@ -260,8 +266,8 @@ impl State {
         }
         self.trace_transfers(id);
         let Some(s) = self.sessions.map.get_mut(&id) else { return };
-        while let Some(write) = s.channel.poll_transmit() {
-            s.link.write(write.bytes);
+        while let Some(write) = s.channel.poll_write() {
+            s.link.write(write);
         }
         if s.channel.is_closed() && !s.finished {
             s.finished = true;
@@ -304,8 +310,8 @@ impl State {
     /// Hands a session's queued writes to its link now (parts a group's first session queued on a lane).
     pub(crate) fn flush_writes(&mut self, id: u64) {
         let Some(s) = self.sessions.map.get_mut(&id) else { return };
-        while let Some(write) = s.channel.poll_transmit() {
-            s.link.write(write.bytes);
+        while let Some(write) = s.channel.poll_write() {
+            s.link.write(write);
         }
     }
 

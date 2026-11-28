@@ -93,7 +93,7 @@ impl Scheduler {
     }
 
     pub(super) fn unassigned_bytes(&self) -> u64 {
-        self.transfers.iter().map(|t| t.unassigned.iter().map(|&b| t.bytes(b)).sum::<u64>()).sum()
+        self.transfers.iter().map(Transfer::unassigned_bytes).sum()
     }
 
     /// Lanes that may take blocks now: working ones; the relay only when no direct lane reaches the peer (ADR 0020);
@@ -162,8 +162,9 @@ impl Scheduler {
     /// The next block to place: open blocks that lost their lane first, then the lowest unassigned one of the first
     /// transfer within § 3's limits.
     pub(super) fn next_block(&self) -> Option<(usize, u32)> {
+        // The lowest block both open and unassigned: the open ones are few (§ 3's limits), the unassigned a whole file's.
         for (at, t) in self.transfers.iter().enumerate() {
-            if let Some(&block) = t.unassigned.iter().find(|b| t.open.contains_key(b)) {
+            if let Some(&block) = t.open.keys().find(|b| t.unassigned.contains(b)) {
                 return Some((at, block));
             }
         }
