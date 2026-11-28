@@ -20,6 +20,18 @@ from common import Failure, git, label, say  # noqa: E402
 
 APPS = ("pdf", "files", "3d")
 
+# Friends' test-only switches (friends/friends.mk): a core or helper compiled with one of these set dials its own
+# devices over one route only. Every build a release starts inherits this environment, so a release refuses to run
+# while one is set rather than ship a test build.
+FRIENDS_TEST_SWITCHES = ("SZFRIENDS_TEST_INTERNET_ONLY", "SZFRIENDS_TEST_BLUETOOTH_ONLY", "FRIENDS_TEST_BUILD_FLAGS")
+
+
+def friends_test_switches_set():
+    names = [name for name in FRIENDS_TEST_SWITCHES if name in os.environ]
+    makeflags = os.environ.get("MAKEFLAGS", "") + " " + os.environ.get("MFLAGS", "")
+    names += [name for name in FRIENDS_TEST_SWITCHES if name in makeflags and name not in names]
+    return names
+
 
 def release_class(app):
     if app == "pdf":
@@ -43,6 +55,10 @@ def main(argv):
     parser.add_argument("--platforms", choices=("mac", "all"), default="mac",
                         help="3d: also build Windows, Linux, Android, iOS and the web (default: mac)")
     opts = parser.parse_args(argv)
+    switches = friends_test_switches_set()
+    if switches:
+        say(f"FAILED: {', '.join(switches)} set: Friends' test-only switches never go into a release; unset them first")
+        return 2
     repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     if opts.app != "all":
         if not opts.version:

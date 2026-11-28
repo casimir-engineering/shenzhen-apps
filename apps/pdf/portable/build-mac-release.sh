@@ -54,6 +54,7 @@ make -C "$script_dir" clean
 rm -rf "$repo_root/mupdf/$mupdf_out" "$notary_result"
 env -u SPDF_RELEASE_MODE -u MAC_ARCH -u MACOSX_DEPLOYMENT_TARGET -u MAC_BUNDLE_ID \
   -u MAC_TEAM_ID -u PORTABLE_OPTFLAGS -u MUPDF_OUT \
+  -u FRIENDS_TEST_BUILD_FLAGS -u SZFRIENDS_TEST_INTERNET_ONLY -u SZFRIENDS_TEST_BLUETOOTH_ONLY \
   make -C "$script_dir" release-dmg \
   SPDF_RELEASE_MODE=1 \
   MAC_VERSION="$SPDF_RELEASE_VERSION" \
