@@ -24,6 +24,8 @@ use super::{DialPlan, Purpose};
 
 /// Test builds only (SZFRIENDS_TEST_INTERNET_ONLY when the core is compiled; szfriends_online::order says more).
 const TEST_INTERNET_ONLY: bool = option_env!("SZFRIENDS_TEST_INTERNET_ONLY").is_some();
+/// How long a phone waits before it dials a Mac over Bluetooth itself (`State::dial`).
+const BLUETOOTH_DEFER_TO_MAC_SECONDS: f64 = 8.0;
 /// Test builds only (SZFRIENDS_TEST_BLUETOOTH_ONLY when the core is compiled): our own devices only over Bluetooth.
 pub(crate) const TEST_BLUETOOTH_ONLY: bool = option_env!("SZFRIENDS_TEST_BLUETOOTH_ONLY").is_some();
 use crate::service::sessions::deliverable;
@@ -330,7 +332,46 @@ impl State {
     }
 
     /// Stages a dial after `delay`; `false` when one for that purpose and endpoint already runs.
+    /// Whether a Bluetooth dial goes to a Mac, which dials this phone itself: one of our devices on macOS, or a friend
+    /// whose every device is a Mac (which of a friend's devices a sighting is cannot be told before the session).
+    fn bluetooth_peer_is_mac(&self, plan: &DialPlan) -> bool {
+        let is_mac = |system: &str| system.to_ascii_lowercase().starts_with("macos");
+        let authorized = |d: &szfriends_core::store::devices::DeviceRecord| {
+            d.state == szfriends_identity::chain::DeviceState::Authorized
+        };
+        let conn = self.store.connection();
+        match plan.purpose {
+            Purpose::OwnDevice => {
+                let (Some(root), Some(device)) = (self.own_root(), plan.options.expected_identity) else { return false };
+                szfriends_core::store::devices::devices_of_root(conn, &root)
+                    .unwrap_or_default()
+                    .iter()
+                    .any(|d| d.device_key == device && is_mac(&d.system))
+            }
+            Purpose::Friend => {
+                let person = plan.conversation.as_deref().and_then(|c| self.store.person_with_conversation(c).ok().flatten());
+                let Some(root) = person.and_then(|p| p.identity_key) else { return false };
+                let devices: Vec<_> = szfriends_core::store::devices::devices_of_root(conn, &root)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter(authorized)
+                    .collect();
+                !devices.is_empty() && devices.iter().all(|d| is_mac(&d.system))
+            }
+            _ => false,
+        }
+    }
+
     pub(crate) fn dial(&mut self, plan: DialPlan, delay: f64) -> bool {
+        // Bluetooth to a Mac: the Mac dials, as the link's central. On a link this phone dialled (phone central, 15 ms)
+        // a Mac took the phone's data at 9 to 26 KB/s while it sent 85 to 130 KB/s; on one the Mac dialled (30 ms)
+        // both ways ran about 60 KB/s (2026-11-28, a POCO F7 and a MacBook Pro). A Mac always scans, so it sees this
+        // phone and dials within a second; this phone's own dial waits, and still comes if the Mac's does not.
+        let delay = if plan.method == Method::Bluetooth && plan.lane.is_none() && self.bluetooth_peer_is_mac(&plan) {
+            delay.max(BLUETOOTH_DEFER_TO_MAC_SECONDS)
+        } else {
+            delay
+        };
         // A test build that measures the Internet's direct route to our own devices dials them on nothing nearby
         // (SZFRIENDS_TEST_INTERNET_ONLY set when the core is compiled; never in a release).
         if TEST_INTERNET_ONLY && plan.purpose == Purpose::OwnDevice {

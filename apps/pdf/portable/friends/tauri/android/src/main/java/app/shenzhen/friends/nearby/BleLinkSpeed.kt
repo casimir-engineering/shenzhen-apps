@@ -20,6 +20,9 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 private const val TAG = "SZFriendsBle"
 
+/** About half a second of a fast link (BleLinkSpeed.shrinkSendBuffer). */
+private const val SEND_BUFFER_BYTES = 64 * 1024
+
 /** A link this long without a byte either way goes back to the balanced interval. */
 private const val IDLE_MILLIS = 3_000L
 
@@ -50,15 +53,6 @@ internal class BleLinkSpeed(private val context: Context, private val handler: H
     /** Each link's connection interval as the stack last reported it (1.25 ms units), by device address. */
     private val intervals = ConcurrentHashMap<String, Int>()
 
-    /** Exactly this interval (BluetoothGatt.requestLeConnectionUpdate, hidden; `false` or a failure where refused). */
-    private fun askInterval(gatt: BluetoothGatt, units: Int): Result<Boolean> = runCatching {
-        val update = BluetoothGatt::class.java.getMethod(
-            "requestLeConnectionUpdate", Int::class.java, Int::class.java, Int::class.java, Int::class.java,
-            Int::class.java, Int::class.java
-        )
-        update.invoke(gatt, units, units, 0, 500, 0, 0) as Boolean
-    }
-
     /**
      * BluetoothGattCallback.onConnectionUpdated, hidden from the SDK but called on every callback: declared on ours
      * (not an override as far as the compiler knows) to learn the interval a link really got.
@@ -70,18 +64,33 @@ internal class BleLinkSpeed(private val context: Context, private val handler: H
     }
 
     /**
+     * A small send buffer under a channel's socket. What the core writes waits there for the radio, beyond the core's
+     * reach: with the default (hundreds of KB), a phone sending a file pushed seconds of data ahead of its own asks and
+     * HAVEs. The core keeps its messages ahead of file data in its own queues, so the less waits here, the sooner they
+     * go. BluetoothSocket has no setter: its socket is reached by reflection where the platform allows it, and left
+     * alone where not. Answers what was set, or why not.
+     */
+    private fun shrinkSendBuffer(socket: BluetoothSocket): String = runCatching {
+        val field = BluetoothSocket::class.java.getDeclaredField("mSocket")
+        field.isAccessible = true
+        val local = field.get(socket) as android.net.LocalSocket
+        val before = local.sendBufferSize
+        local.sendBufferSize = SEND_BUFFER_BYTES
+        "$before -> ${local.sendBufferSize}"
+    }.getOrElse { it.javaClass.simpleName }
+
+    /**
      * One channel's link: fast while bytes move ([moved]), balanced again after [IDLE_MILLIS] without any, so an open
      * channel waiting for the next message does not keep the radio waking every few milliseconds. Closed with the
      * channel.
      *
-     * The interval is what limits a Mac and a phone: a Mac sends or takes about 1.8 KB per connection event whatever
-     * the interval, so 30 ms (a Mac's own choice as central, and Android's balanced priority) moved about 60 KB/s and
-     * 15 ms twice that. CONNECTION_PRIORITY_HIGH asks for 11.25 to 15 ms, which a Mac as central refuses (Apple
-     * accepts an interval range starting at 15 ms, or exactly 15 ms), so the link stayed at 30 ms whenever the Mac
-     * had dialled. So the exact interval is asked for where the platform lets an app: 7.5 ms while this phone is the
-     * central (it decides), exactly 15 ms while the Mac is; CONNECTION_PRIORITY_HIGH where it does not.
+     * The central decides the interval. CONNECTION_PRIORITY_HIGH asks for 11.25 to 15 ms: on a link this phone dialled
+     * it gets 15 ms; on one a Mac dialled the Mac refuses it (Apple accepts only ranges from 15 ms up) and keeps 30 ms.
+     * A Mac moves about 1.8 KB per connection event, so 30 ms carried about 60 KB/s each way (2026-11-28, a POCO F7
+     * and a MacBook Pro); BluetoothGatt.requestLeConnectionUpdate, which could ask for exactly 15 ms, is not there
+     * for apps on this phone (NoSuchMethodException).
      */
-    inner class Link(private val why: String, private val central: Boolean, private val address: String?) :
+    inner class Link(private val why: String, private val address: String?) :
         java.io.Closeable {
         @Volatile private var gatt: BluetoothGatt? = null
         /** What else ends with the link (an accepted link's own GATT client). */
@@ -102,10 +111,16 @@ internal class BleLinkSpeed(private val context: Context, private val handler: H
                     )
                 }
             }
+            // The ATT MTU exchange is what makes Android lengthen this side's LE packets (Data Length Extension, 27 to
+            // 251 bytes): the L2CAP channel alone never does. Without it a link this phone dialled sent the Mac 27-byte
+            // packets, and the phone's data crossed at 9 to 26 KB/s while the Mac's came back at 85 (bluetoothd: "Rx
+            // [27 -> 27]" on the phone's link, 2026-11-28). A Mac that dials asks for the MTU itself.
+            val mtu = runCatching { connected.requestMtu(517) }.getOrNull()
+            val buffer = shrinkSendBuffer(socket)
             val sizes = if (Build.VERSION.SDK_INT >= 29) {
                 runCatching { "tx ${socket.maxTransmitPacketSize} rx ${socket.maxReceivePacketSize}" }.getOrDefault("?")
             } else "?"
-            Log.i(TAG, "link $why: packets $sizes")
+            Log.i(TAG, "link $why: MTU asked $mtu, send buffer $buffer, packets $sizes")
             if (fast.get()) handler.post { askFast() }
         }
 
@@ -136,26 +151,8 @@ internal class BleLinkSpeed(private val context: Context, private val handler: H
         private fun askFast() {
             val connected = gatt ?: return
             if (ended || !fast.get()) return
-            val units = if (central) 6 else 12 // 1.25 ms each
-            val exact = askInterval(connected, units)
-            // "Central" is a guess: a dial rides on a link the Mac made (reading this phone) when one is up. A Mac as
-            // central refuses 7.5 ms, so if the link is not at 15 ms or less soon, ask for exactly 15 ms.
-            if (exact.getOrNull() == true && units < 12) {
-                handler.postDelayed({
-                    val now = address?.let { intervals[it] }
-                    if (!ended && fast.get() && (now == null || now > 12)) {
-                        val again = askInterval(connected, 12)
-                        Log.i(TAG, "link $why: interval ${now?.let { it * 1.25 }} ms, asked for 15 ms: ${again.getOrNull()}")
-                    }
-                }, 3_000)
-            }
-            val asked = if (exact.getOrNull() == true) {
-                "interval ${units * 1.25} ms"
-            } else {
-                val priority = runCatching { connected.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH) }
-                "high priority ${priority.getOrNull()} (exact interval: ${exact.exceptionOrNull()?.javaClass?.simpleName ?: exact.getOrNull()})"
-            }
-            Log.i(TAG, "link $why: bytes moving, $asked")
+            val priority = runCatching { connected.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH) }
+            Log.i(TAG, "link $why: bytes moving, high priority ${priority.getOrNull()}")
         }
 
         /** The channel ended: nothing more is asked, and the link's interval is forgotten. */
@@ -169,14 +166,14 @@ internal class BleLinkSpeed(private val context: Context, private val handler: H
 
     /** The link of a channel this phone opened as central, on the GATT connection it dialled through. */
     fun dialled(gatt: BluetoothGatt?, socket: BluetoothSocket, address: String, why: String): Link =
-        Link(why, central = true, address).also { link -> gatt?.let { link.attach(it, socket) } }
+        Link(why, address).also { link -> gatt?.let { link.attach(it, socket) } }
 
     /** A GATT client on the link the friend's central made, only to ask for the interval; closed with the channel. */
     @SuppressLint("MissingPermission")
     fun accepted(accepted: BluetoothSocket): Link {
         val device = accepted.remoteDevice
         val name = logName(device?.address)
-        val link = Link("accepted from $name", central = false, device?.address)
+        val link = Link("accepted from $name", device?.address)
         if (device == null) return link
         val callback = object : BluetoothGattCallback() {
             override fun onConnectionStateChange(connected: BluetoothGatt, status: Int, state: Int) {
@@ -185,6 +182,10 @@ internal class BleLinkSpeed(private val context: Context, private val handler: H
 
             override fun onPhyUpdate(connected: BluetoothGatt, txPhy: Int, rxPhy: Int, status: Int) {
                 Log.i(TAG, "link accepted from $name: PHY tx $txPhy rx $rxPhy (status $status)")
+            }
+
+            override fun onMtuChanged(connected: BluetoothGatt, mtu: Int, status: Int) {
+                Log.i(TAG, "link accepted from $name: MTU $mtu (status $status)")
             }
 
             @Suppress("unused") // called by the platform (noteInterval)

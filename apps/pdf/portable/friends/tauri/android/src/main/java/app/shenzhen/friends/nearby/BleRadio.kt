@@ -486,6 +486,10 @@ class BleRadio(private val context: Context) {
                 Log.i(TAG, "link open ${logName(peripheral)}: PHY tx $txPhy rx $rxPhy (status $status)")
             }
 
+            override fun onMtuChanged(connected: BluetoothGatt, mtu: Int, status: Int) {
+                Log.i(TAG, "link open ${logName(peripheral)}: MTU $mtu (status $status)")
+            }
+
             @Suppress("unused") // called by the platform (noteInterval)
             fun onConnectionUpdated(connected: BluetoothGatt, interval: Int, latency: Int, timeout: Int, status: Int) =
                 links.noteInterval(connected, interval, latency, status)

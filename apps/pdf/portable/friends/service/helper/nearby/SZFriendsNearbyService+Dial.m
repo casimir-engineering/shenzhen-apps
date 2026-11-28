@@ -14,6 +14,9 @@
 #ifndef SZFRIENDS_TEST_BLUETOOTH_ONLY
 #define SZFRIENDS_TEST_BLUETOOTH_ONLY 0
 #endif
+#ifndef SZFRIENDS_TEST_BLUETOOTH_PHONE_DIALS
+#define SZFRIENDS_TEST_BLUETOOTH_PHONE_DIALS 0
+#endif
 #import "service/helper/nearby/SZFriendsNearbyJoin.h"
 
 // A browse that failed (a listener not ready yet) is tried again this soon.
@@ -213,7 +216,7 @@ BOOL SZFriendsNearbyDialIsPointless(SZFriendsRouteMethod live, SZFriendsRouteMet
         if (plan == nil) continue;
         plan.delay = attempt.delay;
         BOOL dialing = [self dial:plan];
-        [notes addObject:dialing ? [NSString stringWithFormat:@"%@ dialing in %.1f s", route, attempt.delay]
+        [notes addObject:dialing ? [NSString stringWithFormat:@"%@ dialing in %.1f s", route, plan.delay]
                                  : [NSString stringWithFormat:@"%@ already being dialed", route]];
         started = dialing || started;
     }
@@ -328,6 +331,10 @@ BOOL SZFriendsNearbyDialIsPointless(SZFriendsRouteMethod live, SZFriendsRouteMet
     // A test build that measures Bluetooth between our own devices dials them on nothing else.
     if (SZFRIENDS_TEST_BLUETOOTH_ONLY && plan.purpose == SZFriendsLinkPurposeOwnDevice &&
         plan.sighting.method != SZFriendsDiscoveryMethodBluetooth)
+        return NO;
+    // A test build that measures a Bluetooth link our own phone dialled never dials our devices over Bluetooth itself.
+    if (SZFRIENDS_TEST_BLUETOOTH_PHONE_DIALS && plan.purpose == SZFriendsLinkPurposeOwnDevice &&
+        plan.sighting.method == SZFriendsDiscoveryMethodBluetooth)
         return NO;
     SZFriendsSighting *sighting = plan.sighting;
     NSString *key = SZFriendsDialKey(plan.purpose, sighting);
