@@ -22,6 +22,7 @@ NS_ASSUME_NONNULL_BEGIN
 FOUNDATION_EXPORT NSString* const SPDFAnnotateTitle;                // "Annotate" (button, mode, menu items)
 FOUNDATION_EXPORT NSString* const SPDFAnnotateFormGroupTitle;       // "Fill & Sign" (the PDF form group's own label)
 FOUNDATION_EXPORT NSString* const SPDFAnnotateNewCanvasTitle;       // "New Canvas…" (File menu; it opens a sheet)
+FOUNDATION_EXPORT NSString* const SPDFAnnotateNewCanvasFromClipboardTitle;  // "New Canvas from Clipboard"
 FOUNDATION_EXPORT NSString* const SPDFAnnotateUntitledCanvasTitle;  // "Untitled canvas" (the tab)
 FOUNDATION_EXPORT NSString* const SPDFAnnotateSaveAsPDFQuestion;    // "To annotate this document, save it as a PDF."
 FOUNDATION_EXPORT NSString* const SPDFAnnotateSaveAsPDFButton;      // "Save as PDF…"
@@ -35,10 +36,6 @@ FOUNDATION_EXPORT NSString* const SPDFAnnotateChangedCopyNote;  // the copy made
 FOUNDATION_EXPORT NSString* const SPDFAnnotateGrowCanvasQuestion;   // "Make the canvas bigger to fit?"
 FOUNDATION_EXPORT NSString* const SPDFAnnotateRemoveEverythingTitle;// "Remove Everything Added with Annotate"
 FOUNDATION_EXPORT NSString* const SPDFAnnotateProjectFormatTitle;   // "Shenzhen Paint project"
-
-// The toolbar button's pencil-and-brush picture (a template image, tinted like the other toolbar icons): SF Symbols
-// has no such symbol, so a pencil and a mirrored paintbrush are drawn crossed.
-FOUNDATION_EXPORT NSImage* SPDFAnnotateIcon(void);
 
 #pragma mark - The reader's side
 
@@ -65,6 +62,10 @@ FOUNDATION_EXPORT NSString* _Nullable SPDFAnnotateRecentPath(NSString* _Nullable
 // height, resolution; SPDFMacAnnotateNewCanvas.mm), then a tab "Untitled canvas", transparent, Annotate on. Also
 // canvas.new from the agents (width, height, ppi, background; front NO keeps the window behind).
 - (void)newCanvas:(id _Nullable)sender;
+// New Canvas from Clipboard (File menu, the tab strip's + menu): a canvas the size of the picture on the clipboard, at
+// its resolution, with the picture as its Background. Greyed while the clipboard has no picture.
+- (void)newCanvasFromClipboard:(id _Nullable)sender;
+- (BOOL)annotateClipboardHasPicture;
 - (nullable SPDFDocumentTab*)annotateNewCanvasWidth:(NSInteger)width height:(NSInteger)height ppi:(double)ppi
                                          background:(spdf_paint_color)background front:(BOOL)front;
 // A restored tab that was a never-saved canvas: its pixels come back from <state>/Annotate. Called only for such tabs.
@@ -153,8 +154,8 @@ FOUNDATION_EXPORT BOOL SPDFAnnotateHandleKey(NSEvent* event, SPDFMacFillControll
 // sends its operation on OK.
 FOUNDATION_EXPORT void SPDFAnnotateShowResizeSheet(NSWindow* window, SPDFMacFillController* controller);
 FOUNDATION_EXPORT void SPDFAnnotateShowCanvasPropertiesSheet(NSWindow* window, SPDFMacFillController* controller);
-// File > New Canvas's sheet (SPDFMacAnnotateNewCanvas.mm): `create` gets the size and resolution chosen; Cancel calls
-// nothing. The last size and resolution are offered next time.
+// File > New Canvas's sheet (SPDFMacAnnotateNewCanvas.mm): `create` gets the size and resolution chosen, once the sheet
+// has left the window; Cancel calls nothing. The last size and resolution are offered next time.
 // (SPDFMacAnnotateNewCanvas.mm) `properties` (nil: none) with the resolution set to ppi (<= 0: left as it is), in every form ImageIO writes it: PNG's
 // pHYs, JPEG's JFIF density and TIFF's resolution, so the saved file carries the canvas's resolution.
 FOUNDATION_EXPORT NSDictionary* SPDFAnnotateResolutionProperties(NSDictionary* _Nullable properties, double ppi);

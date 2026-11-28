@@ -27,6 +27,7 @@ NSString* const SPDFAnnotateCommandRepeat = @"edit.repeat";
 NSString* const SPDFAnnotateCommandLayers = @"view.layers";
 NSString* const SPDFAnnotateCommandEditText = @"object.edit_text";
 NSString* const SPDFAnnotateCommandNewCanvas = @"file.new_canvas";
+NSString* const SPDFAnnotateCommandNewCanvasFromClipboard = @"file.new_canvas_from_clipboard";
 NSString* const SPDFAnnotateCommandSave = @"file.save";
 NSString* const SPDFAnnotateCommandSaveAs = @"file.save_as";
 NSString* const SPDFAnnotateCommandDesktopPicture = @"file.desktop_picture";
@@ -71,6 +72,7 @@ static void SPDFAnnotateFileCommand(ShenzhenMacDelegate* reader, NSString* comma
     BOOL picture = [reader annotateActiveSession] && ([reader annotateActiveDocumentKind] == SPDFAnnotateDocumentPicture ||
                                                      [reader annotateActiveDocumentKind] == SPDFAnnotateDocumentCanvas);
     if ([command isEqual:SPDFAnnotateCommandNewCanvas]) [reader newCanvas:nil];
+    else if ([command isEqual:SPDFAnnotateCommandNewCanvasFromClipboard]) [reader newCanvasFromClipboard:nil];
     else if ([command isEqual:SPDFAnnotateCommandDesktopPicture]) [reader setDesktopPicture:nil];
     // Cmd-S writes a picture Annotate changed; everywhere else it keeps the app's meaning, Save As...
     else if ([command isEqual:SPDFAnnotateCommandSave]) picture ? [reader annotateSaveDocument:nil] : [reader saveDocumentAs:nil];
@@ -271,6 +273,7 @@ static BOOL SPDFAnnotatePayloadChosen(SPDFMacFillController* controller, NSDicti
     id payload = item.representedObject;
     ShenzhenMacDelegate* reader = self.reader ?: SPDFAnnotateReaderFor(self.controller);
     if ([payload isEqual:SPDFAnnotateCommandNewCanvas]) return YES;
+    if ([payload isEqual:SPDFAnnotateCommandNewCanvasFromClipboard]) return [reader annotateClipboardHasPicture];
     if ([payload isEqual:SPDFAnnotateCommandSave] || [payload isEqual:SPDFAnnotateCommandSaveAs]) {
         // A picture or canvas Annotate opened is always saved by Annotate (a WebP or RAW as a PNG copy).
         SPDFAnnotateDocumentKind kind = [reader annotateActiveDocumentKind];

@@ -200,7 +200,6 @@ static NSButton* Icon(NSString* symbol, NSString* title, id target, SEL action) 
     state.statusSpace.active=YES;
     state.imageColors=Icon(@"photo",@"Invert image colors · ⇧⌘I",self,@selector(toggleDarkThemePreservesImages:));
     state.fillSign=Icon(@"pencil",@"Annotate · ⌥⌘F",self,@selector(toggleAnnotate:));
-    state.fillSign.image=SPDFAnnotateIcon();
     state.fillSign.accessibilityLabel=SPDFAnnotateTitle;
     state.tools = @[state.collection,_readingThemeButton,state.imageColors,_ocrButton,_translateButton,state.fillSign,state.print];
     state.toolsRow = [NSStackView stackViewWithViews:state.tools];

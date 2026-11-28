@@ -26,6 +26,7 @@
 NSString* const SPDFAnnotateTitle = @"Annotate";
 NSString* const SPDFAnnotateFormGroupTitle = @"Fill & Sign";
 NSString* const SPDFAnnotateNewCanvasTitle = @"New Canvas…";
+NSString* const SPDFAnnotateNewCanvasFromClipboardTitle = @"New Canvas from Clipboard";
 NSString* const SPDFAnnotateUntitledCanvasTitle = @"Untitled canvas";
 NSString* const SPDFAnnotateSaveAsPDFQuestion = @"To annotate this document, save it as a PDF.";
 NSString* const SPDFAnnotateSaveAsPDFButton = @"Save as PDF…";
@@ -43,38 +44,6 @@ NSString* const SPDFAnnotateRemoveEverythingTitle = @"Remove Everything Added wi
 NSString* const SPDFAnnotateProjectFormatTitle = @"Shenzhen Paint project";
 
 static char kSPDFAnnotateClosingKey;
-
-NSImage* SPDFAnnotateIcon(void) {
-    static NSImage* icon;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        // The toolbar draws a picture that isn't a symbol as it is (SPDFChromeSymbolImage), so the two symbols take
-        // the toolbar icons' colour themselves, resolved for the appearance each time the button draws.
-        NSImageSymbolConfiguration* config = [[NSImageSymbolConfiguration
-            configurationWithPointSize:12 weight:NSFontWeightRegular scale:NSImageSymbolScaleMedium]
-            configurationByApplyingConfiguration:[NSImageSymbolConfiguration
-                                                     configurationWithPaletteColors:@[SPDFChromeIconColor(YES)]]];
-        NSImage* pencil = [[NSImage imageWithSystemSymbolName:@"pencil" accessibilityDescription:nil]
-            imageWithSymbolConfiguration:config];
-        NSImage* brush = [[NSImage imageWithSystemSymbolName:@"paintbrush.pointed" accessibilityDescription:nil]
-            imageWithSymbolConfiguration:config];
-        icon = [NSImage imageWithSize:NSMakeSize(18, 16) flipped:NO drawingHandler:^BOOL(NSRect bounds) {
-            (void)bounds;
-            NSSize p = pencil.size, b = brush.size;
-            [pencil drawInRect:NSMakeRect(18 - p.width, (16 - p.height) / 2, p.width, p.height)];
-            NSAffineTransform* mirror = [NSAffineTransform transform];
-            [mirror translateXBy:b.width yBy:0];
-            [mirror scaleXBy:-1 yBy:1];
-            [NSGraphicsContext saveGraphicsState];
-            [mirror concat];
-            [brush drawInRect:NSMakeRect(0, (16 - b.height) / 2, b.width, b.height)];
-            [NSGraphicsContext restoreGraphicsState];
-            return YES;
-        }];
-        icon.accessibilityDescription = SPDFAnnotateTitle;
-    });
-    return icon;
-}
 
 static NSString* BackingFolder(void) {
     return SPDFAnnotateTabsFolder();
@@ -192,10 +161,34 @@ NSString* SPDFAnnotateRecentPath(NSString* path) {
 
 - (void)newCanvas:(id)sender {
     (void)sender;
+    [_window makeKeyAndOrderFront:nil];  // the sheet is the window's, whatever had the keyboard before
     __weak ShenzhenMacDelegate* weakSelf = self;
     SPDFAnnotateShowNewCanvasSheet(_window, ^(NSInteger width, NSInteger height, double ppi) {
       [weakSelf annotateNewCanvasWidth:width height:height ppi:ppi background:0 front:YES];
     });
+}
+
+- (BOOL)annotateClipboardHasPicture {
+    return SPDFAnnotatePasteboardHasPicture(NSPasteboard.generalPasteboard);
+}
+
+// A canvas the size of the picture on the clipboard, at its resolution, the picture as its Background (the document
+// under the drawing, as an opened picture is); the tool chosen stays.
+- (void)newCanvasFromClipboard:(id)sender {
+    (void)sender;
+    SPDFAnnotatePicture* picture = SPDFAnnotatePictureFromPasteboard(NSPasteboard.generalPasteboard);
+    if (!picture) {
+        [self showError:@"Couldn't make a canvas from the clipboard" detail:@"Copy a picture first."];
+        return;
+    }
+    spdf_paint_pixels pixels = picture.pixels;
+    char err[256] = {0};
+    spdf_paint_doc* doc = spdf_paint_open_picture(&pixels, picture.dpi, YES, err, sizeof(err));
+    if (!doc) {
+        [self showError:@"Couldn't make a canvas from the clipboard" detail:err[0] ? @(err) : @""];
+        return;
+    }
+    [self annotateOpenNewCanvas:doc ppi:picture.dpi front:YES];
 }
 
 - (SPDFDocumentTab*)annotateNewCanvasWidth:(NSInteger)width height:(NSInteger)height ppi:(double)ppi
@@ -208,6 +201,11 @@ NSString* SPDFAnnotateRecentPath(NSString* path) {
         [self showError:@"Couldn't make a new canvas" detail:err[0] ? @(err) : @""];
         return nil;
     }
+    return [self annotateOpenNewCanvas:doc ppi:ppi front:front];
+}
+
+// Writes the new canvas (closed here) as its tab's picture and opens that tab with Annotate on.
+- (SPDFDocumentTab*)annotateOpenNewCanvas:(spdf_paint_doc*)doc ppi:(double)ppi front:(BOOL)front {
     NSString* backing = [BackingFolder() stringByAppendingPathComponent:
                                              [NSString stringWithFormat:@"%@ %@.png", SPDFAnnotateUntitledCanvasTitle,
                                                                         NSUUID.UUID.UUIDString]];

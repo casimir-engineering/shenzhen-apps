@@ -136,11 +136,14 @@ does not re-trigger the macOS access prompt.
   Dropping a tab between groups joins the existing General group, revealing it
   if hidden. If General is absent, it is created at that drop position. The
   resulting group membership and order are saved with the session.
-- **New tab or empty group** — the tab-strip **+** opens a compact menu. **New Group…**
+- **New tab or empty group** — the tab-strip **+** opens a compact menu: New Tab, New Canvas…, New Canvas from
+  Clipboard (a canvas the size of the copied picture, the picture as its background) and New Group…. **New Group…**
   creates a named empty group without changing the document you are reading;
   the next newly opened document (or batch of documents) goes into it. Its name
   starts selected in the popup. Empty groups and the next-open destination survive
   relaunch in session YAML and remain manageable from the tab strip and Groups panel.
+- **Groups panel opens with everything in view** — when the app opens, every group in the Groups panel is open and
+  the list is scrolled so the document you are reading is in the middle.
 - **New documents join the group you are in** — however a document is opened (Finder, Open…, a drop, a link,
   Recent, Collection or the assistant), its tab joins the group the window shows. A document that is already open
   is brought forward in its own group instead of opening twice.

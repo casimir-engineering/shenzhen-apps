@@ -25,6 +25,7 @@ static NSString* const kSettingsKey = @"new_canvas";  // kept with the tools' se
 @property(nonatomic) double pixelWidth, pixelHeight, resolution;
 @property(nonatomic) double paperResolution;  // a paper size's: the resolution, or lower when it had to be made smaller
 @property(nonatomic, copy) void (^create)(NSInteger, NSInteger, double);
+@property(nonatomic, copy) dispatch_block_t chosen;  // Create's canvas, made once the sheet is gone
 @end
 
 static NSMutableSet* SPDFOpenNewCanvasSheets;  // keeps each sheet alive while it shows
@@ -379,8 +380,8 @@ static NSString* Number(double value) {
                                               @"preset" : self.preset ? @(self.preset->name) : @""}
                                     forTool:kSettingsKey];
     void (^create)(NSInteger, NSInteger, double) = self.create;
+    if (create) self.chosen = ^{ create(w, h, ppi); };
     [self close];
-    if (create) create(w, h, ppi);
 }
 
 - (void)cancel:(id)sender {
@@ -388,13 +389,21 @@ static NSString* Number(double value) {
     [self close];
 }
 
+// The canvas is made after the sheet has gone (its completion, or the end of the modal session), so its tab opens and
+// takes the keyboard in a window with no sheet on it.
 - (void)close {
     if (self.panel.sheetParent) [self.panel.sheetParent endSheet:self.panel];
     else {
         [NSApp stopModal];
         [self.panel orderOut:nil];
     }
+}
+
+- (void)finished {
+    dispatch_block_t chosen = self.chosen;
+    self.chosen = nil;
     [SPDFOpenNewCanvasSheets removeObject:self];
+    if (chosen) chosen();
 }
 
 @end
@@ -427,6 +436,13 @@ void SPDFAnnotateShowNewCanvasSheet(NSWindow* window, void (^create)(NSInteger w
     sheet.panel.initialFirstResponder = sheet.search;
     [sheet.panel.contentView layoutSubtreeIfNeeded];
     [sheet.panel setContentSize:sheet.panel.contentView.fittingSize];
-    if (window && !window.attachedSheet) [window beginSheet:sheet.panel completionHandler:nil];
-    else [NSApp runModalForWindow:sheet.panel];
+    if (window && !window.attachedSheet) {
+        [window beginSheet:sheet.panel completionHandler:^(NSModalResponse response) {
+          (void)response;
+          dispatch_async(dispatch_get_main_queue(), ^{ [sheet finished]; });  // once the sheet is off the window
+        }];
+    } else {
+        [NSApp runModalForWindow:sheet.panel];
+        [sheet finished];
+    }
 }

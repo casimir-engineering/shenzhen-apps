@@ -117,6 +117,7 @@ FOUNDATION_EXPORT NSString* const SPDFAnnotateCommandEditText;        // double-
 // controller) so the canvas view opens the selected text object for typing, as a double-click does.
 FOUNDATION_EXPORT NSNotificationName const SPDFAnnotateEditTextNotification;
 FOUNDATION_EXPORT NSString* const SPDFAnnotateCommandNewCanvas;       // File > New Canvas
+FOUNDATION_EXPORT NSString* const SPDFAnnotateCommandNewCanvasFromClipboard;  // File > New Canvas from Clipboard
 FOUNDATION_EXPORT NSString* const SPDFAnnotateCommandSave;            // File > Save
 FOUNDATION_EXPORT NSString* const SPDFAnnotateCommandSaveAs;          // File > Save As...
 FOUNDATION_EXPORT NSString* const SPDFAnnotateCommandDesktopPicture;  // File > Set as Desktop Picture

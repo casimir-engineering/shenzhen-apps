@@ -16,6 +16,9 @@
 @protocol SPDFTabPermanentDeleteMenuProviding <NSObject>
 - (void)addPermanentDeleteItemToMenu:(NSMenu*)menu path:(NSString*)path;
 @end
+@protocol SPDFTabCanvasMenuProviding <NSObject>
+- (BOOL)annotateClipboardHasPicture;
+@end
 @protocol SPDFTabCompareMenuProviding <NSObject>
 - (void)addCompareItemToTabMenu:(NSMenu*)menu tabIndex:(NSInteger)tabIndex;
 @end
@@ -29,6 +32,15 @@
     NSMenuItem* canvas = [menu addItemWithTitle:@"New Canvas…" action:NSSelectorFromString(@"newCanvas:") keyEquivalent:@""];
     canvas.target = self.reader;  // File > New Canvas's sheet
     spdf_set_menu_item_system_symbol(canvas, @"paintbrush");
+    NSMenuItem* clipboard = [menu addItemWithTitle:@"New Canvas from Clipboard"
+                                            action:NSSelectorFromString(@"newCanvasFromClipboard:") keyEquivalent:@""];
+    clipboard.target = self.reader;  // greyed while the clipboard has no picture
+    spdf_set_menu_item_system_symbol(clipboard, @"doc.on.clipboard");
+    id<SPDFTabCanvasMenuProviding> canvases = (id)self.reader;
+    BOOL picture = [canvases respondsToSelector:@selector(annotateClipboardHasPicture)] &&
+                   [canvases annotateClipboardHasPicture];
+    menu.autoenablesItems = NO;  // every item is available; the clipboard one only with a picture to make it from
+    clipboard.enabled = picture;
     NSMenuItem* group = [menu addItemWithTitle:@"New Group…"
         action:NSSelectorFromString(@"createEmptyTabGroupFromPlus:") keyEquivalent:@""];
     group.target = self.reader;

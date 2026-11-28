@@ -17,6 +17,7 @@
 
 @interface ShenzhenMacDelegate (SPDFAnnotateMenusReader)
 - (SPDFMacFillController*)existingFillController;
+- (NSWindow*)fillWindow;  // the document window (SPDFMacFillIntegration.mm)
 @end
 
 static const NSEventModifierFlags kCmd = NSEventModifierFlagCommand, kShift = NSEventModifierFlagShift,
@@ -37,6 +38,14 @@ static SEL SPDFAnnotateEditAction(NSMenuItem* item) {
     return name ? NSSelectorFromString(name) : NULL;
 }
 
+// A picture with no text beside it, pasted while a text field has the keyboard (a search field, the page number): the
+// field can't take it, so Paste goes past the field to the document, as it would with the document focused.
+static BOOL SPDFAnnotatePictureOnlyPaste(SEL action, NSWindow* window) {
+    NSPasteboard* pasteboard = NSPasteboard.generalPasteboard;
+    return action == @selector(paste:) && [window.firstResponder isKindOfClass:[NSText class]] &&
+           SPDFAnnotatePasteboardHasPicture(pasteboard) && ![pasteboard availableTypeFromArray:@[ NSPasteboardTypeString ]];
+}
+
 static BOOL SPDFAnnotateTakesEdits(SPDFMacFillController* controller, SEL action) {
     if (!controller || ![controller isShowing]) return NO;
     // A sheet (Resize and skew, Canvas size, a Save panel) or another window in front keeps its own Edit keys, and so
@@ -44,7 +53,7 @@ static BOOL SPDFAnnotateTakesEdits(SPDFMacFillController* controller, SEL action
     NSWindow* document = [controller.host fillWindow];
     NSWindow* key = NSApp.keyWindow;
     if (document.attachedSheet || (key && key != document)) return NO;
-    if ([document.firstResponder isKindOfClass:[NSText class]]) return NO;
+    if ([document.firstResponder isKindOfClass:[NSText class]] && !SPDFAnnotatePictureOnlyPaste(action, document)) return NO;
     SPDFAnnotateDocumentKind kind = SPDFAnnotateCurrentKind(controller);
     if (kind == SPDFAnnotateDocumentNone || kind == SPDFAnnotateDocumentText) return NO;
     if (action == @selector(undo:) || action == @selector(redo:)) return YES;  // one undo stack per tab
@@ -92,6 +101,10 @@ BOOL SPDFAnnotatePerformEditAction(SEL action, SPDFMacFillController* controller
 - (void)perform:(NSMenuItem*)item {
     SEL action = SPDFAnnotateEditAction(item);
     if (!action || SPDFAnnotatePerformEditAction(action, [self.reader existingFillController])) return;
+    if (SPDFAnnotatePictureOnlyPaste(action, [self.reader fillWindow])) {  // the reader opens it as a new picture
+        [NSApp sendAction:action to:self.reader from:item];
+        return;
+    }
     [NSApp sendAction:action to:nil from:item];
 }
 
@@ -105,7 +118,8 @@ BOOL SPDFAnnotatePerformEditAction(SEL action, SPDFMacFillController* controller
     }
     if (!action) return NO;
     // As before Annotate: whoever in the responder chain does it says whether it can.
-    id target = [NSApp targetForAction:action to:nil from:item];
+    id target = SPDFAnnotatePictureOnlyPaste(action, [self.reader fillWindow]) ? self.reader
+                                                                                : [NSApp targetForAction:action to:nil from:item];
     if (!target) return NO;
     if (![target respondsToSelector:@selector(validateMenuItem:)]) return YES;
     NSMenuItem* probe = [[NSMenuItem alloc] initWithTitle:item.title action:action keyEquivalent:@""];
@@ -148,6 +162,9 @@ void SPDFAnnotateInstallMenuItems(NSMenu* fileMenu, NSMenu* editMenu, NSMenu* vi
     // File: New Canvas (Cmd-N, free), Save (Cmd-S) and Save As... (Shift-Cmd-S), Set as Desktop Picture.
     [fileMenu insertItem:BAR(SPDFAnnotateNewCanvasTitle, @"n", kCmd, SPDFAnnotateCommandNewCanvas, @"square.dashed")
                  atIndex:0];
+    [fileMenu insertItem:BAR(SPDFAnnotateNewCanvasFromClipboardTitle, @"", 0, SPDFAnnotateCommandNewCanvasFromClipboard,
+                             @"doc.on.clipboard")
+                 atIndex:1];
     NSInteger saveAs = [fileMenu indexOfItemWithTarget:nil andAction:@selector(saveDocumentAs:)];
     if (saveAs >= 0) {
         NSMenuItem* old = [fileMenu itemAtIndex:saveAs];
