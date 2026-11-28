@@ -196,15 +196,26 @@ EndpointIndependent. Two causes, both fixed:
   interface beneath it (`IP_BOUND_IF`/`IPV6_BOUND_IF` through libjuice's `%<interface>` bind address), the one with
   a scoped default route of its own (`SZFriendsOnlineInterfaceAroundTunnel`), and offers that interface's host
   addresses. STUN then learns the network's own public address, and the path avoids the proxy's extra hop and UDP
-  handling. A VPN that forbids it (includeAllNetworks) drops those packets; the direct attempt then fails and the relay, which
-  follows the VPN, carries the session (not measured: the owner's VPNs allow it).
+  handling. A VPN that forbids it (includeAllNetworks) drops those packets, so a direct connection kept on the
+  interface that never connects makes the next one on that network follow the default route through the VPN's exit
+  instead; which of the two connected is remembered per network (the interface, its IPv4 subnet and the tunnel holding
+  the route), and a remembered choice changes only after it failed twice in a row (not measured: the owner's VPNs
+  allow it).
 
-*The privacy trade-off, accepted by the owner for this purpose only:* the friend (or the person's own device) on the
-other end learns the network's public address and the Mac's addresses on that interface, which the tunnel would
-have hidden; nobody else does, since the candidates travel only in the Noise-authenticated signalling. First
-contacts, download links, the relay, the probe handover connection, port mapping and the TCP path still follow the
-default route as above. Phones cannot go around their VPN (Android's non-bypassable tunnels), and need not: the
-openers alone let the other side's checks in.
+*The privacy trade-off, accepted by the owner for this purpose only:* while the socket is kept on the physical
+interface, these learn the network's own public address, which the tunnel would have hidden:
+- the friend (or the person's own device) on the other end, which also learns the Mac's addresses on that interface
+  (the candidates travel only in the Noise-authenticated signalling);
+- the Friends host, whose STUN server sees the binding requests come from that address: STUN stays on the kept
+  socket because the address it reflects is what lets the two sides punch through (decided 2026-11-28; the owner may
+  reverse it);
+- the local network and the ISP, which see the UDP flow between the two public addresses instead of only traffic
+  to the VPN.
+Nobody else: no other server is asked. Only a stored friend or one of the person's own devices gets this. An Add by
+ID first contact (`SZFriendsOnlinePurposeFirstContact`: a holder let in by a request token, or a dial that still
+presents one because the acceptance has not reached the other side), download links, the relay, the probe handover
+connection, port mapping and the TCP path still follow the default route as above. Phones cannot go around their VPN
+(Android's non-bypassable tunnels), and need not: the openers alone let the other side's checks in.
 
 **Keepalive.** No extra UDP keepalive: while a connection is up, libjuice's consent checks every 4 to 6 s on the
 selected pair keep its NAT mappings alive (median NAT UDP timeouts are 35 to 65 s), beside its STUN keepalive

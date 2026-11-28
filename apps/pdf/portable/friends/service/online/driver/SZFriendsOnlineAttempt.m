@@ -37,7 +37,7 @@ static const NSUInteger kHeldItemsMax = 64;
         _context = context;
         _owner = owner;
         _order = [[SZFriendsOnlineOrder alloc] initWithRole:role
-                                                    purpose:SZFriendsOnlinePurposeFriend
+                                                    purpose:SZFriendsOnlineFriendPurpose(friend)
                                                       clock:context.clock
                                                      random:context.random];
         _slots = [NSMutableDictionary dictionary];

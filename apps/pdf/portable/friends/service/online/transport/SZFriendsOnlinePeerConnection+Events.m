@@ -90,6 +90,7 @@ enum { kPairBufferSize = 256 };
     dispatch_async(self.queue, ^{
         if (self.closed) return;
         self.iceConnected = YES;
+        [self noteTunnelOutcome:YES];
         [self logSelectedPair:@"ICE connected"];
         [self refreshRoute];
     });

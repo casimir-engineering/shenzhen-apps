@@ -28,7 +28,7 @@ static BOOL InDirectPhase(SZFriendsOnlinePhase phase) {
     if (_ended || _slots[@(number)] != nil) return nil;
     BOOL blocked = [_context directPathsBlocked];
     SZFriendsOnlineRequest *request = [SZFriendsOnlineRequest new];
-    request.purpose = SZFriendsOnlinePurposeFriend;
+    request.purpose = SZFriendsOnlineFriendPurpose(_friend); // a first contact never goes around a VPN
     request.role = _role;
     request.kind = kind;
     request.peer = _friend.identityKey;

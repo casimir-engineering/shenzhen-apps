@@ -77,6 +77,20 @@ NSString *SZFriendsOnlineCandidateSummary(SZFriendsOnlineCandidate *candidate);
 // toward the Internet, the physical interface beneath it that has a route of its own (en0, say), which a friend's
 // direct connection keeps its socket on; nil when no tunnel holds the route or no interface has one.
 NSString *_Nullable SZFriendsOnlineInterfaceAroundTunnel(void);
+// Which way a friend's direct connection takes on a network while a tunnel holds the route, by what connected there
+// before (SZFriendsOnlineAroundTunnel.m): around the tunnel until a connection that way never connects, then through
+// it by the default route, and back after that fails in turn. A way that connected is left only after two failures
+// in a row. One per process; any thread.
+@interface SZFriendsOnlineTunnelMemory : NSObject
++ (instancetype)sharedMemory;
+- (BOOL)goesAroundOnNetwork:(NSString *)network;
+// What a direct connection that went `around` (or not) on `network` came to: ICE connected, or it ended without.
+- (void)network:(NSString *)network wentAround:(BOOL)around connected:(BOOL)connected;
+@end
+// The network a connection around `around` is on, for SZFriendsOnlineTunnelMemory: that interface, its IPv4 subnet
+// and the tunnel interface holding the route ("en0 192.168.1.0/24 under utun4"); nil when the interface has no IPv4
+// address. Wi-Fi's network name would need the location permission, which the helper does not ask for.
+NSString *_Nullable SZFriendsOnlineTunnelNetwork(NSString *_Nullable around, const char *_Nullable tunnel);
 // For a connection kept on `interface`: the interface a host candidate on `address` is offered from, which is that
 // interface when the address is one of its own, of either family, and nil otherwise.
 NSString *_Nullable SZFriendsOnlineInterfaceForAddressOn(NSString *address, NSString *interface);

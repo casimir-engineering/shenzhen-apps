@@ -283,7 +283,9 @@ static BOOL SZFriendsOnlineTakeOpen(NSMutableArray<NSNumber *> *times, NSUIntege
     }
     SZFriendsOnlineFriend *friend = [delegate onlineDriver:self friendAnsweringWithIdentityKey:identityKey
                                               requestToken:token];
-    return [friend.identityKey isEqualToData:identityKey] ? friend : nil;
+    if (![friend.identityKey isEqualToData:identityKey]) return nil;
+    friend.admittedByToken = YES; // whatever the delegate said: a token admits a first contact
+    return friend;
 }
 
 @end

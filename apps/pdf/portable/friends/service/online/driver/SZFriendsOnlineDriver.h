@@ -64,6 +64,10 @@ NS_ASSUME_NONNULL_BEGIN
 // The person's root key, which every device of theirs files its record under (HOST-PROTOCOL-ONLINE.md § Several
 // devices): set when `identityKey` is one of their other devices. Nil: the identity key is the root.
 @property(nonatomic, copy, nullable) NSData *rootKey;
+// An Add by ID holder let in by a request token (-onlineDriver:friendAnsweringWithIdentityKey:requestToken:), not a
+// stored friend: its connections are first contacts, like those of every dial that still presents `requestToken`
+// (SZFriendsOnlineFriendPurpose).
+@property(nonatomic) BOOL admittedByToken;
 @end
 
 // Where attempts toward a friend stand, for what the helper shows while no session with them is up.

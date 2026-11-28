@@ -263,7 +263,27 @@ static void TestPairTechniques(void) {
     SZFO_CHECK(SZFriendsOnlineInterfaceForAddress(@"192.0.2.77") == nil, "a documentation address is nobody's");
 }
 
+// Under a kill-switch VPN the way around the tunnel never connects: the next connection on that network follows the
+// default route, and a way that connected is left only after two failures in a row.
+static void TestTunnelMemory(void) {
+    SZFriendsOnlineTunnelMemory *memory = [[SZFriendsOnlineTunnelMemory alloc] init];
+    NSString *home = @"en0 192.168.1.0/24 under utun4", *office = @"en0 10.0.0.0/24 under utun4";
+    SZFO_CHECK([memory goesAroundOnNetwork:home], "around first");
+    [memory network:home wentAround:YES connected:NO];
+    SZFO_CHECK(![memory goesAroundOnNetwork:home] && [memory goesAroundOnNetwork:office], "per network");
+    [memory network:home wentAround:YES connected:NO]; // a late outcome of the old way changes nothing
+    [memory network:home wentAround:NO connected:YES];
+    [memory network:home wentAround:NO connected:NO];
+    SZFO_CHECK(![memory goesAroundOnNetwork:home], "one failure keeps a way that connected");
+    [memory network:home wentAround:NO connected:NO];
+    SZFO_CHECK([memory goesAroundOnNetwork:home], "two in a row try the other way again");
+    [memory network:office wentAround:YES connected:YES];
+    [memory network:office wentAround:YES connected:NO];
+    SZFO_CHECK([memory goesAroundOnNetwork:office], "around connected there: one failure keeps it");
+}
+
 void SZFORunCandidateTests(void) {
+    TestTunnelMemory();
     TestParsing();
     TestAddressClasses();
     TestLocalCandidates();

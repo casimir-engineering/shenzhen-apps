@@ -91,9 +91,15 @@ static const char kChannelLabel[] = "szfriends";
     // socket stays on the physical interface, so STUN and every check leave there and the peer learns this
     // network's own public address. The relay, probe handover and link connections still follow the default route.
     self.startedAt = CFAbsoluteTimeGetCurrent();
+    // Under a kill-switch VPN nothing leaves that socket: once a connection kept there never connected on this
+    // network, the next follows the default route through the VPN (SZFriendsOnlineTunnelMemory).
     NSString *stackBind = _bindAddress;
     if (_bindAddress == nil && _kind == SZFriendsOnlineConnectionDirect && _purpose == SZFriendsOnlinePurposeFriend) {
-        self.aroundInterface = SZFriendsOnlineInterfaceAroundTunnel();
+        NSString *around = SZFriendsOnlineInterfaceAroundTunnel();
+        self.tunnelNetwork = SZFriendsOnlineTunnelNetwork(around, SZFriendsOnlineReadDefaultRoutes().ipv4);
+        BOOL goesAround = self.tunnelNetwork == nil ||
+                          [[SZFriendsOnlineTunnelMemory sharedMemory] goesAroundOnNetwork:self.tunnelNetwork];
+        self.aroundInterface = goesAround ? around : nil;
         if (self.aroundInterface != nil) stackBind = [@"%" stringByAppendingString:self.aroundInterface];
     }
     const char *kindName = _kind == SZFriendsOnlineConnectionDirect           ? "direct"
@@ -106,9 +112,11 @@ static const char kChannelLabel[] = "szfriends";
                                                  self.aroundInterface != nil
                                                      ? [NSString stringWithFormat:@"socket kept on %@, around %s",
                                                                                   self.aroundInterface, routes.ipv4]
-                                                     : [NSString stringWithFormat:@"follows the default route (%s)",
-                                                                                  routes.ipv4[0] ? routes.ipv4
-                                                                                                 : "none"]]];
+                                                     : [NSString stringWithFormat:@"follows the default route (%s)%@",
+                                                                                  routes.ipv4[0] ? routes.ipv4 : "none",
+                                                                                  self.tunnelNetwork != nil
+                                                                                      ? @": around it never connected here"
+                                                                                      : @""]]];
     }
     config.bindAddress = stackBind.UTF8String;
     // A relay connection gathers and sends relay candidates only (ADR 0009 step 4).
@@ -306,7 +314,18 @@ static const char kChannelLabel[] = "szfriends";
 
 - (void)bothDescriptionsApplied {
     // ADR 0011: the timer starts on the offerer when it applies the answer, on the answerer when it sends it.
+    self.descriptionsApplied = YES;
     [self.directPhase start];
+}
+
+// Told once. An end before both descriptions (the friend never answered) or within 5 s (closed for a better route)
+// says nothing about the way it took.
+- (void)noteTunnelOutcome:(BOOL)connected {
+    if (self.tunnelNetwork == nil || self.tunnelOutcomeNoted) return;
+    if (!connected && (!self.descriptionsApplied || CFAbsoluteTimeGetCurrent() - self.startedAt < 5)) return;
+    self.tunnelOutcomeNoted = YES;
+    [[SZFriendsOnlineTunnelMemory sharedMemory] network:self.tunnelNetwork wentAround:self.aroundInterface != nil
+                                              connected:connected];
 }
 
 #pragma mark - Ending
@@ -351,6 +370,7 @@ static const char kChannelLabel[] = "szfriends";
 }
 
 - (void)endEverythingWithStreamError:(NSError *)streamError {
+    [self noteTunnelOutcome:self.iceConnected || self.streamEverOpened];
     [self.directPhase stop];
     [self stopRouteTimer];
     if (self.channelStream != nil && !self.channelStream.ended) [self.channelStream endWithError:streamError];

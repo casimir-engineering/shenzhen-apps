@@ -13,6 +13,11 @@ NS_ASSUME_NONNULL_BEGIN
 // A friend's direct connection while a VPN or TUN proxy holds the IPv4 route: the physical interface its socket is
 // kept on (SZFriendsOnlineInterfaceAroundTunnel), whose addresses are then its only host candidates. Nil otherwise.
 @property(nonatomic, copy, nullable) NSString *aroundInterface;
+// A friend's direct connection while a tunnel holds the route: the network SZFriendsOnlineTunnelMemory learns on, and
+// whether what it came to has been told (once: ICE connected, or it ended without after both descriptions).
+@property(nonatomic, copy, nullable) NSString *tunnelNetwork;
+@property(nonatomic) BOOL tunnelOutcomeNoted, descriptionsApplied;
+- (void)noteTunnelOutcome:(BOOL)connected;
 @property(nonatomic) CFAbsoluteTime startedAt; // for the log lines
 - (nullable NSString *)offeringInterfaceForAddress:(NSString *)address;
 - (void)logLine:(NSString *)line;

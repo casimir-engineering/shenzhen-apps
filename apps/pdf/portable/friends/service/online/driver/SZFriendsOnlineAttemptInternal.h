@@ -9,6 +9,14 @@ NS_ASSUME_NONNULL_BEGIN
 @class SZFriendsNATPortMapping;
 @class SZFriendsNATProber;
 
+// What a peer's connections are: a first contact while either side may know the other only by a request token (a
+// holder let in by one, or a dial that still presents one), else a friend or own device, whose direct connection alone
+// may go around a VPN and offer private addresses (SZFriendsOnlineTransport.h).
+static inline SZFriendsOnlinePurpose SZFriendsOnlineFriendPurpose(SZFriendsOnlineFriend *friend) {
+    return friend.admittedByToken || friend.requestToken != nil ? SZFriendsOnlinePurposeFirstContact
+                                                                : SZFriendsOnlinePurposeFriend;
+}
+
 // One connection of the attempt, by its number in the signalling (SZFriendsSignalTagConnection).
 @interface SZFriendsOnlineSlot : NSObject
 @property(nonatomic) uint8_t number;

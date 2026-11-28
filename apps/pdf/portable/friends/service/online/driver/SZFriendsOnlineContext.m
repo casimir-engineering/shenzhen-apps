@@ -13,6 +13,9 @@
 @interface SZFriendsOnlineDataChannelTransport (SZFriendsOnlineDriverTesting)
 - (instancetype)initForTestingWithBindAddress:(NSString *)bindAddress;
 @end
+// And its seam for a first contact on one Mac (SZFriendsOnlineTransportInternal.h): an Add by ID callback is a first
+// contact, offered loopback only by the testing transport with this set.
+extern BOOL SZFriendsOnlineTestLinksUseLocalAddresses;
 
 static BOOL gLoopbackOnly;
 static BOOL (^gDirectPathsBlocked)(void);
@@ -101,6 +104,7 @@ static const NSUInteger kTechniqueLogCapacity = 200;
     if (_transport != nil) return _transport;
     // The first attempt configures the stack (rtcSetThreadPoolSize) and nothing before: the helper's start pays
     // nothing for online Friends.
+    if (_loopbackOnly) SZFriendsOnlineTestLinksUseLocalAddresses = YES;
     SZFriendsOnlineDataChannelTransport *transport =
         _loopbackOnly ? [[SZFriendsOnlineDataChannelTransport alloc] initForTestingWithBindAddress:@"127.0.0.1"]
                       : [SZFriendsOnlineDataChannelTransport sharedTransport];
