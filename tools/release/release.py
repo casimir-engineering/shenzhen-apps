@@ -21,15 +21,22 @@ from common import Failure, git, label, say  # noqa: E402
 APPS = ("pdf", "files", "3d")
 
 # Friends' test-only switches: SZFRIENDS_TEST_* read when a core is compiled (option_env!: SZFRIENDS_TEST_INTERNET_ONLY,
-# SZFRIENDS_TEST_BLUETOOTH_ONLY, SZFRIENDS_TEST_STACK_LOG, SZFRIENDS_TEST_SCTP) and FRIENDS_TEST_BUILD_FLAGS for the
-# Objective-C helper (friends/friends.mk). Every build a release starts inherits this environment, so a release refuses
-# to run while one is set rather than ship a test build. (The suites' own SZFRIENDS_TEST_* settings are given to each
-# suite by the release itself, not taken from here.)
-def friends_test_switches_set():
-    flags = os.environ.get("MAKEFLAGS", "") + " " + os.environ.get("MFLAGS", "")
-    names = sorted(name for name in os.environ
-                   if name.startswith("SZFRIENDS_TEST_") or name == "FRIENDS_TEST_BUILD_FLAGS")
-    if "FRIENDS_TEST_BUILD_FLAGS" in flags or "SZFRIENDS_TEST_" in flags:
+# SZFRIENDS_TEST_BLUETOOTH_ONLY, SZFRIENDS_TEST_STACK_LOG, SZFRIENDS_TEST_SCTP), FRIENDS_TEST_BUILD_FLAGS for the
+# Objective-C helper (friends/friends.mk), and SHENZHEN_FAST_TEST_BUILD, which builds Shenzhen 3D's phone core without
+# its release optimisation (apps/3d/scripts/platform-build.mjs). Every build a release starts inherits this
+# environment, so a release refuses to run while one is set rather than ship a test build. tools/release.sh checks the
+# same names before Python starts. (The suites' own SZFRIENDS_TEST_* settings are given to each suite by the release
+# itself, not taken from here.)
+TEST_SWITCH_PREFIXES = ("SZFRIENDS_TEST_",)
+TEST_SWITCH_NAMES = ("FRIENDS_TEST_BUILD_FLAGS", "SHENZHEN_FAST_TEST_BUILD")
+
+
+def friends_test_switches_set(environ=None):
+    environ = os.environ if environ is None else environ
+    flags = environ.get("MAKEFLAGS", "") + " " + environ.get("MFLAGS", "")
+    names = sorted(name for name in environ
+                   if name.startswith(TEST_SWITCH_PREFIXES) or name in TEST_SWITCH_NAMES)
+    if any(word in flags for word in TEST_SWITCH_PREFIXES + TEST_SWITCH_NAMES):
         names.append("MAKEFLAGS")
     return names
 

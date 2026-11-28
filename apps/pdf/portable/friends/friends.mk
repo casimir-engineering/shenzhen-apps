@@ -22,12 +22,18 @@ FRIENDS_INCLUDES := -Ifriends
 # FRIENDS_TEST_BUILD_FLAGS: test builds only, never a release (tools/release.sh refuses to run while it or any
 # SZFRIENDS_TEST_* variable is in the environment, and build-mac-release.sh leaves them out). With
 # -DSZFRIENDS_TEST_INTERNET_ONLY=1 the helper reaches its own devices only over the Internet's direct routes: no
-# nearby dial to them and no relay, so a test measures the peer-to-peer route alone. Objects do not depend on it:
-# touch the files that read it (git grep SZFRIENDS_TEST_INTERNET_ONLY) when switching.
+# nearby dial to them and no relay, so a test measures the peer-to-peer route alone. The production objects depend
+# on it through FRIENDS_TEST_FLAGS_STAMP (rewritten only when the flags change), so switching rebuilds them, and a
+# helper built with any of it says so in its log at every start (SZFriendsHelperMain.m).
 # -DSZFRIENDS_TEST_BLUETOOTH_ONLY=1 reaches its own devices only over Bluetooth (no other nearby dial, nothing
 # online), so a test measures Bluetooth alone; the phones' core reads SZFRIENDS_TEST_BLUETOOTH_ONLY when compiled.
 FRIENDS_TEST_BUILD_FLAGS ?=
-FRIENDS_OBJC_FLAGS = $(MAC_TARGET_FLAGS) -fobjc-arc -Wall -Wextra -Werror $(FRIENDS_INCLUDES) $(FRIENDS_TEST_BUILD_FLAGS)
+FRIENDS_OBJC_FLAGS = $(MAC_TARGET_FLAGS) -fobjc-arc -Wall -Wextra -Werror $(FRIENDS_INCLUDES) $(FRIENDS_TEST_BUILD_FLAGS) \
+	$(if $(strip $(FRIENDS_TEST_BUILD_FLAGS)),-DSZFRIENDS_TEST_BUILD_FLAGS_SET=1)
+# The flags the objects were last built with; rewritten here, as make reads this file, only when they differ.
+FRIENDS_TEST_FLAGS_STAMP := $(FRIENDS_BUILD)/test-build-flags
+FRIENDS_TEST_FLAGS_NOW := $(shell mkdir -p "$(FRIENDS_BUILD)" && printf '%s\n' '$(strip $(FRIENDS_TEST_BUILD_FLAGS))' | \
+	cmp -s - "$(FRIENDS_TEST_FLAGS_STAMP)" || printf '%s\n' '$(strip $(FRIENDS_TEST_BUILD_FLAGS))' > "$(FRIENDS_TEST_FLAGS_STAMP)")
 FRIENDS_C_FLAGS = $(MAC_TARGET_FLAGS) -std=c99 -Wall -Wextra -Werror -pedantic $(FRIENDS_INCLUDES)
 
 FRIENDS_TEST_TARGETS :=
@@ -67,6 +73,11 @@ FRIENDS_VIEWS_OBJS :=
 -include friends/service/online/nat/nat.mk
 -include friends/service/online/order/order.mk
 -include friends/service/online/driver/driver.mk
+
+# Every production object depends on the test flags it was compiled with (FRIENDS_TEST_FLAGS_STAMP above). After the
+# includes, so the lists hold every area's objects.
+$(FRIENDS_SERVICE_OBJS) $(FRIENDS_CLIENT_OBJS) $(FRIENDS_VIEWS_OBJS) $(FRIENDS_HELPER_OBJS) $(FRIENDS_HELPER_MAIN_OBJ): \
+	$(FRIENDS_TEST_FLAGS_STAMP)
 
 # The host area's second public interface (rendezvous, connection setup and relay credentials, protocol 2), which the
 # online driver includes. friends/tests/tests.mk lists the first, SZFriendsHostConnection.h; host.mk lists neither.

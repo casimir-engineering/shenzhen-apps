@@ -639,10 +639,27 @@ def test_pdf_plan():
           not plan.jobs["all-tests/part-a"]["lock"], plan.jobs)
 
 
+def test_test_switches():
+    import release
+    found = release.friends_test_switches_set({"PATH": "/bin", "SHENZHEN_FAST_TEST_BUILD": "1",
+                                               "SZFRIENDS_TEST_SCTP": "1,4"})
+    check("a release refuses the fast test build and every SZFRIENDS_TEST_ switch",
+          found == ["SHENZHEN_FAST_TEST_BUILD", "SZFRIENDS_TEST_SCTP"], found)
+    found = release.friends_test_switches_set({"MAKEFLAGS": "FRIENDS_TEST_BUILD_FLAGS=-DX=1"})
+    check("and one passed down in MAKEFLAGS", found == ["MAKEFLAGS"], found)
+    check("and nothing else", release.friends_test_switches_set({"PATH": "/bin", "HOME": "/x"}) == [])
+    for name in ("SHENZHEN_FAST_TEST_BUILD", "SZFRIENDS_TEST_INTERNET_ONLY"):
+        run = subprocess.run(["bash", os.path.join(os.path.dirname(HERE), "release.sh"), "pdf", "1.0"],
+                             env={"PATH": os.environ["PATH"], name: "1"}, capture_output=True, text=True)
+        check(f"tools/release.sh refuses {name} before Python starts", run.returncode == 2 and name in run.stderr,
+              run.stderr)
+
+
 def main():
     try:
         mono, remote, previous = setup()
         test_stages()
+        test_test_switches()
         test_scheduler()
         test_pdf_plan()
         test_interrupted_command()

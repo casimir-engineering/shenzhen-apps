@@ -31,6 +31,25 @@ static NSArray<dispatch_source_t> *SZFriendsHelperSignalSources;
 // The spawner gives a helper /dev/null for stderr, so it never holds an app's pipe open (ADR 0002); the helper then
 // writes its own log, <state>/helper.log, owned by whoever holds the lock. Kept under 1 MiB by moving the previous
 // one aside, since a helper runs for as long as any app is open.
+// The test-only switches this helper was compiled with (FRIENDS_TEST_BUILD_FLAGS, friends/friends.mk; tools/release.sh
+// refuses them), so a test build says so in its log at every start; nil for every other build.
+static NSString *_Nullable SZFriendsCompiledTestSwitches(void) {
+    NSMutableArray<NSString *> *names = [NSMutableArray array];
+#if defined(SZFRIENDS_TEST_INTERNET_ONLY) && SZFRIENDS_TEST_INTERNET_ONLY
+    [names addObject:@"SZFRIENDS_TEST_INTERNET_ONLY"];
+#endif
+#if defined(SZFRIENDS_TEST_BLUETOOTH_ONLY) && SZFRIENDS_TEST_BLUETOOTH_ONLY
+    [names addObject:@"SZFRIENDS_TEST_BLUETOOTH_ONLY"];
+#endif
+#ifdef SZFRIENDS_TEST_SCTP_RECV_KB
+    [names addObject:@"SZFRIENDS_TEST_SCTP_RECV_KB"];
+#endif
+#ifdef SZFRIENDS_TEST_BUILD_FLAGS_SET
+    if (names.count == 0) [names addObject:@"FRIENDS_TEST_BUILD_FLAGS"];
+#endif
+    return names.count > 0 ? [names componentsJoinedByString:@", "] : nil;
+}
+
 static void SZFriendsOpenHelperLog(SZFriendsStatePaths *paths) {
     NSString *log = [paths.stateDirectory stringByAppendingPathComponent:@"helper.log"];
     NSDictionary *attributes = [[NSFileManager defaultManager] attributesOfItemAtPath:log error:NULL];
@@ -99,6 +118,8 @@ int SZFriendsHelperMain(int argc, const char *_Nonnull argv[_Nonnull]) {
         }
 
         SZFriendsOpenHelperLog(paths);
+        NSString *switches = SZFriendsCompiledTestSwitches();
+        if (switches != nil) SZFriendsHelperLog(@"test build: compiled with %@ (never a release)", switches);
         // Before anything else can delete the bundle: what this helper runs, to notice when an update removes it.
         SZFriendsExecutableIdentity executable = SZFriendsOwnExecutableIdentity();
         [lock recordOwnerBuild:SZFriendsHelperBuildNumber()];

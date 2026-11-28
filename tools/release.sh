@@ -14,4 +14,11 @@
 # command again resumes where it stopped and skips what is done. docs/RELEASING.md has the details.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Friends' test-only build switches never go into a release (release/release.py, friends_test_switches_set, says why
+# and checks MAKEFLAGS too): refused here as well, before anything runs.
+switches=$(compgen -e | grep -E '^(SZFRIENDS_TEST_[A-Za-z0-9_]*|FRIENDS_TEST_BUILD_FLAGS|SHENZHEN_FAST_TEST_BUILD)$' | tr '\n' ' ' || true)
+if [ -n "$switches" ]; then
+    echo "FAILED: ${switches% } set: Friends' test-only switches never go into a release; unset them first" >&2
+    exit 2
+fi
 exec /usr/bin/python3 -I -B -u "$here/release/release.py" "$@"

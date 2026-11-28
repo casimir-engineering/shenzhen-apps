@@ -204,6 +204,10 @@ impl Service {
     }
 
     fn run(identity: Identity, store: Store) -> Arc<Self> {
+        let switches = compiled_test_switches();
+        if !switches.is_empty() {
+            log!("test build: compiled with {} (never a release)", switches.join(", "));
+        }
         let (input, inbox) = channel();
         let busy = Arc::new(AtomicBool::new(false));
         let identity_key = Some(identity.public_key());
@@ -376,6 +380,20 @@ pub(crate) struct State {
     pub views_at: Option<std::time::Instant>,
     /// Answered once the thread has closed the store (shutdown).
     stopped: Option<Sender<()>>,
+}
+
+/// Friends' compile-time test switches this core was built with (test builds only; tools/release.sh refuses them), so
+/// a build that has one says so in its log at every start, whichever platform it runs on.
+fn compiled_test_switches() -> Vec<&'static str> {
+    [
+        ("SZFRIENDS_TEST_INTERNET_ONLY", option_env!("SZFRIENDS_TEST_INTERNET_ONLY")),
+        ("SZFRIENDS_TEST_BLUETOOTH_ONLY", option_env!("SZFRIENDS_TEST_BLUETOOTH_ONLY")),
+        ("SZFRIENDS_TEST_STACK_LOG", option_env!("SZFRIENDS_TEST_STACK_LOG")),
+        ("SZFRIENDS_TEST_SCTP", option_env!("SZFRIENDS_TEST_SCTP")),
+    ]
+    .into_iter()
+    .filter_map(|(name, value)| value.map(|_| name))
+    .collect()
 }
 
 /// How often the views are brought up to date at most (`State::views_at`).
