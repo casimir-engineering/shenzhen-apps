@@ -67,6 +67,12 @@ extern const double SZFriendsBluetoothHelpsBelow;  // 4 MB/s
 - (BOOL)have:(SZFriendsTransferKey)key ranges:(NSData *)ranges now:(double)now;
 - (void)written:(SZFriendsLaneID)lane now:(double)now;
 - (void)sent:(SZFriendsLaneID)lane transfer:(SZFriendsTransferKey)key block:(uint32_t)block now:(double)now;
+// The same with the time the block left (a pull: when it was asked for), so the round trip includes the asking.
+- (void)sent:(SZFriendsLaneID)lane
+    transfer:(SZFriendsTransferKey)key
+       block:(uint32_t)block
+          at:(double)sentAt
+         now:(double)now;
 - (void)heard:(SZFriendsLaneID)lane now:(double)now;
 - (void)cpuBound:(SZFriendsLaneID)lane now:(double)now;
 - (void)tick:(double)now;

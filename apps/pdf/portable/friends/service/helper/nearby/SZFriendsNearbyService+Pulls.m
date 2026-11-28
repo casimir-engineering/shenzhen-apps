@@ -395,10 +395,11 @@ static uint32_t SZFriendsNthBlock(NSData *ranges, uint32_t n) {
     if (now - MAX(current.loggedAt, current.startedAt) >= 2) {
         uint64_t received = current.blockCopy.receivedBytes;
         double since = now - MAX(current.loggedAt, current.startedAt);
-        SZFriendsHelperLog(@"pull %@ after %.1f s: %.1f MB of %.1f MB here (%.2f MB/s lately), over %@",
+        SZFriendsHelperLog(@"pull %@ after %.1f s: %.1f MB of %.1f MB here (%.2f MB/s lately), over %@; %@",
                            [transferID substringToIndex:MIN((NSUInteger)8, transferID.length)], now - current.startedAt,
                            received / 1e6, current.size / 1e6, (received - MIN(received, current.loggedBytes)) / 1e6 / since,
-                           SZFriendsTraceRouteName(holder.route));
+                           SZFriendsTraceRouteName(holder.route),
+                           current.pull ? [current.pull describeSource:holder.source now:now] : @"no planner yet");
         current.loggedAt = now;
         current.loggedBytes = received;
     }

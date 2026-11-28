@@ -314,13 +314,21 @@ static BOOL SZFRangesFit(NSData *ranges, uint32_t blocks) {
 }
 
 - (void)sent:(SZFriendsLaneID)laneID transfer:(SZFriendsTransferKey)key block:(uint32_t)block now:(double)now {
+    [self sent:laneID transfer:key block:block at:now now:now];
+}
+
+- (void)sent:(SZFriendsLaneID)laneID
+    transfer:(SZFriendsTransferKey)key
+       block:(uint32_t)block
+          at:(double)sentAt
+         now:(double)now {
     SZFTransfer *transfer = [self transfer:key];
     if (transfer == nil) return;
     for (SZFPlacement *p in transfer->open[@(block)]) {
         if (p->lane != laneID) continue;
         if (!p->hasSent) {
             p->hasSent = YES;
-            p->sentAt = now;
+            p->sentAt = sentAt;
         }
         break;
     }

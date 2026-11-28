@@ -41,6 +41,8 @@ typedef uint64_t SZFriendsSourceID; // a session with a device that holds the fi
 @property(nonatomic, readonly) BOOL done;
 // What to send to whom, one WANT and one HAVE per source at most.
 - (NSArray<SZFriendsPullAction *> *)takeActions;
+// For helper.log: a source's measured rate (bytes/s), round trip (s), bytes asked and not arrived, and its cap.
+- (NSString *)describeSource:(SZFriendsSourceID)source now:(double)now;
 @end
 
 NS_ASSUME_NONNULL_END

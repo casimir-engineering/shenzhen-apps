@@ -20,6 +20,10 @@ static const SZFriendsTransferKey SZFriendsPullKey = 0;
 @implementation SZFriendsPull {
     SZFriendsScheduler *_scheduler;
     NSMutableDictionary<NSNumber *, NSMutableIndexSet *> *_asked; // per source: asked, not delivered nor told about
+    // When each block was asked of its source: its arrival then measures the round trip, asking included. Credited
+    // at arrival alone, every round trip read 0 and the lane stayed at its floor of 8 blocks in flight.
+    NSMutableDictionary<NSNumber *, NSNumber *> *_askedAt;
+    double _now;
     uint8_t _nextIndex;
 }
 
@@ -30,6 +34,8 @@ static const SZFriendsTransferKey SZFriendsPullKey = 0;
         [_scheduler addTransfer:SZFriendsPullKey geometry:geometry];
         [_scheduler want:SZFriendsPullKey ranges:missing now:now];
         _asked = [NSMutableDictionary dictionary];
+        _askedAt = [NSMutableDictionary dictionary];
+        _now = now;
     }
     return self;
 }
@@ -49,14 +55,18 @@ static const SZFriendsTransferKey SZFriendsPullKey = 0;
 }
 
 - (void)heard:(SZFriendsSourceID)source now:(double)now {
+    _now = now;
     [_scheduler heard:source now:now];
 }
 
 - (void)arrived:(SZFriendsSourceID)source block:(uint32_t)block now:(double)now {
     if (block >= _geometry.blocks || [_scheduler isDone:SZFriendsPullKey]) return;
+    _now = now;
     [_asked[@(source)] removeIndex:block];
     // Credited to that source as a copy sent whole: its rate and round trip are measured this way.
-    [_scheduler sent:source transfer:SZFriendsPullKey block:block now:now];
+    NSNumber *askedAt = _askedAt[@(block)];
+    [_askedAt removeObjectForKey:@(block)];
+    [_scheduler sent:source transfer:SZFriendsPullKey block:block at:askedAt ? askedAt.doubleValue : now now:now];
     [_scheduler have:SZFriendsPullKey ranges:SZFriendsRange(block, 1) now:now];
 }
 
@@ -66,11 +76,26 @@ static const SZFriendsTransferKey SZFriendsPullKey = 0;
 }
 
 - (void)tick:(double)now {
+    _now = now;
     [_scheduler tick:now];
 }
 
 - (double)nextTimer {
     return [_scheduler nextTimer];
+}
+
+- (NSString *)describeSource:(SZFriendsSourceID)source now:(double)now {
+    double rate = 0, rtt = 0;
+    BOOL measured = NO, silent = NO, reaches = NO;
+    uint64_t inFlight = 0;
+    if (![_scheduler describeLane:source rate:&rate rtt:&rtt measured:&measured inFlight:&inFlight silent:&silent
+                          reaches:&reaches now:now]) {
+        return @"no lane";
+    }
+    uint64_t block = 1ull << _geometry.shift;
+    return [NSString stringWithFormat:@"lane %.1f MB/s, rtt %.0f ms, %.1f MB asked, cap %.1f MB%@", rate / 1e6,
+                                      rtt * 1000, inFlight / 1e6, [_scheduler capOfLane:source blockBytes:block] / 1e6,
+                                      silent ? @", silent" : @""];
 }
 
 - (BOOL)done {
@@ -91,6 +116,7 @@ static const SZFriendsTransferKey SZFriendsPullKey = 0;
         case SZFriendsScheduleSend:
             if (asked == nil) break;
             [asked addIndex:action.block];
+            _askedAt[@(action.block)] = @(_now);
             [entry(wants, action.lane) addIndex:action.block];
             [haves[@(action.lane)] removeIndex:action.block];
             break;

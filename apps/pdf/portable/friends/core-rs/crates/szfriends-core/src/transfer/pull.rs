@@ -40,6 +40,10 @@ pub struct Pull {
     geometry: Geometry,
     /// What each source was asked for and has not delivered or been told about.
     asked: BTreeMap<SourceId, BTreeSet<u32>>,
+    /// When each block was asked of its source: its arrival then measures the round trip, asking included. Credited at
+    /// arrival alone, every round trip read 0 and the lane stayed at its floor of 8 blocks in flight.
+    asked_at: BTreeMap<u32, Duration>,
+    now: Duration,
     next_index: u8,
 }
 
@@ -60,7 +64,7 @@ impl Pull {
         let mut scheduler = Scheduler::new(config);
         scheduler.add_transfer(KEY, geometry);
         let _ = scheduler.want(KEY, missing, now);
-        Self { scheduler, geometry, asked: BTreeMap::new(), next_index: 0 }
+        Self { scheduler, geometry, asked: BTreeMap::new(), asked_at: BTreeMap::new(), now, next_index: 0 }
     }
 
     pub fn geometry(&self) -> &Geometry {
@@ -87,6 +91,7 @@ impl Pull {
 
     /// Something arrived from a source (any part, any frame): it is alive.
     pub fn heard(&mut self, source: SourceId, now: Duration) {
+        self.now = now;
         self.scheduler.heard(source, now);
     }
 
@@ -95,11 +100,13 @@ impl Pull {
         if block >= self.geometry.blocks || self.scheduler.is_done(KEY) {
             return;
         }
+        self.now = now;
         if let Some(asked) = self.asked.get_mut(&source) {
             asked.remove(&block);
         }
         // Credited to that source as a copy sent whole: its rate and round trip are measured this way.
-        self.scheduler.sent(source, KEY, block, now);
+        let asked_at = self.asked_at.remove(&block).unwrap_or(now);
+        self.scheduler.sent_at(source, KEY, block, asked_at, now);
         let _ = self.scheduler.have(KEY, &[(block, 1)], now);
     }
 
@@ -112,6 +119,7 @@ impl Pull {
     }
 
     pub fn tick(&mut self, now: Duration) {
+        self.now = now;
         self.scheduler.tick(now);
     }
 
@@ -133,6 +141,7 @@ impl Pull {
                 Action::Send { lane, block, .. } => {
                     if let Some(asked) = self.asked.get_mut(&lane) {
                         asked.insert(block);
+                        self.asked_at.insert(block, self.now);
                         wants.entry(lane).or_default().insert(block);
                         haves.entry(lane).or_default().remove(&block);
                     }
