@@ -203,7 +203,7 @@ impl State {
     /// records were filed under the person, found nobody and is waiting out a backoff.
     #[cfg_attr(not(feature = "online"), allow(dead_code))]
     pub(crate) fn own_devices_to_reach_online(&self) -> Vec<[u8; 32]> {
-        if !self.sync_active() {
+        if !self.sync_active() || super::dial::TEST_BLUETOOTH_ONLY {
             return Vec::new();
         }
         let me = self.identity.public_key();
@@ -220,7 +220,7 @@ impl State {
     /// Our other devices as the online driver reaches them: the static key our chain gives each.
     #[cfg(feature = "online")]
     pub(crate) fn own_devices_online(&self) -> Vec<szfriends_online::driver::OnlineFriend> {
-        if !self.sync_active() {
+        if !self.sync_active() || super::dial::TEST_BLUETOOTH_ONLY {
             return Vec::new();
         }
         let Some(root) = self.own_root() else { return Vec::new() };

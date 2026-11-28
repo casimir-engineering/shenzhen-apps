@@ -42,16 +42,28 @@ object Streams {
         return id
     }
 
-    /** In order, off the caller's thread: the core's writer never waits on the radio. */
-    fun write(id: Long, data: ByteArray) {
-        val stream = open[id] ?: return
-        stream.writer.execute {
-            try {
-                stream.output.write(data)
-                stream.output.flush()
-            } catch (_: Exception) {
-                close(id)
+    /**
+     * In order, off the caller's thread, and `done` once the bytes are in the socket (or the stream failed). The core
+     * counts a write as gone only then: its writer hands over the next one after `done`, so what waits for the radio
+     * waits in the core, where a message can still overtake file data. Done at once, a write let the core push
+     * megabytes into this queue at memory speed, and every message behind them (a HAVE, an ask) waited minutes on a
+     * Bluetooth link.
+     */
+    fun write(id: Long, data: ByteArray, done: () -> Unit) {
+        val stream = open[id] ?: return done()
+        try {
+            stream.writer.execute {
+                try {
+                    stream.output.write(data)
+                    stream.output.flush()
+                } catch (_: Exception) {
+                    close(id)
+                } finally {
+                    done()
+                }
             }
+        } catch (_: java.util.concurrent.RejectedExecutionException) {
+            done() // closed meanwhile
         }
     }
 

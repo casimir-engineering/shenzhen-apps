@@ -11,6 +11,9 @@
 #ifndef SZFRIENDS_TEST_INTERNET_ONLY
 #define SZFRIENDS_TEST_INTERNET_ONLY 0
 #endif
+#ifndef SZFRIENDS_TEST_BLUETOOTH_ONLY
+#define SZFRIENDS_TEST_BLUETOOTH_ONLY 0
+#endif
 #import "service/helper/nearby/SZFriendsNearbyJoin.h"
 
 // Failed attempts back off per person: 1 s doubling to 5 minutes, so a friend who removed us costs little.
@@ -327,6 +330,10 @@ BOOL SZFriendsNearbyDialIsPointless(SZFriendsRouteMethod live, SZFriendsRouteMet
     // A test build that measures the Internet's direct route to our own devices dials them on nothing nearby
     // (FRIENDS_TEST_BUILD_FLAGS in friends.mk).
     if (SZFRIENDS_TEST_INTERNET_ONLY && plan.purpose == SZFriendsLinkPurposeOwnDevice) return NO;
+    // A test build that measures Bluetooth between our own devices dials them on nothing else.
+    if (SZFRIENDS_TEST_BLUETOOTH_ONLY && plan.purpose == SZFriendsLinkPurposeOwnDevice &&
+        plan.sighting.method != SZFriendsDiscoveryMethodBluetooth)
+        return NO;
     SZFriendsSighting *sighting = plan.sighting;
     NSString *key = SZFriendsDialKey(plan.purpose, sighting);
     // A pinned lane is its own attempt: it may run beside a dial of the same entry on its best route.

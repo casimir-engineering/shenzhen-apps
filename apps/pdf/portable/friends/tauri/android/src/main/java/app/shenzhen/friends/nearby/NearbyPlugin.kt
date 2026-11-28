@@ -411,8 +411,8 @@ open class NearbyPlugin(private val activity: Activity) : Plugin(activity) {
     @Command
     fun streamWrite(invoke: Invoke) {
         val args = invoke.parseArgs(StreamArgs::class.java)
-        Streams.write(args.stream, Base64.decode(args.data, Base64.NO_WRAP))
-        invoke.resolve()
+        // Answered once the bytes are in the socket: the core's writer waits for it (Streams.write).
+        Streams.write(args.stream, Base64.decode(args.data, Base64.NO_WRAP)) { invoke.resolve() }
     }
 
     @Command
