@@ -32,7 +32,9 @@ the source:
   pass. A check that reaches a Linux NAT before the peer behind it has sent anything leaves an unreplied conntrack
   entry, and the peer's own packets then leave from another public port; the openers open this side's NATs without
   reaching the peer's. Poll mode only (the one libdatachannel uses without its UDP mux), where each agent owns its
-  socket and one datagram can change the TTL under the send mutex.
+  socket and one datagram can change the TTL under the send mutex. The TTL is put back after each opener; on Apple
+  systems a dual-stack socket's hop limit reads -1, and writing -1 back sent its IPv4-mapped datagrams at TTL 255, so
+  the system's default TTL (`net.inet.ip.ttl`) is restored instead.
 - **Bind address `%<interface>`** (`src/udp.c`): binds the unspecified address with `IP_BOUND_IF` or `IPV6_BOUND_IF`
   on that interface, on Apple systems; a socket that cannot be kept there is not opened. Elsewhere it binds the
   unspecified address.

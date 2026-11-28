@@ -17,6 +17,10 @@
 #include <assert.h>
 #include <string.h>
 
+#ifdef __APPLE__
+#include <sys/sysctl.h>
+#endif
+
 #define BUFFER_SIZE 4096
 
 typedef struct registry_impl {
@@ -689,6 +693,18 @@ int conn_poll_send_ttl(juice_agent_t *agent, const addr_record_t *dst, const cha
 	}
 	if (set_v4)
 		setsockopt(sock, IPPROTO_IP, IP_TTL, (const char *)&old_v4, sizeof(old_v4));
+#ifdef __APPLE__
+	// A fresh dual-stack socket reads its hop limit as -1 (the system's default), but writing -1 back makes its
+	// IPv4-mapped datagrams leave at TTL 255 from then on: restore the system's default TTL itself instead.
+	if (set_v6 && old_v6 < 0) {
+		int system_ttl = 0;
+		size_t system_len = sizeof(system_ttl);
+		if (sysctlbyname("net.inet.ip.ttl", &system_ttl, &system_len, NULL, 0) != 0 || system_ttl <= 0 ||
+		    system_ttl > 255)
+			system_ttl = 64;
+		old_v6 = system_ttl;
+	}
+#endif
 	if (set_v6)
 		setsockopt(sock, IPPROTO_IPV6, IPV6_UNICAST_HOPS, (const char *)&old_v6, sizeof(old_v6));
 	mutex_unlock(&conn_impl->send_mutex);
