@@ -14,6 +14,7 @@
 #import "service/sync/SZFriendsAgain.h"
 #import "service/sync/SZFriendsSync.h"
 #import "service/transfer/SZFriendsBlockFlow.h"
+#import "service/transfer/SZFriendsTransferBlocks.h"
 
 // 48 KiB parts, as the copies by offset; 8 MiB sent and not yet in a HAVE.
 static const NSUInteger SZFriendsCopyPartBytes = 48 * 1024;
@@ -258,6 +259,32 @@ static double SZFriendsCopyNow(void) {
 }
 
 - (BOOL)link:(SZFriendsPeerLink *)link receivedCopyFrame:(SZFriendsFrame *)frame {
+    BOOL handled = [self link:link receivedCopyOrPullFrame:frame];
+    if (handled && frame.type == SZFriendsFrameTypePart) [self link:link acknowledgePiecesOfPart:frame];
+    return handled;
+}
+
+// On Bluetooth the pieces a copy's or a pull's PART completes go back at once in a HAVE's Pieces (ADR 0018 § 3), as a
+// friend's transfer's do: the computer serving it paces its radio by them. Without them an Android phone's Bluetooth
+// stack took four times what its radio carried, and its messages waited seconds behind that file data. Whole blocks
+// still come in the Ranges of the HAVEs the copy sends; the serving side needs nothing else from these. A block's
+// parts come in order on one session, so a piece is whole when a part reaches its end.
+- (void)link:(SZFriendsPeerLink *)link acknowledgePiecesOfPart:(SZFriendsFrame *)frame {
+    if (link.raceRoute != SZFriendsRouteMethodBluetooth || !link.channel.pieces) return;
+    NSData *wire = [frame dataForTag:SZFriendsFieldID], *data = [frame dataForTag:SZFriendsFieldData];
+    uint64_t offset = 0;
+    if (wire.length != 16 || data.length == 0 || ![frame getUInt64:&offset forTag:SZFriendsFieldOffset]) return;
+    uint64_t piece = 1ull << SZFriendsPieceShift, end = offset + data.length;
+    NSMutableIndexSet *whole = [NSMutableIndexSet indexSet];
+    for (uint64_t p = offset / piece; (p + 1) * piece <= end; p++) [whole addIndex:(NSUInteger)p];
+    if (whole.count == 0) return;
+    for (SZFriendsFrame *have in SZFriendsHaveFramesWithPieces(wire, [NSData data], [NSData data],
+                                                               SZFriendsIndexesAsRanges(whole))) {
+        [link.channel sendFrame:have];
+    }
+}
+
+- (BOOL)link:(SZFriendsPeerLink *)link receivedCopyOrPullFrame:(SZFriendsFrame *)frame {
     if ([self link:link receivedPullFrame:frame]) return YES; // a file pulled from several holders (+Pulls)
     NSString *again = link.againExchange.copyingByBlocks, *sync = link.syncExchange.copyingByBlocks;
     if (again == nil && sync == nil) return NO;

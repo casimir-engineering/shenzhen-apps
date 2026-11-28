@@ -20,7 +20,7 @@ use crate::log;
 
 pub struct Session {
     pub channel: SecureChannel,
-    link: Link,
+    pub(super) link: Link,
     pub conversation: Option<String>,
     pub senders: HashMap<String, Outgoing>,
     pub receivers: HashMap<String, ChunkReceiver>,
@@ -108,8 +108,10 @@ pub fn is_request_answer(entry: &OutboxEntry) -> bool {
     payload.get("transfer_id").is_none() && matches!(payload["frame"].as_str(), Some("accept" | "decline" | "cancel"))
 }
 
-/// One write on a Bluetooth link (the Mac's SZFriendsL2CAPPreferredWriteSize); four of them are the in-flight budget.
-const BLUETOOTH_WRITE_SIZE: usize = 16 * 1024;
+/// A quarter of a Bluetooth link's in-flight budget: 8 KiB handed to the link and not yet written, so a message
+/// queued now waits behind at most two 4 KiB parts there (`lanes.rs`) and what the link's pace lets the stack hold
+/// (`radio_pace.rs`), a tenth of a second or so at 90 KB/s.
+const BLUETOOTH_WRITE_SIZE: usize = 2 * 1024;
 /// One write on a LAN or direct Wi-Fi link; four of them are its in-flight budget.
 const FAST_WRITE_SIZE: usize = 256 * 1024;
 
@@ -130,10 +132,10 @@ impl State {
     ) -> Option<u64> {
         let mut channel = channel;
         let capabilities = self.session_capabilities | self.direct_wifi_capability();
-        // Bluetooth keeps a quarter of the bytes in the link's hands (64 KiB, as the Mac's L2CAP channels): at 100 to
-        // 200 KB/s that is under half a second, so a HAVE or an ask queued now never waits seconds behind file data. A
-        // LAN or direct Wi-Fi link keeps 1 MiB (45 ms at 24 MB/s): a phone's kernel buffer holds only some 10 ms of
-        // its Wi-Fi, and with 256 KiB the link went idle whenever the service's thread was late for one pass.
+        // Bluetooth keeps 8 KiB in the link's hands, paced to the radio there, so a HAVE or an ask queued now waits
+        // behind a tenth of a second of file data, not the seconds an Android phone's stack would hold. A LAN or
+        // direct Wi-Fi link keeps 1 MiB (45 ms at 24 MB/s): a phone's kernel buffer holds only some 10 ms of its
+        // Wi-Fi, and with 256 KiB the link went idle whenever the service's thread was late for one pass.
         let preferred_write_size = match meta.dialed_route {
             szfriends_core::wire::RouteMethod::Bluetooth => BLUETOOTH_WRITE_SIZE,
             szfriends_core::wire::RouteMethod::Lan | szfriends_core::wire::RouteMethod::PeerToPeerWifi => {
@@ -146,12 +148,18 @@ impl State {
             preferred_write_size,
             ..Default::default()
         });
-        let rate = self.route_rates.get(&meta.dialed_route).copied();
-        let silence = self.route_silence.clone().map(|path| (path, super::route_name(meta.dialed_route).to_owned()));
-        let emulated = (rate.is_some() || silence.is_some()).then_some((rate, silence));
+        let route = meta.dialed_route;
+        let emulated = super::link::Emulated {
+            rate: self.route_rates.get(&route).copied(),
+            silence: self.route_silence.clone().map(|path| (path, super::route_name(route).to_owned())),
+            buffer: self.route_buffers.get(&route).copied(),
+            delay: self.route_delays.get(&route).map(|ms| std::time::Duration::from_secs_f64(ms / 1e3)),
+        };
+        let emulated = (emulated.rate.is_some() || emulated.silence.is_some()).then_some(emulated);
         let mut meta = meta;
         meta.tcp_fd = stream.tcp_fd();
-        let link = match Link::start(id, stream, self.input.clone(), Input::Link, emulated) {
+        let bluetooth = route == szfriends_core::wire::RouteMethod::Bluetooth;
+        let link = match Link::start(id, stream, self.input.clone(), Input::Link, emulated, bluetooth) {
             Ok(link) => link,
             Err(error) => {
                 log!("session link: {error}");
@@ -235,6 +243,8 @@ impl State {
             let Some(event) = s.channel.poll_event() else { break };
             if let Event::Frame(frame) = &event {
                 super::meter::count(&self.meter, frame, s.meta.race_route(&s.channel));
+                // The pieces a HAVE names crossed this session's link: a Bluetooth link paces itself by them.
+                s.link.acknowledged(super::radio_pace::have_bytes(frame));
             }
             match event {
                 Event::Established => self.went_live(id),

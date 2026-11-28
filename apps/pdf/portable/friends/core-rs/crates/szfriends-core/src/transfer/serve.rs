@@ -121,7 +121,7 @@ impl BlockServe {
     }
 
     /// The part size for the parts cut from now on: each lane cuts its blocks at its own route's size (ADR 0018
-    /// § 9.8: 16 KiB on Bluetooth).
+    /// § 9.8: 4 KiB on the Rust helper's Bluetooth).
     pub fn set_part_bytes(&mut self, part_bytes: usize) {
         self.part_bytes = part_bytes.clamp(1, PART_BYTES_MAX);
     }

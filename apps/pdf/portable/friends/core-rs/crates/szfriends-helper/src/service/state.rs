@@ -84,6 +84,16 @@ impl State {
                 HashMap::new()
             },
             route_silence: test_home.then(|| std::env::var_os(ENV_TEST_ROUTE_SILENCE).map(Into::into)).flatten(),
+            route_buffers: if test_home {
+                route_rates(&std::env::var(ENV_TEST_ROUTE_BUFFERS).unwrap_or_default())
+            } else {
+                HashMap::new()
+            },
+            route_delays: if test_home {
+                route_rates(&std::env::var(ENV_TEST_ROUTE_DELAYS).unwrap_or_default())
+            } else {
+                HashMap::new()
+            },
             devices,
             again: again::AgainArea::default(),
             pulls: pulls::PullArea::default(),

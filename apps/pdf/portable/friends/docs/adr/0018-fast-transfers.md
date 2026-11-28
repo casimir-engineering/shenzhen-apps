@@ -402,7 +402,11 @@ Each with its cost and benefit; the journal keeps the full list, including those
 8. **Larger Bluetooth packets (adopted, WP3).** Parts of 16 KiB instead of 4 KiB chunks, a 64 KiB write budget,
    Android's high connection priority and LE 2M PHY requested while a transfer runs, BlueZ the same; CoreBluetooth picks
    its own connection interval. Overhead falls from about 1 % to 0.25 % and writes from 256 to 64 per MiB. The window no
-   longer waits on the disk (§ 3), which matters more as radios get faster.
+   longer waits on the disk (§ 3), which matters more as radios get faster. Amended 2026-11-29 for the Rust helper: an
+   Android phone's stack takes 170 to 236 KB/s into an L2CAP channel while its radio carries 43 to 98, so its messages
+   waited seconds behind file data; its Bluetooth links are now paced to the radio by the receiver's piece HAVEs
+   (`service/radio_pace.rs`), with 4 KiB parts and an 8 KiB write budget, and the Mac acknowledges pieces of copies and
+   pulls over Bluetooth as it does a transfer's. CoreBluetooth holds back on its own, so the Mac keeps 16 KiB.
 9. **Better loss recovery on Internet paths (adopted, WP3, measured first).** Data channels may hold 8 MiB buffered
    instead of 1 MiB, so one is no longer capped near 1 MiB per round trip (26 MB/s at 40 ms, 7 MB/s at 150 ms), with
    usrsctp's buffers raised to match and its H-TCP module chosen instead of the RFC 4960 default where the NAT

@@ -227,8 +227,9 @@ impl State {
                 let Some(serving) = self.again.serving.get_mut(&key) else { break };
                 if serving.logged.0.elapsed().as_secs_f64() >= 2.0 {
                     let since = serving.logged.0.elapsed().as_secs_f64();
+                    let pace = session.link.pace().map(|p| format!(", {p}")).unwrap_or_default();
                     crate::log!(
-                        "serve {} after {:.1} s: {:.1} MB sent ({:.2} MB/s lately), {} frames queued",
+                        "serve {} after {:.1} s: {:.1} MB sent ({:.2} MB/s lately), {} frames queued{pace}",
                         &key.1[..key.1.len().min(8)],
                         serving.started.elapsed().as_secs_f64(),
                         serving.sent_bytes as f64 / 1e6,
@@ -239,6 +240,10 @@ impl State {
                 }
                 let Serving { serve, sync, reader, .. } = serving;
                 let sync = *sync;
+                if route == szfriends_core::wire::RouteMethod::Bluetooth {
+                    // Copies cut 48 KiB parts; on Bluetooth a message behind one would wait half a second.
+                    serve.set_part_bytes(super::lanes::part_bytes(route));
+                }
                 if let Some(part) = serve.next_part() {
                     super::meter::count(&self.meter, &part, session.meta.race_route(&session.channel));
                     let bytes = part.get(tag::DATA).map_or(0, <[u8]>::len) as u64;

@@ -106,10 +106,11 @@ impl Groups {
     }
 }
 
-/// Parts of a block cut for this route's lane (§ 9.8: 16 KiB on Bluetooth, a quarter of the writes of 4 KiB chunks).
+/// Parts of a block cut for this route's lane: 4 KiB on Bluetooth, so a message queued behind file data there waits
+/// for 45 ms of the radio at most per part (a piece, 16 KiB, is four of them, and its HAVE paces the link).
 pub fn part_bytes(route: RouteMethod) -> usize {
     if route == RouteMethod::Bluetooth {
-        16 * 1024
+        4 * 1024
     } else {
         szfriends_core::session::chunk_bytes_for_route(route)
     }

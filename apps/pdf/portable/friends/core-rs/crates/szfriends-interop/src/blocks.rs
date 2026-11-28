@@ -53,10 +53,10 @@ pub(crate) struct BlockSend {
 /// As the helper: pieces reported at least every 256 KiB of parts, after every part on Bluetooth.
 const PIECE_HAVE_BYTES: usize = 256 << 10;
 
-/// Parts of a block cut for a lane on this route (16 KiB on Bluetooth, ADR 0018 § 9.8), as the helper does.
+/// Parts of a block cut for a lane on this route (4 KiB on Bluetooth, ADR 0018 § 9.8), as the helper does.
 fn part_bytes(route: RouteMethod) -> usize {
     if route == RouteMethod::Bluetooth {
-        16 * 1024
+        4 * 1024
     } else {
         chunk_bytes_for_route(route)
     }

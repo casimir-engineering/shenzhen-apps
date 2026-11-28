@@ -49,6 +49,7 @@ mod online;
 #[path = "online_off.rs"]
 mod online;
 pub(crate) mod pulls;
+mod radio_pace;
 pub mod reset;
 mod room;
 pub mod seed;
@@ -319,8 +320,8 @@ pub const ENV_TEST_LANES: &str = "SZFRIENDS_TEST_LANES";
 pub const ENV_TEST_AES_LANES: &str = "SZFRIENDS_TEST_AES_LANES";
 pub const ENV_TEST_AES_SESSION: &str = "SZFRIENDS_TEST_AES_SESSION";
 pub const ENV_TEST_COMPRESSED_PARTS: &str = "SZFRIENDS_TEST_COMPRESSED_PARTS";
-pub use test_routes::{ENV_TEST_ROUTE_RATES, ENV_TEST_ROUTE_SILENCE};
 pub(crate) use test_routes::{route_name, route_rates};
+pub use test_routes::{ENV_TEST_ROUTE_BUFFERS, ENV_TEST_ROUTE_DELAYS, ENV_TEST_ROUTE_RATES, ENV_TEST_ROUTE_SILENCE};
 
 pub(crate) struct State {
     pub identity: Identity,
@@ -364,6 +365,10 @@ pub(crate) struct State {
     pub route_rates: HashMap<szfriends_core::wire::RouteMethod, f64>,
     /// A test home's file naming routes to silence (`SZFRIENDS_TEST_ROUTE_SILENCE`), as out of range.
     pub route_silence: Option<std::path::PathBuf>,
+    /// A test home's emulated stacks and delays over a platform's stream (`SZFRIENDS_TEST_ROUTE_BUFFERS`, bytes, and
+    /// `SZFRIENDS_TEST_ROUTE_DELAYS`, milliseconds).
+    pub route_buffers: HashMap<szfriends_core::wire::RouteMethod, f64>,
+    pub route_delays: HashMap<szfriends_core::wire::RouteMethod, f64>,
     /// One profile on several computers: the join state and the sync engine.
     pub devices: devices::DeviceArea,
     /// Get again: giving friends files again, and copying files again from them.

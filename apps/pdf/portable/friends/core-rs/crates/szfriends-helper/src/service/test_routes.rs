@@ -8,6 +8,11 @@ use std::collections::HashMap;
 pub const ENV_TEST_ROUTE_RATES: &str = "SZFRIENDS_TEST_ROUTE_RATES";
 /// A test home's file: while it names a route (`lan`, `bluetooth`, …), links on it write nothing (out of range).
 pub const ENV_TEST_ROUTE_SILENCE: &str = "SZFRIENDS_TEST_ROUTE_SILENCE";
+/// A test home's emulated stacks, `bluetooth=1048576`: bytes a platform's stream takes ahead of the route's rate
+/// before a write waits, as an Android phone's Bluetooth stack takes a megabyte (with a rate only).
+pub const ENV_TEST_ROUTE_BUFFERS: &str = "SZFRIENDS_TEST_ROUTE_BUFFERS";
+/// A test home's emulated one-way delays in milliseconds, `bluetooth=25`, over a platform's stream (with a rate only).
+pub const ENV_TEST_ROUTE_DELAYS: &str = "SZFRIENDS_TEST_ROUTE_DELAYS";
 
 /// The names `SZFRIENDS_TEST_ROUTE_RATES` and `SZFRIENDS_TEST_ROUTE_SILENCE` use.
 pub(crate) fn route_name(route: szfriends_core::wire::RouteMethod) -> &'static str {

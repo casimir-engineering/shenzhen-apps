@@ -351,7 +351,7 @@ impl State {
 
     /// Every file this session's group sends by blocks: the scheduler (WP2) hears the lanes, the transfers and the
     /// time, and says which lane carries which block; each block is read through its leaf check and cut into its
-    /// lane's parts (16 KiB on Bluetooth), which go out while the lane's queue is shallow. Lanes it asks for are dialed
+    /// lane's parts (4 KiB on Bluetooth), which go out while the lane's queue is shallow. Lanes it asks for are dialed
     /// (`lanes.rs`), lanes it gives up on closed.
     pub(crate) fn pump_blocks(&mut self, head: u64) {
         let route = match self.sessions.map.get(&head) {
