@@ -92,7 +92,7 @@
             "lan",
             "bluetooth"
           ],
-          "label": "Local network and Bluetooth"
+          "label": "Local network and Bluetooth LE"
         },
         "conversation_id": "c_mei",
         "title": "Mei Lin",
@@ -110,7 +110,7 @@
           "label": "Nearby, on your network"
         },
         "drop_refusal": null,
-        "accessibility_label": "Mei Lin, unread, Mei said Can you check pages 3–5 before Friday?, 14:32, nearby, on your network, Found over Local network and Bluetooth",
+        "accessibility_label": "Mei Lin, unread, Mei said Can you check pages 3–5 before Friday?, 14:32, nearby, on your network, Found over Local network and Bluetooth LE",
         "id_confirmed": false,
         "unread": true
       },
@@ -129,7 +129,7 @@
           "methods": [
             "bluetooth"
           ],
-          "label": "Bluetooth"
+          "label": "Bluetooth LE"
         },
         "conversation_id": "c_kenji",
         "title": "Kenji Sato",
@@ -144,10 +144,10 @@
         "route": {
           "kind": "local",
           "method": "bluetooth",
-          "label": "Nearby, over Bluetooth"
+          "label": "Nearby, over Bluetooth LE"
         },
         "drop_refusal": null,
-        "accessibility_label": "Kenji Sato, sent you Site photos.pdf, 13:10, waiting for you, Found over Bluetooth",
+        "accessibility_label": "Kenji Sato, sent you Site photos.pdf, 13:10, waiting for you, Found over Bluetooth LE",
         "id_confirmed": false,
         "unread": false
       },

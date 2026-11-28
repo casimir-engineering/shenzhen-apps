@@ -83,7 +83,7 @@ static void test_previews_and_actions(SZFGHarness *harness) {
     EXPECT(preview && gtk_widget_get_width(preview) == 45 && gtk_widget_get_height(preview) == 64,
            "a 136 x 192 preview keeps the 45 x 64 box laid out from the snapshot before it loaded, as AppKit (%d x %d)",
            preview ? gtk_widget_get_width(preview) : -1, preview ? gtk_widget_get_height(preview) : -1);
-    EXPECT(szfg_find_label(szfg_conv_root(conv), "Over Bluetooth, about 6 min"), "with the route note");
+    EXPECT(szfg_find_label(szfg_conv_root(conv), "Over Bluetooth LE, about 6 min"), "with the route note");
     guint earlier = szfg_fake_frames(harness, "load_earlier", NULL, NULL);
     press(conv, "Show earlier messages");
     EXPECT(szfg_conv_wait_frames(harness, "load_earlier", earlier), "Show earlier messages asks for 200 more");

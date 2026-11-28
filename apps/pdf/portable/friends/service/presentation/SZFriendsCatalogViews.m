@@ -58,7 +58,7 @@ static NSDictionary<NSString *, NSString *> *TransferAndConversationEntries(void
         @"transfer.route.lan" : @"Same Wi-Fi",
         @"transfer.route.p2p_wifi" : @"Direct Wi-Fi",
         @"transfer.route.internet" : @"Internet, direct",
-        @"transfer.route.bluetooth" : @"Bluetooth",
+        @"transfer.route.bluetooth" : @"Bluetooth LE",
         @"transfer.route.relay" : @"Internet, via relay",
         @"transfer.route.in_use" : @"{route} · in use",
         @"transfer.route.used" : @"{route} · not in use now",
@@ -79,7 +79,7 @@ static NSDictionary<NSString *, NSString *> *TransferAndConversationEntries(void
         @"transfer.note.rejoin" : @"you’ll rejoin {network} after",
         // The Wi-Fi Direct boost (ADR 0019): the question on a device that would lose its only Internet, and the notes
         // after.
-        @"transfer.boost.ask" : @"Go faster? {first} isn’t on your Wi-Fi, so this is going over Bluetooth ({slow}). "
+        @"transfer.boost.ask" : @"Go faster? {first} isn’t on your Wi-Fi, so this is going over Bluetooth LE ({slow}). "
                                 @"Leave {network} for {fast} to connect to {first} directly. Your {device} rejoins it "
                                 @"by itself when it’s done.",
         @"transfer.boost.network" : @"“{name}”",
@@ -223,7 +223,7 @@ static NSDictionary<NSString *, NSString *> *NearbyEntries(void) {
         @"nearby.still_looking" : @"Still looking",
         @"nearby.subtitle.lan" : @"On your network",
         @"nearby.subtitle.p2p_wifi" : @"Over direct Wi-Fi",
-        @"nearby.subtitle.bluetooth" : @"Over Bluetooth · messages fine, files slower",
+        @"nearby.subtitle.bluetooth" : @"Over Bluetooth LE · messages fine, files slower",
         @"nearby.subtitle.visible" : @"Visible now",
         @"nearby.subtitle.no_name" : @"No name set",
         @"nearby.status.friend" : @"Friend",

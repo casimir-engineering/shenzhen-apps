@@ -1,6 +1,6 @@
 //! A moving transfer's progress by route (PROTOCOL.md § Fast transfers, Progress by route), for views that declared
 //! `transfers.progress` (`SZFriendsSnapshotBuilder+TransferRoutes.m`): the routes carrying it as icons, the bar split by what
-//! each route carried, "31.2 MB of 48 MB · 12.4 MB/s" with "2 s left", and "Via Same Wi-Fi + Bluetooth" with the
+//! each route carried, "31.2 MB of 48 MB · 12.4 MB/s" with "2 s left", and "Via Same Wi-Fi + Bluetooth LE" with the
 //! transfer's notes. Other views keep the percentage in `status_label` and the estimate in `route_note`.
 
 use serde_json::{json, Map, Value};

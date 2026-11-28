@@ -57,10 +57,10 @@
           "color": "#2f6474"
         },
         "title": "Kenji Sato",
-        "subtitle": "Over Bluetooth · messages fine, files slower",
+        "subtitle": "Over Bluetooth LE · messages fine, files slower",
         "status_label": "Friend",
         "action": null,
-        "accessibility_label": "Kenji Sato, friend, over Bluetooth, messages fine, files slower"
+        "accessibility_label": "Kenji Sato, friend, over Bluetooth LE, messages fine, files slower"
       }
     ],
     "empty": null,

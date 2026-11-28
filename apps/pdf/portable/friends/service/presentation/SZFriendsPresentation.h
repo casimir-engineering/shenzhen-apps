@@ -2,7 +2,7 @@
 //
 // Logic lives in the service, not the views (brief § Containment and porting). This layer turns plain facts
 // into exactly the `data` objects PROTOCOL.md documents per view: rows already sorted, labels such as
-// "Yesterday" or "Over Bluetooth, about 6 min", countdown text, badge counts and which buttons show. Views
+// "Yesterday" or "Over Bluetooth LE, about 6 min", countdown text, badge counts and which buttons show. Views
 // render them and nothing more, so a second toolkit reimplements drawing only.
 //
 // Pure: no store, radios, sockets or clock reads. Inputs are the fact objects below, which the helper fills
@@ -346,9 +346,9 @@ typedef NS_ENUM(NSInteger, SZFriendsReceivedFallbackFacts) {
 
 // "14:32" today, "Yesterday", a weekday within six days, "3 Oct" this year, "3 Oct 2025" otherwise.
 - (NSString *)timeLabelForDate:(NSDate *)date now:(NSDate *)now;
-// "Nearby, on your network", "Nearby, over Bluetooth", "Online, direct", "Not nearby right now"...
+// "Nearby, on your network", "Nearby, over Bluetooth LE", "Online, direct", "Not nearby right now"...
 - (NSString *)routeLabelForKind:(SZFriendsRouteKind)kind method:(SZFriendsRouteMethod)method;
-// "Over Bluetooth, about 6 min", "Through the Friends relay, about 3 min"; nil on fast routes, where no estimate is
+// "Over Bluetooth LE, about 6 min", "Through the Friends relay, about 3 min"; nil on fast routes, where no estimate is
 // worth showing. On the relay the rate is capped at what the relay allows, and assumed when not measured yet.
 - (nullable NSString *)transferEstimateForRemainingBytes:(uint64_t)bytes
                                           bytesPerSecond:(double)bytesPerSecond

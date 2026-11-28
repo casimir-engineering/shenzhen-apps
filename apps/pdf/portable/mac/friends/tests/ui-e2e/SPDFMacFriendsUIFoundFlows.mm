@@ -54,7 +54,7 @@ static BOOL UIFoundNearby(UIRig* rig, SZFE2EWorld* world) {
     } expected[] = {
         {@"Lena", @"Local network", @[ @"lan" ]},
         {@"Bao", @"Bluetooth", @[ @"bluetooth" ]},
-        {@"Chen", @"Local network and Bluetooth", @[ @"lan", @"bluetooth" ]},
+        {@"Chen", @"Local network and Bluetooth LE", @[ @"lan", @"bluetooth" ]},
     };
     for (auto& person : expected) {
         NSString* name = person.name;

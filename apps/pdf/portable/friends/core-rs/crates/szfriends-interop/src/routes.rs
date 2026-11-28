@@ -9,7 +9,7 @@ use crate::helpers::{Client, Room};
 use crate::nearby;
 
 pub const LAN: &str = "Nearby, on your network";
-pub const BLUETOOTH: &str = "Nearby, over Bluetooth";
+pub const BLUETOOTH: &str = "Nearby, over Bluetooth LE";
 
 /// `client`'s conversation with `title`, from its list.
 pub fn conversation_with(client: &mut Client, title: &str) -> String {

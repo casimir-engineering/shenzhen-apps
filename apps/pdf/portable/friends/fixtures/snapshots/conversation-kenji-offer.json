@@ -7,11 +7,11 @@
     "conversation_id": "c_kenji",
     "header": {
       "title": "Kenji Sato",
-      "subtitle": "Nearby, over Bluetooth",
+      "subtitle": "Nearby, over Bluetooth LE",
       "route": {
         "kind": "local",
         "method": "bluetooth",
-        "label": "Nearby, over Bluetooth"
+        "label": "Nearby, over Bluetooth LE"
       },
       "avatar": {
         "kind": "animal",
@@ -21,7 +21,7 @@
         "color": "#2f6474"
       },
       "details_available": true,
-      "accessibility_label": "Kenji Sato, nearby, over Bluetooth, show details"
+      "accessibility_label": "Kenji Sato, nearby, over Bluetooth LE, show details"
     },
     "back": {
       "badge_count": 1,
@@ -73,7 +73,7 @@
         "meta_label": "PDF · 42.3 MB",
         "state": "waiting_for_you",
         "status_label": "Waiting for you to accept",
-        "route_note": "Over Bluetooth, about 6 min",
+        "route_note": "Over Bluetooth LE, about 6 min",
         "progress": null,
         "thumbnail": {
           "path": "/Users/raph/Library/Application Support/Shenzhen Friends/thumbnails/0f7d3b9e2c5a4168a4e0b7c91d26f835.png",
@@ -96,7 +96,7 @@
         "assistant_label": null,
         "time_label": "13:10",
         "highlighted": false,
-        "accessibility_label": "Kenji Sato wants to send you Site photos.pdf, PDF, 42.3 MB, over Bluetooth, about 6 minutes"
+        "accessibility_label": "Kenji Sato wants to send you Site photos.pdf, PDF, 42.3 MB, over Bluetooth LE, about 6 minutes"
       }
     ],
     "highlight_item_id": null,

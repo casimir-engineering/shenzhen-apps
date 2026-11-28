@@ -167,7 +167,7 @@ fn relay_estimates() {
         s.transfer_estimate(18_000_000, 2_000_000.0, RouteMethod::Relay).unwrap(),
         "Through the Friends relay, about 30 s"
     );
-    assert_eq!(s.transfer_estimate(18_000_000, 0.0, RouteMethod::Bluetooth).unwrap(), "Over Bluetooth");
+    assert_eq!(s.transfer_estimate(18_000_000, 0.0, RouteMethod::Bluetooth).unwrap(), "Over Bluetooth LE");
     let mut receiving = transfer("t_r", false, "2026-10-12 09:00", "Plan.pdf", 18_000_000, TransferState::Receiving);
     receiving.bytes_per_second = 2_000_000.0;
     receiving.transfer_route = RouteMethod::Relay;
@@ -218,7 +218,7 @@ fn progress_by_route() {
     let progress = &row["progress"];
     assert_eq!(progress["amount_label"], "31.2 MB of 48 MB · 65\u{a0}% · 12.4 MB/s");
     assert_eq!(progress["time_left_label"], "2 s left");
-    assert_eq!(progress["detail_label"], "Via Same Wi-Fi + Bluetooth");
+    assert_eq!(progress["detail_label"], "Via Same Wi-Fi + Bluetooth LE");
     assert_eq!(progress["finishing"], false);
     assert_eq!(row["route_note"], Value::Null);
     let routes = progress["routes"].as_array().unwrap();
@@ -226,7 +226,7 @@ fn progress_by_route() {
     assert_eq!(methods, ["lan", "bluetooth", "relay"]);
     let active: Vec<bool> = routes.iter().map(|r| r["active"].as_bool().unwrap()).collect();
     assert_eq!(active, [true, true, false]);
-    assert_eq!(routes[1]["label"], "Bluetooth · in use");
+    assert_eq!(routes[1]["label"], "Bluetooth LE · in use");
     assert_eq!(routes[2]["label"], "Internet, via relay · not in use now");
     let segments = progress["segments"].as_array().unwrap();
     let sum: f64 = segments.iter().map(|s| s["fraction"].as_f64().unwrap()).sum();

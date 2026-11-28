@@ -141,7 +141,7 @@ pub(super) const CORE: &[(&str, &str)] = &[
     // Routes and estimates
     ("route.lan", "Nearby, on your network"),
     ("route.p2p_wifi", "Nearby, over direct Wi-Fi"),
-    ("route.bluetooth", "Nearby, over Bluetooth"),
+    ("route.bluetooth", "Nearby, over Bluetooth LE"),
     ("route.local", "Nearby"),
     ("route.online", "Online"),
     // A session straight to the friend's Mac over the Internet, or through the relay when nothing direct works.
@@ -154,7 +154,7 @@ pub(super) const CORE: &[(&str, &str)] = &[
     ("route.connecting", "Connecting to {first}…"),
     // They answered, but every way failed, the relay included; things keep waiting (composer.note.unreachable).
     ("route.unreachable", "Couldn’t connect just now"),
-    ("estimate.bluetooth", "Over Bluetooth"),
+    ("estimate.bluetooth", "Over Bluetooth LE"),
     ("estimate.relay", "Through the Friends relay"),
     ("estimate.with_time", "{route}, {duration}"),
     // File kinds; anything else shows its extension in capitals

@@ -1,7 +1,7 @@
 /* The conversation header's route line starts with the route's icon, one per connection method
  * (szfriends_gtk_glyphs.h), coloured as the words, with the helper's route label as the line's tooltip; a route of
  * kind none draws no icon, as the helper sends it for a blocked friend's "Blocked". The header button's accessible
- * name says the line too ("Mei Lin, nearby, over Bluetooth, show details"), so Orca reads how the friend is
+ * name says the line too ("Mei Lin, nearby, over Bluetooth LE, show details"), so Orca reads how the friend is
  * connected. Mei's header is served with each route in turn, with that route's words as the line; renders of five
  * of them land beside the other conversation renders. */
 
@@ -87,7 +87,7 @@ static void test_header_icons(void) {
     } routes[] = {
         {"local", "lan", "Nearby, on your network", SZFRIENDS_GTK_GLYPH_ROUTE_LAN, NULL},
         {"local", "p2p_wifi", "Nearby, over direct Wi-Fi", SZFRIENDS_GTK_GLYPH_ROUTE_P2P_WIFI, "p2p-wifi"},
-        {"local", "bluetooth", "Nearby, over Bluetooth", SZFRIENDS_GTK_GLYPH_ROUTE_BLUETOOTH, "bluetooth"},
+        {"local", "bluetooth", "Nearby, over Bluetooth LE", SZFRIENDS_GTK_GLYPH_ROUTE_BLUETOOTH, "bluetooth"},
         {"online", "internet", "Online, direct", SZFRIENDS_GTK_GLYPH_ROUTE_INTERNET, NULL},
         {"online", "relay", "Online, through the Friends relay", SZFRIENDS_GTK_GLYPH_ROUTE_RELAY, "relay"},
         {"offline", NULL, "Not nearby right now", SZFRIENDS_GTK_GLYPH_ROUTE_OFFLINE, "offline"},

@@ -134,7 +134,7 @@ static NSDictionary<NSString *, NSString *> *CoreEntries(void) {
         // Routes and estimates
         @"route.lan" : @"Nearby, on your network",
         @"route.p2p_wifi" : @"Nearby, over direct Wi-Fi",
-        @"route.bluetooth" : @"Nearby, over Bluetooth",
+        @"route.bluetooth" : @"Nearby, over Bluetooth LE",
         @"route.local" : @"Nearby",
         @"route.online" : @"Online",
         // A session straight to the friend's computer online, or through the relay when nothing direct works.
@@ -147,7 +147,7 @@ static NSDictionary<NSString *, NSString *> *CoreEntries(void) {
         @"route.connecting" : @"Connecting to {first}…",
         // They answered, but every way failed, the relay included; things keep waiting (composer.note.unreachable).
         @"route.unreachable" : @"Couldn’t connect just now",
-        @"estimate.bluetooth" : @"Over Bluetooth",
+        @"estimate.bluetooth" : @"Over Bluetooth LE",
         @"estimate.relay" : @"Through the Friends relay",
         @"estimate.with_time" : @"{route}, {duration}",
 
@@ -325,7 +325,7 @@ static NSDictionary<NSString *, NSString *> *CoreEntries(void) {
         // How someone nearby was found (nearby.found): the methods that see them, joined.
         @"found.lan" : @"Local network",
         @"found.p2p_wifi" : @"Direct Wi-Fi",
-        @"found.bluetooth" : @"Bluetooth",
+        @"found.bluetooth" : @"Bluetooth LE",
         @"found.join" : @"{first} and {second}",
         @"found.join3" : @"{first}, {second} and {third}",
         @"found.spoken" : @"Found over {methods}",

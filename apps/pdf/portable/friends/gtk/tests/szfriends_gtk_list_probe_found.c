@@ -17,13 +17,13 @@ const char szfg_list_found[] =
     "Jonas\",\"subtitle\":\"Hi\",\"time_label\":\"\",\"route\":{\"kind\":\"local\",\"method\":\"lan\",\"l"
     "abel\":\"Nearby\"},\"unread\":false,\"waiting\":null,\"blocked\":false,\"id_confirmed\":false,\"id_c"
     "onfirmed_label\":null,\"style\":\"normal\",\"drop_label\":null,\"drop_refusal\":null,\"accessibility"
-    "_label\":\"Jonas\",\"actions\":[],\"found\":{\"methods\":[\"bluetooth\"],\"label\":\"Bluetooth\"}},{"
+    "_label\":\"Jonas\",\"actions\":[],\"found\":{\"methods\":[\"bluetooth\"],\"label\":\"Bluetooth LE\"}},{"
     "\"conversation_id\":\"c_kenji\",\"avatar\":{\"kind\":\"placeholder\",\"initials\":\"K\",\"color\":\""
     "#5a5a66\"},\"title\":\"Kenji\",\"subtitle\":\"Hi\",\"time_label\":\"\",\"route\":{\"kind\":\"local\""
     ",\"method\":\"lan\",\"label\":\"Nearby\"},\"unread\":false,\"waiting\":null,\"blocked\":false,\"id_c"
     "onfirmed\":false,\"id_confirmed_label\":null,\"style\":\"normal\",\"drop_label\":null,\"drop_refusal"
     "\":null,\"accessibility_label\":\"Kenji\",\"actions\":[],\"found\":{\"methods\":[\"lan\",\"bluetooth"
-    "\"],\"label\":\"Local network and Bluetooth\"}},{\"conversation_id\":\"c_lena\",\"avatar\":{\"kind\""
+    "\"],\"label\":\"Local network and Bluetooth LE\"}},{\"conversation_id\":\"c_lena\",\"avatar\":{\"kind\""
     ":\"placeholder\",\"initials\":\"L\",\"color\":\"#5a5a66\"},\"title\":\"Lena\",\"subtitle\":\"Hi\",\""
     "time_label\":\"\",\"route\":{\"kind\":\"local\",\"method\":\"lan\",\"label\":\"Nearby\"},\"unread\":"
     "false,\"waiting\":null,\"blocked\":false,\"id_confirmed\":false,\"id_confirmed_label\":null,\"style\""
@@ -48,11 +48,11 @@ const char szfg_nearby_found[] =
     "\"LW\",\"color\":\"#7a3f4f\"},\"title\":\"Lena Weber\",\"subtitle\":\"Visible now\",\"status_label\""
     ":null,\"action\":{\"action\":\"send_request\",\"label\":\"Request\",\"style\":\"primary\"},\"accessi"
     "bility_label\":\"Lena Weber, visible now\",\"found\":{\"methods\":[\"bluetooth\"],\"label\":\"Blueto"
-    "oth\"}},{\"nearby_id\":\"n_2b90\",\"conversation_id\":\"c_tomas\",\"avatar\":{\"kind\":\"animal\",\""
+    "oth LE\"}},{\"nearby_id\":\"n_2b90\",\"conversation_id\":\"c_tomas\",\"avatar\":{\"kind\":\"animal\",\""
     "set\":1,\"index\":4,\"initials\":\"TR\",\"color\":\"#4a6a2f\"},\"title\":\"Tomás Rivera\",\"subtitle"
     "\":\"Visible now\",\"status_label\":\"Request sent\",\"action\":null,\"accessibility_label\":\"Tomás"
     " Rivera, request sent\",\"found\":{\"methods\":[\"lan\",\"bluetooth\"],\"label\":\"Local network and"
-    " Bluetooth\"}},{\"nearby_id\":\"n_9d44\",\"conversation_id\":null,\"avatar\":{\"kind\":\"animal\",\""
+    " Bluetooth LE\"}},{\"nearby_id\":\"n_9d44\",\"conversation_id\":null,\"avatar\":{\"kind\":\"animal\",\""
     "set\":1,\"index\":10,\"initials\":\"CL\",\"color\":\"#5a5a66\"},\"title\":\"coral‑lagoon\",\"subtitl"
     "e\":\"No name set\",\"status_label\":null,\"action\":{\"action\":\"send_request\",\"label\":\"Reques"
     "t\",\"style\":\"primary\"},\"accessibility_label\":\"coral‑lagoon, no name set\",\"found\":null}],\""
@@ -98,9 +98,9 @@ static void test_list_rows(SZFGHarness *harness) {
     EXPECT(szfg_list_wait_snapshot(list, seen) && szfg_list_wait_rows(list, 4), "the friends seen nearby arrive");
     expect_found(szfg_list_row(list, "c_mei"), "Mei", "Local network", SZFRIENDS_GTK_GLYPH_ROUTE_LAN,
                  SZFRIENDS_GTK_GLYPH_NONE, FALSE);
-    expect_found(szfg_list_row(list, "c_jonas"), "Jonas", "Bluetooth", SZFRIENDS_GTK_GLYPH_ROUTE_BLUETOOTH,
+    expect_found(szfg_list_row(list, "c_jonas"), "Jonas", "Bluetooth LE", SZFRIENDS_GTK_GLYPH_ROUTE_BLUETOOTH,
                  SZFRIENDS_GTK_GLYPH_NONE, FALSE);
-    expect_found(szfg_list_row(list, "c_kenji"), "Kenji", "Local network and Bluetooth",
+    expect_found(szfg_list_row(list, "c_kenji"), "Kenji", "Local network and Bluetooth LE",
                  SZFRIENDS_GTK_GLYPH_ROUTE_LAN, SZFRIENDS_GTK_GLYPH_ROUTE_BLUETOOTH, FALSE);
     expect_found(szfg_list_row(list, "c_lena"), "Lena", NULL, SZFRIENDS_GTK_GLYPH_NONE, SZFRIENDS_GTK_GLYPH_NONE,
                  FALSE);
@@ -136,9 +136,9 @@ static void test_nearby_people(SZFGHarness *harness) {
     if (rows->len == 4) {
         expect_found(g_ptr_array_index(rows, 0), "Kenji (a friend)", "Local network", SZFRIENDS_GTK_GLYPH_ROUTE_LAN,
                      SZFRIENDS_GTK_GLYPH_NONE, TRUE);
-        expect_found(g_ptr_array_index(rows, 1), "Lena", "Bluetooth", SZFRIENDS_GTK_GLYPH_ROUTE_BLUETOOTH,
+        expect_found(g_ptr_array_index(rows, 1), "Lena", "Bluetooth LE", SZFRIENDS_GTK_GLYPH_ROUTE_BLUETOOTH,
                      SZFRIENDS_GTK_GLYPH_NONE, TRUE);
-        expect_found(g_ptr_array_index(rows, 2), "Tomás", "Local network and Bluetooth",
+        expect_found(g_ptr_array_index(rows, 2), "Tomás", "Local network and Bluetooth LE",
                      SZFRIENDS_GTK_GLYPH_ROUTE_LAN, SZFRIENDS_GTK_GLYPH_ROUTE_BLUETOOTH, TRUE);
         expect_found(g_ptr_array_index(rows, 3), "coral-lagoon", NULL, SZFRIENDS_GTK_GLYPH_NONE,
                      SZFRIENDS_GTK_GLYPH_NONE, TRUE);

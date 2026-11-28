@@ -112,7 +112,7 @@ static NSUInteger SZFDiffering(NSArray<NSNumber *> *a, NSArray<NSNumber *> *b) {
 static NSArray<NSDictionary *> *SZFAllRoutes(void) {
     NSArray *routes = @[
         @[ @"local", @"lan", @"Nearby, on your network" ], @[ @"local", @"p2p_wifi", @"Nearby, over direct Wi-Fi" ],
-        @[ @"local", @"bluetooth", @"Nearby, over Bluetooth" ], @[ @"online", @"internet", @"Online, direct" ],
+        @[ @"local", @"bluetooth", @"Nearby, over Bluetooth LE" ], @[ @"online", @"internet", @"Online, direct" ],
         @[ @"online", @"relay", @"Online, through the Friends relay" ],
         @[ @"offline", NSNull.null, @"Not nearby right now" ]
     ];

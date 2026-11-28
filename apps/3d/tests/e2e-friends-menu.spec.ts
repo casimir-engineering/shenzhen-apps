@@ -252,8 +252,8 @@ test('a long press on a phone opens the menu without opening the chat; Remove, c
 // How people nearby were found (client capability nearby.found), on computers and phones alike.
 const found = (methods: string[], label: string) => ({methods, label});
 const LAN = found(['lan'], 'Local network');
-const BLUETOOTH = found(['bluetooth'], 'Bluetooth');
-const BOTH = found(['lan', 'bluetooth'], 'Local network and Bluetooth');
+const BLUETOOTH = found(['bluetooth'], 'Bluetooth LE');
+const BOTH = found(['lan', 'bluetooth'], 'Local network and Bluetooth LE');
 const nearbyFound = {
   ...nearby,
   data: {
@@ -271,7 +271,7 @@ const listFound = {
     rows: frame.data.rows.map((row: {conversation_id: string; route: unknown}) => ({
       ...row,
       // Daniel nearby over Bluetooth, so the list draws that route icon to compare with.
-      route: row.conversation_id === 'c_daniel' ? {kind: 'local', method: 'bluetooth', label: 'Nearby, over Bluetooth'} : row.route,
+      route: row.conversation_id === 'c_daniel' ? {kind: 'local', method: 'bluetooth', label: 'Nearby, over Bluetooth LE'} : row.route,
       found: {c_mei: LAN, c_kenji: BOTH, c_daniel: BLUETOOTH}[row.conversation_id] ?? null,
     })),
   },
@@ -296,7 +296,7 @@ test('rows say how each person nearby was found, with the route icon of each met
   expect(await shown(row(page, 'Mei Lin'))).toEqual([{text: '', icons: [lan]}]);
   expect(await shown(row(page, 'Kenji Sato'))).toEqual([{text: '', icons: [lan, bluetooth]}]);
   expect(await shown(row(page, 'Daniel Ortiz'))).toEqual([{text: '', icons: [bluetooth]}]);
-  await expect(row(page, 'Kenji Sato').locator('.szf-found')).toHaveAttribute('title', 'Local network and Bluetooth');
+  await expect(row(page, 'Kenji Sato').locator('.szf-found')).toHaveAttribute('title', 'Local network and Bluetooth LE');
   // Friends not nearby say nothing about it.
   await expect(row(page, 'Priya Raman').locator('.szf-found')).toHaveCount(0);
   await expect(row(page, 'Mei Lin').locator('.szf-row-subtitle')).toBeVisible();
@@ -305,8 +305,8 @@ test('rows say how each person nearby was found, with the route icon of each met
   const person = (name: string) => page.locator('.szf-nearby .szf-row', {hasText: name});
   await expect(person('Lena Weber')).toBeVisible();
   expect(await shown(person('Kenji Sato'))).toEqual([{text: 'Local network', icons: [lan]}]);
-  expect(await shown(person('Lena Weber'))).toEqual([{text: 'Bluetooth', icons: [bluetooth]}]);
-  expect(await shown(person('Tomás Rivera'))).toEqual([{text: 'Local network and Bluetooth', icons: [lan, bluetooth]}]);
+  expect(await shown(person('Lena Weber'))).toEqual([{text: 'Bluetooth LE', icons: [bluetooth]}]);
+  expect(await shown(person('Tomás Rivera'))).toEqual([{text: 'Local network and Bluetooth LE', icons: [lan, bluetooth]}]);
   await expect(person('coral')).toBeVisible();
   await expect(person('coral').locator('.szf-found')).toHaveCount(0);
   // The words fit the row: nothing spills past the panel.

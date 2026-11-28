@@ -176,7 +176,7 @@
         "id_confirmed_label": null,
         "route": {
           "kind": "local",
-          "label": "Nearby, over Bluetooth",
+          "label": "Nearby, over Bluetooth LE",
           "method": "bluetooth"
         },
         "style": "normal",

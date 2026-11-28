@@ -305,7 +305,7 @@ fn copying_routes() {
         conversation["items"].as_array().unwrap().last().unwrap().clone()
     };
     let bluetooth = built(true, RouteMethod::Bluetooth);
-    assert_eq!(bluetooth["route"], json!({"kind": "local", "method": "bluetooth", "label": "Nearby, over Bluetooth"}));
+    assert_eq!(bluetooth["route"], json!({"kind": "local", "method": "bluetooth", "label": "Nearby, over Bluetooth LE"}));
     assert_eq!(bluetooth["status_label"], "Copying from Raph’s Mac mini · 25%");
     assert!(bluetooth["route_note"].is_null(), "no time to tell over Bluetooth: {bluetooth}");
     let relay = built(true, RouteMethod::Relay);
@@ -328,7 +328,7 @@ fn copying_routes() {
     coming.transfer_route = RouteMethod::Bluetooth;
     let slow =
         again.conversation(&mei, &[coming], false, None, 2, now())["items"].as_array().unwrap().last().unwrap().clone();
-    assert_eq!(slow["route_note"], "Over Bluetooth");
+    assert_eq!(slow["route_note"], "Over Bluetooth LE");
     assert!(slow.get("route").is_none(), "{slow}");
 }
 

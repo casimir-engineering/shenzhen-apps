@@ -295,7 +295,7 @@ fn transfers() {
     let item = last_item(&conversation(&mei, &[sending], None));
     assert_eq!(item["progress"]["fraction"], json!(0.4));
     assert_eq!(item["status_label"], "Sending · 40% · about 2 min left");
-    assert_eq!(item["route_note"], "Over Bluetooth, about 2 min");
+    assert_eq!(item["route_note"], "Over Bluetooth LE, about 2 min");
     assert_eq!(item["progress"]["accessibility_label"], "Sending, 40 percent");
     let failed = transfer("t_f", true, "2026-10-12 09:00", "Plan.pdf", 1, TransferState::Failed);
     assert_eq!(action_names(&last_item(&conversation(&mei, &[failed], None))), ["retry_item"]);
@@ -377,7 +377,7 @@ fn requests_and_composer() {
     let mut near = PersonFacts { route_method: RouteMethod::Bluetooth, ..friend("c_bt", Some("Mei Lin")) };
     let header = conversation(&near, &[], None)["header"].clone();
     assert_eq!(header["route"]["method"], "bluetooth");
-    assert_eq!(header["accessibility_label"], "Mei Lin, nearby, over Bluetooth, show details");
+    assert_eq!(header["accessibility_label"], "Mei Lin, nearby, over Bluetooth LE, show details");
     near.route_kind = RouteKind::None;
     assert_eq!(conversation(&near, &[], None)["header"]["accessibility_label"], "Mei Lin, show details");
     let changed = PersonFacts { key_change_pending: true, ..friend("c_kc", Some("Kim Key")) };

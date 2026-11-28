@@ -1,7 +1,7 @@
 //! Friends' presentation (`service/presentation/`): the string catalog and the builder of display-ready snapshots.
 //!
 //! Logic lives in the service, not the views. This layer turns plain facts into exactly the `data` objects
-//! PROTOCOL.md documents per view: rows already sorted, labels such as "Yesterday" or "Over Bluetooth, about 6 min",
+//! PROTOCOL.md documents per view: rows already sorted, labels such as "Yesterday" or "Over Bluetooth LE, about 6 min",
 //! countdown text, badge counts and which buttons show. Views render them and nothing more, so the React UI, AppKit
 //! and GTK draw the same thing. Pure: no store, radios, sockets or clock reads; time is passed in, so the output is
 //! testable against the golden fixtures in `portable/friends/fixtures/snapshots/`, which the suite rebuilds as the

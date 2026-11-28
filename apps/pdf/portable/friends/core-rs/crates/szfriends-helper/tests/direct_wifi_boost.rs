@@ -119,7 +119,7 @@ fn go_faster_moves_the_rest_over_the_link_and_comes_back() {
     let asked =
         sees(&mut pair.ada, &bo_in_a, &transfer, "the question at Ada", |i| texts(i).contains("boost_transfer"));
     let note = asked["route_note"].as_str().unwrap_or_default().to_owned();
-    assert!(note.starts_with("Go faster? Bo isn’t on your Wi-Fi, so this is going over Bluetooth (about "), "{note}");
+    assert!(note.starts_with("Go faster? Bo isn’t on your Wi-Fi, so this is going over Bluetooth LE (about "), "{note}");
     assert!(note.contains("Leave “HomeWiFi” for about "), "{note}");
     assert!(
         note.ends_with("Your phone stays online over mobile data and rejoins it by itself when it’s done."),

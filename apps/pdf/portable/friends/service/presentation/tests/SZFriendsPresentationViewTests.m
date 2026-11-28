@@ -231,7 +231,7 @@ static void TestTransfers(void) {
     item = [Conversation(mei, @[ sending ], nil, nil)[@"items"] lastObject];
     SZPExpect([item[@"progress"][@"fraction"] isEqual:@0.4] &&
                   [item[@"status_label"] isEqual:@"Sending · 40% · about 2 min left"] &&
-                  [item[@"route_note"] isEqual:@"Over Bluetooth, about 2 min"] &&
+                  [item[@"route_note"] isEqual:@"Over Bluetooth LE, about 2 min"] &&
                   [item[@"progress"][@"accessibility_label"] isEqual:@"Sending, 40 percent"],
               @"sending over Bluetooth: %@", item);
     SZFriendsItemFacts *failed = SZPTransfer(@"t_f", YES, @"2026-10-12 09:00", @"Plan.pdf", 1,
@@ -314,7 +314,7 @@ static void TestRequestsAndComposer(void) {
     near.routeMethod = SZFriendsRouteMethodBluetooth;
     NSDictionary *header = Conversation(near, @[], nil, nil)[@"header"];
     SZPExpect([header[@"route"][@"method"] isEqual:@"bluetooth"] &&
-                  [header[@"accessibility_label"] isEqual:@"Mei Lin, nearby, over Bluetooth, show details"],
+                  [header[@"accessibility_label"] isEqual:@"Mei Lin, nearby, over Bluetooth LE, show details"],
               @"the header's accessible name says the route: %@", header);
     near.routeKind = SZFriendsRouteKindNone;
     header = Conversation(near, @[], nil, nil)[@"header"];

@@ -37,10 +37,10 @@
             "lan",
             "bluetooth"
           ],
-          "label": "Local network and Bluetooth"
+          "label": "Local network and Bluetooth LE"
         },
         "nearby_id": null,
-        "accessibility_label": "Kenji Sato, friend, on your network, Found over Local network and Bluetooth"
+        "accessibility_label": "Kenji Sato, friend, on your network, Found over Local network and Bluetooth LE"
       },
       {
         "avatar": {
@@ -63,10 +63,10 @@
           "methods": [
             "bluetooth"
           ],
-          "label": "Bluetooth"
+          "label": "Bluetooth LE"
         },
         "nearby_id": "n_7c1e",
-        "accessibility_label": "Lena Weber, visible now, Found over Bluetooth"
+        "accessibility_label": "Lena Weber, visible now, Found over Bluetooth LE"
       },
       {
         "avatar": {
@@ -113,10 +113,10 @@
             "p2p_wifi",
             "bluetooth"
           ],
-          "label": "Local network, Direct Wi-Fi and Bluetooth"
+          "label": "Local network, Direct Wi-Fi and Bluetooth LE"
         },
         "nearby_id": "n_9d44",
-        "accessibility_label": "coral‑lagoon, no name set, Found over Local network, Direct Wi-Fi and Bluetooth"
+        "accessibility_label": "coral‑lagoon, no name set, Found over Local network, Direct Wi-Fi and Bluetooth LE"
       }
     ],
     "footer": {

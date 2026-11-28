@@ -217,7 +217,7 @@ static void TestRelayEstimates(void) {
                   isEqualToString:@"Through the Friends relay, about 30 s"],
               @"capped relay estimate");
     SZPExpect([[s transferEstimateForRemainingBytes:18000000 bytesPerSecond:0 route:SZFriendsRouteMethodBluetooth]
-                  isEqualToString:@"Over Bluetooth"],
+                  isEqualToString:@"Over Bluetooth LE"],
               @"Bluetooth unmeasured still promises no time");
     SZFriendsItemFacts *receiving = SZPTransfer(@"t_r", NO, @"2026-10-12 09:00", @"Plan.pdf", 18000000,
                                                 SZFriendsTransferStateReceiving);
@@ -258,7 +258,7 @@ static void TestTheBoostAsksOnlyWhereTheViewKnowsIt(void) {
     audience.capabilities = [audience.capabilities setByAddingObject:@"transfers.boost"];
     NSDictionary *row = Item(Conversation(audience, SZPPeople()[@"c_mei"], @[ sending ], @"boost"), @"t_b");
     NSString *note = row[@"route_note"];
-    SZPExpect([note isEqual:@"Go faster? Mei isn’t on your Wi-Fi, so this is going over Bluetooth (about 12 min). "
+    SZPExpect([note isEqual:@"Go faster? Mei isn’t on your Wi-Fi, so this is going over Bluetooth LE (about 12 min). "
                             @"Leave “HomeWiFi” for about 30 s to connect to Mei directly. Your computer rejoins it "
                             @"by itself when it’s done."],
               @"the question: %@", note);
@@ -296,13 +296,13 @@ static void TestProgressByRoute(void) {
     NSDictionary *progress = row[@"progress"];
     SZPExpect([progress[@"amount_label"] isEqual:@"31.2 MB of 48 MB · 65\u00a0% · 12.4 MB/s"] &&
                   [progress[@"time_left_label"] isEqual:@"2 s left"] &&
-                  [progress[@"detail_label"] isEqual:@"Via Same Wi-Fi + Bluetooth"] &&
+                  [progress[@"detail_label"] isEqual:@"Via Same Wi-Fi + Bluetooth LE"] &&
                   [progress[@"finishing"] isEqual:@NO] && row[@"route_note"] == [NSNull null],
               @"the lines under the bar: %@", row);
     NSArray *routes = progress[@"routes"];
     SZPExpect([[routes valueForKey:@"method"] isEqual:(@[ @"lan", @"bluetooth", @"relay" ])] &&
                   [[routes valueForKey:@"active"] isEqual:(@[ @YES, @YES, @NO ])] &&
-                  [routes[1][@"label"] isEqual:@"Bluetooth · in use"] &&
+                  [routes[1][@"label"] isEqual:@"Bluetooth LE · in use"] &&
                   [routes[2][@"label"] isEqual:@"Internet, via relay · not in use now"],
               @"the routes: %@", routes);
     NSArray *segments = progress[@"segments"];

@@ -109,7 +109,7 @@ static void SZFTestConversationFixtures(void) {
     [kenji applySnapshot:SZFTestSnapshot(@"conversation-kenji-offer")];
     NSArray *offerTitles = [kenji.itemViews.lastObject.actionButtons valueForKey:@"title"];
     SZFExpect(([offerTitles isEqualToArray:@[ @"Accept", @"Decline" ]]), @"offer actions: %@", offerTitles);
-    SZFExpect(SZFHasLabel(kenji, @"Over Bluetooth, about 6 min"), @"route note on a slow offer");
+    SZFExpect(SZFHasLabel(kenji, @"Over Bluetooth LE, about 6 min"), @"route note on a slow offer");
 
     SZFriendsConversationPage *priya = [[SZFriendsConversationPage alloc] initWithContext:context
                                                                            conversationID:@"c_priya"

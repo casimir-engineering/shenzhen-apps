@@ -69,7 +69,7 @@
             {
               "method": "bluetooth",
               "active": false,
-              "label": "Bluetooth · not in use now"
+              "label": "Bluetooth LE · not in use now"
             }
           ],
           "segments": [

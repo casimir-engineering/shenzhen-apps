@@ -238,9 +238,9 @@ fn sizes_durations_and_estimates() {
     assert_eq!(s.transfer_estimate(1, 1.0, RouteMethod::PeerToPeerWifi), None);
     assert_eq!(
         s.transfer_estimate(42_318_806, 117_000.0, RouteMethod::Bluetooth).unwrap(),
-        "Over Bluetooth, about 6 min"
+        "Over Bluetooth LE, about 6 min"
     );
-    assert_eq!(s.transfer_estimate(42_318_806, 0.0, RouteMethod::Bluetooth).unwrap(), "Over Bluetooth");
+    assert_eq!(s.transfer_estimate(42_318_806, 0.0, RouteMethod::Bluetooth).unwrap(), "Over Bluetooth LE");
     assert_eq!(
         s.transfer_estimate(18_000_000, 100_000.0, RouteMethod::Relay).unwrap(),
         "Through the Friends relay, about 3 min"
@@ -258,7 +258,7 @@ fn small_words() {
     let routes = [
         (RouteKind::Local, RouteMethod::Lan, "Nearby, on your network"),
         (RouteKind::Local, RouteMethod::PeerToPeerWifi, "Nearby, over direct Wi-Fi"),
-        (RouteKind::Local, RouteMethod::Bluetooth, "Nearby, over Bluetooth"),
+        (RouteKind::Local, RouteMethod::Bluetooth, "Nearby, over Bluetooth LE"),
         (RouteKind::Local, RouteMethod::None, "Nearby"),
         (RouteKind::Online, RouteMethod::Internet, "Online, direct"),
         (RouteKind::Online, RouteMethod::None, "Online"),

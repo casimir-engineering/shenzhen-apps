@@ -52,7 +52,7 @@ pub(super) const TRANSFERS_AND_CONVERSATIONS: &[(&str, &str)] = &[
     ("transfer.route.lan", "Same Wi-Fi"),
     ("transfer.route.p2p_wifi", "Direct Wi-Fi"),
     ("transfer.route.internet", "Internet, direct"),
-    ("transfer.route.bluetooth", "Bluetooth"),
+    ("transfer.route.bluetooth", "Bluetooth LE"),
     ("transfer.route.relay", "Internet, via relay"),
     ("transfer.route.in_use", "{route} · in use"),
     ("transfer.route.used", "{route} · not in use now"),
@@ -74,7 +74,7 @@ pub(super) const TRANSFERS_AND_CONVERSATIONS: &[(&str, &str)] = &[
     // The Wi-Fi Direct boost (ADR 0019, 0022): the question on a device that would leave its Wi-Fi, and the notes after.
     (
         "transfer.boost.ask",
-        "Go faster? {first} isn’t on your Wi-Fi, so this is going over Bluetooth ({slow}). Leave {network} for {fast} \
+        "Go faster? {first} isn’t on your Wi-Fi, so this is going over Bluetooth LE ({slow}). Leave {network} for {fast} \
          to connect to {first} directly. Your {device} rejoins it by itself when it’s done.",
     ),
     ("transfer.boost.network", "“{name}”"),
@@ -99,7 +99,7 @@ pub(super) const TRANSFERS_AND_CONVERSATIONS: &[(&str, &str)] = &[
     ("transfer.boost.ask.join", "{text} Then choose Join."),
     (
         "transfer.boost.ask.mobile",
-        "Go faster? {first} isn’t on your Wi-Fi, so this is going over Bluetooth ({slow}). Leave {network} for {fast} \
+        "Go faster? {first} isn’t on your Wi-Fi, so this is going over Bluetooth LE ({slow}). Leave {network} for {fast} \
          to connect to {first} directly. Your phone stays online over mobile data and rejoins it by itself when it’s \
          done.",
     ),
@@ -292,12 +292,12 @@ pub(super) const NEARBY: &[(&str, &str)] = &[
     // How a nearby person was found (nearby.found): one method, or two or three joined.
     ("found.lan", "Local network"),
     ("found.p2p_wifi", "Direct Wi-Fi"),
-    ("found.bluetooth", "Bluetooth"),
+    ("found.bluetooth", "Bluetooth LE"),
     ("found.join", "{first} and {second}"),
     ("found.join3", "{first}, {second} and {third}"),
     ("found.spoken", "Found over {methods}"),
     ("nearby.subtitle.p2p_wifi", "Over direct Wi-Fi"),
-    ("nearby.subtitle.bluetooth", "Over Bluetooth · messages fine, files slower"),
+    ("nearby.subtitle.bluetooth", "Over Bluetooth LE · messages fine, files slower"),
     ("nearby.subtitle.visible", "Visible now"),
     ("nearby.subtitle.no_name", "No name set"),
     ("nearby.status.friend", "Friend"),

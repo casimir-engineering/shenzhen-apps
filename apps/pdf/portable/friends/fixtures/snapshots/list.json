@@ -108,7 +108,7 @@
         "route": {
           "kind": "local",
           "method": "bluetooth",
-          "label": "Nearby, over Bluetooth"
+          "label": "Nearby, over Bluetooth LE"
         },
         "unread": false,
         "waiting": {

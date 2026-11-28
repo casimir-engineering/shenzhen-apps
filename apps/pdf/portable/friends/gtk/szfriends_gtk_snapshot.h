@@ -175,7 +175,7 @@ typedef struct { SZFriendsGtkPresence present; char *title, *body, *confirm_labe
                  gboolean destructive; SZFriendsGtkConfirmOption *option; } SZFriendsGtkConfirm;
 typedef struct { SZFriendsGtkPresence present; char *label, *accessibility_label; gint64 seconds; } SZFriendsGtkArm;
 /* How someone nearby was found (clients that declared nearby.found): the methods seeing them now ("lan", "p2p_wifi",
- * "bluetooth", in that order), drawn with the route icons, and the words for them ("Local network and Bluetooth"). */
+ * "bluetooth", in that order), drawn with the route icons, and the words for them ("Local network and Bluetooth LE"). */
 typedef struct { SZFriendsGtkPresence present; char **methods; char *label; } SZFriendsGtkFound;
 typedef struct {
     SZFriendsGtkPresence present;

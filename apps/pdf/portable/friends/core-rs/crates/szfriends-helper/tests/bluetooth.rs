@@ -81,9 +81,9 @@ fn a_visible_person_found_asked_and_messaged_over_bluetooth() {
         json!({"conversation_id": bo_in_a, "text": "Hello over Bluetooth", "client_token": token}),
     );
     let at_b = bo.snapshot(chat_b.trim_matches('"'), "the message at Bo", |d| {
-        d.to_string().contains("Hello over Bluetooth") && d.to_string().contains("Nearby, over Bluetooth")
+        d.to_string().contains("Hello over Bluetooth") && d.to_string().contains("Nearby, over Bluetooth LE")
     });
-    assert!(at_b["data"].to_string().contains("Nearby, over Bluetooth"), "the route is Bluetooth");
+    assert!(at_b["data"].to_string().contains("Nearby, over Bluetooth LE"), "the route is Bluetooth");
     let chat_a = ada.send("open_conversation", json!({"conversation_id": bo_in_a}))["subscription"].to_string();
     let token = "fedcba9876543210fedcba9876543210";
     bo.send("send_message", json!({"conversation_id": ada_in_b, "text": "And back", "client_token": token}));

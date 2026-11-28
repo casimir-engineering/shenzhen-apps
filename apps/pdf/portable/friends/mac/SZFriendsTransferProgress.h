@@ -14,7 +14,7 @@ NS_ASSUME_NONNULL_BEGIN
 NSColor *SZFriendsTransferRouteColor(NSString *_Nullable method);
 
 // One route as a small rounded square: its colour with a white glyph while in use, an outline once it is not. Its
-// tooltip and accessibility label are the route's `label` ("Bluetooth · in use").
+// tooltip and accessibility label are the route's `label` ("Bluetooth LE · in use").
 @interface SZFriendsTransferRouteIcon : NSView
 @property(nonatomic, copy, nullable) NSString *method;
 @property(nonatomic) BOOL active;

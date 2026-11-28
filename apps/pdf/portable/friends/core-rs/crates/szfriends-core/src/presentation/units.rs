@@ -115,7 +115,7 @@ impl Strings {
         }
     }
 
-    /// "Over Bluetooth, about 6 min"; None on fast routes, where no estimate is worth showing.
+    /// "Over Bluetooth LE, about 6 min"; None on fast routes, where no estimate is worth showing.
     pub fn transfer_estimate(&self, bytes: u64, bytes_per_second: f64, route: RouteMethod) -> Option<String> {
         let prefix = self.text(estimate_key(route)?);
         let rate = self.estimate_bytes_per_second(bytes_per_second, route);
@@ -126,7 +126,7 @@ impl Strings {
         Some(self.text_with("estimate.with_time", &[("route", &prefix), ("duration", &duration)]))
     }
 
-    /// "over Bluetooth, about 6 minutes".
+    /// "over Bluetooth LE, about 6 minutes".
     pub fn transfer_estimate_accessibility(
         &self,
         bytes: u64,

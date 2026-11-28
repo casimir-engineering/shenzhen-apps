@@ -101,7 +101,7 @@ static void test_each_method(SZFGHarness *harness, SZFGList *list) {
         SZFriendsGtkGlyphKind glyph;
     } routes[] = {
         {"local", "p2p_wifi", "Nearby, over direct Wi-Fi", "local", SZFRIENDS_GTK_GLYPH_ROUTE_P2P_WIFI},
-        {"local", "bluetooth", "Nearby, over Bluetooth", "local", SZFRIENDS_GTK_GLYPH_ROUTE_BLUETOOTH},
+        {"local", "bluetooth", "Nearby, over Bluetooth LE", "local", SZFRIENDS_GTK_GLYPH_ROUTE_BLUETOOTH},
         {"online", "internet", "Online, direct", "online", SZFRIENDS_GTK_GLYPH_ROUTE_INTERNET},
         {"connecting", NULL, "Connecting to Mei…", NULL, SZFRIENDS_GTK_GLYPH_ROUTE_INTERNET},
         {"online", "relay", "Online, through the Friends relay", "online", SZFRIENDS_GTK_GLYPH_ROUTE_RELAY},

@@ -14,7 +14,7 @@ use szfriends_helper::nearby::test_air::ENV_TEST_BLUETOOTH;
 use szfriends_helper::service::ENV_TEST_LOOPBACK;
 
 pub const LAN: &str = "Nearby, on your network";
-pub const BLUETOOTH: &str = "Nearby, over Bluetooth";
+pub const BLUETOOTH: &str = "Nearby, over Bluetooth LE";
 pub const DIRECT: &str = "Online, direct";
 pub const RELAY: &str = "Online, through the Friends relay";
 

@@ -3,9 +3,9 @@
 //! who no method sees; and a client without `nearby.found` gets the rows it always got (`SZFriendsPresentationFoundTests.m`).
 //!
 //! nearby-found.json: both methods working, nobody visible, four people as nearby_visible_bluetooth_off has them, found
-//! over: Kenji (friend) the local network and Bluetooth, Lena (stranger) Bluetooth, Tomás (request sent) the local
+//! over: Kenji (friend) the local network and Bluetooth LE, Lena (stranger) Bluetooth, Tomás (request sent) the local
 //! network, coral-lagoon (stranger, no name) direct Wi-Fi, the local network and Bluetooth. list-found.json: the list's
-//! people, Mei found over the local network and Bluetooth, Kenji over Bluetooth, and Lena (a request, not a friend)
+//! people, Mei found over the local network and Bluetooth LE, Kenji over Bluetooth, and Lena (a request, not a friend)
 //! over the local network, which her row never says.
 
 mod presentation;
@@ -41,14 +41,14 @@ fn nearby_rows_name_each_method() {
     let cases: [(&[RouteMethod], Value); 5] = [
         (&[], Value::Null),
         (&[RouteMethod::Lan], json!({"methods": ["lan"], "label": "Local network"})),
-        (&[RouteMethod::Bluetooth], json!({"methods": ["bluetooth"], "label": "Bluetooth"})),
+        (&[RouteMethod::Bluetooth], json!({"methods": ["bluetooth"], "label": "Bluetooth LE"})),
         (
             &[RouteMethod::Bluetooth, RouteMethod::Lan],
-            json!({"methods": ["lan", "bluetooth"], "label": "Local network and Bluetooth"}),
+            json!({"methods": ["lan", "bluetooth"], "label": "Local network and Bluetooth LE"}),
         ),
         (
             &[RouteMethod::Bluetooth, RouteMethod::PeerToPeerWifi, RouteMethod::Lan],
-            json!({"methods": ["lan", "p2p_wifi", "bluetooth"], "label": "Local network, Direct Wi-Fi and Bluetooth"}),
+            json!({"methods": ["lan", "p2p_wifi", "bluetooth"], "label": "Local network, Direct Wi-Fi and Bluetooth LE"}),
         ),
     ];
     for (methods, expected) in cases {
@@ -83,12 +83,12 @@ fn a_friend_in_the_list_while_nearby() {
         .collect();
     assert_eq!(
         rows["c_mei"]["found"],
-        json!({"methods": ["lan", "bluetooth"], "label": "Local network and Bluetooth"})
+        json!({"methods": ["lan", "bluetooth"], "label": "Local network and Bluetooth LE"})
     );
     assert!(rows["c_mei"]["accessibility_label"]
         .as_str()
         .unwrap()
-        .ends_with(", Found over Local network and Bluetooth"));
+        .ends_with(", Found over Local network and Bluetooth LE"));
     assert!(rows["c_kenji"]["found"].is_null(), "not seen nearby now");
     assert!(rows["c_lena"]["found"].is_null(), "not a friend");
     let plain = builder(audience()).list(&all, &preview_items(), &profile_raph(), "", now());

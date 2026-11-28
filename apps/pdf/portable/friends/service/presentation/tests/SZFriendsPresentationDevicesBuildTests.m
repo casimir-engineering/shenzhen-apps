@@ -297,7 +297,7 @@ static void TestCopyingRoutes(void) {
     NSDictionary *bluetooth = built(SZFriendsRouteMethodBluetooth);
     SZPExpect([bluetooth[@"route"] isEqual:[builder routeForKind:SZFriendsRouteKindLocal
                                                           method:SZFriendsRouteMethodBluetooth]] &&
-                  [bluetooth[@"route"][@"label"] isEqual:@"Nearby, over Bluetooth"],
+                  [bluetooth[@"route"][@"label"] isEqual:@"Nearby, over Bluetooth LE"],
               @"over Bluetooth: %@", bluetooth[@"route"]);
     SZPExpect([bluetooth[@"status_label"] isEqual:@"Copying from Raph’s Mac mini · 25%"], @"%@", bluetooth);
     SZPExpect(bluetooth[@"route_note"] == NSNull.null, @"no time to tell over Bluetooth: %@", bluetooth[@"route_note"]);
@@ -325,7 +325,7 @@ static void TestCopyingRoutes(void) {
     coming.transferRoute = SZFriendsRouteMethodBluetooth;
     NSDictionary *slow = [[again conversationForPerson:mei items:@[ coming ] hasEarlier:NO highlightItemID:nil
                                       waitingElsewhere:2 now:SZPNow()][@"items"] lastObject];
-    SZPExpect([slow[@"route_note"] isEqual:@"Over Bluetooth"] && slow[@"route"] == nil, @"again over Bluetooth: %@",
+    SZPExpect([slow[@"route_note"] isEqual:@"Over Bluetooth LE"] && slow[@"route"] == nil, @"again over Bluetooth: %@",
               slow);
 }
 

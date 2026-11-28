@@ -17,7 +17,7 @@ export type Route = {
   label: string | null;
 };
 /** How a person nearby was found right now (client capability nearby.found): each method that sees them, in the
- * order lan, p2p_wifi, bluetooth, and the words for them ("Local network and Bluetooth"). */
+ * order lan, p2p_wifi, bluetooth, and the words for them ("Local network and Bluetooth LE"). */
 export type Found = {
   methods: ("lan" | "p2p_wifi" | "bluetooth" | string)[];
   label: string;

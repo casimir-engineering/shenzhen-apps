@@ -21,7 +21,7 @@
     BOOL details = ![self isRequest:person];
     BOOL blocked = person.relation == SZFriendsPersonRelationBlocked;
     NSString *subtitle = blocked ? [s text:@"list.subtitle.blocked"] : [self routeLabelForPerson:person];
-    // The line is said as well as shown, whatever it says ("Nearby, over Bluetooth", "Blocked").
+    // The line is said as well as shown, whatever it says ("Nearby, over Bluetooth LE", "Blocked").
     NSString *said = blocked ? [s spokenFragment:subtitle] : [self spokenRouteForPerson:person];
     NSDictionary *values = @{@"title" : title, @"route" : said ?: @""};
     NSString *spoken = title;

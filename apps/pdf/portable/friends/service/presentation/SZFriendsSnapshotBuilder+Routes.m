@@ -2,7 +2,7 @@
 // the words about things still waiting to go (PROTOCOL.md § Shared objects, Route).
 //
 // The reader wants to know whether their message can reach the friend now. A live session answers it by its route
-// ("Nearby, over Bluetooth", "Online, direct", "Online, through the Friends relay"); without one, a helper that reaches
+// ("Nearby, over Bluetooth LE", "Online, direct", "Online, through the Friends relay"); without one, a helper that reaches
 // friends online also says whether it is trying ("Connecting to Mei…") or tried and failed ("Couldn’t connect just
 // now").
 // An M1 helper never says anything about online: its friends are reached nearby only, and the words say so.

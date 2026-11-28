@@ -101,7 +101,7 @@ static void test_route_icon(SZFGHarness *harness, GtkWidget *page) {
         const char *kind, *method, *label;
         SZFriendsGtkGlyphKind glyph;
     } routes[] = {
-        {"local", "bluetooth", "Nearby, over Bluetooth", SZFRIENDS_GTK_GLYPH_ROUTE_BLUETOOTH},
+        {"local", "bluetooth", "Nearby, over Bluetooth LE", SZFRIENDS_GTK_GLYPH_ROUTE_BLUETOOTH},
         {"online", "relay", "Online, through the Friends relay", SZFRIENDS_GTK_GLYPH_ROUTE_RELAY},
         {"offline", NULL, "Not nearby right now", SZFRIENDS_GTK_GLYPH_ROUTE_OFFLINE},
         {"local", "lan", "Nearby, on your network", SZFRIENDS_GTK_GLYPH_ROUTE_LAN},
@@ -250,10 +250,10 @@ static void test_block(SZFGHarness *harness, SZFGRig *rig, GtkWidget *page) {
     szfg_press(block, 1);
     JsonObject *data = szfg_fixture_data("snapshots/details-mei.json");
     JsonObject *route = json_object_get_object_member(data, "route");
-    json_object_set_string_member(route, "label", "Nearby, over Bluetooth");
+    json_object_set_string_member(route, "label", "Nearby, over Bluetooth LE");
     szfg_script_view(harness, "details", data);
     json_object_unref(data);
-    EXPECT(szfg_wait_label(page, "Nearby, over Bluetooth") && szfg_find_button(page, "Block?") == block &&
+    EXPECT(szfg_wait_label(page, "Nearby, over Bluetooth LE") && szfg_find_button(page, "Block?") == block &&
                szfriends_gtk_details_button_is_armed(block), "an unchanged action keeps its armed pill");
     szfg_clock_advance_ms(szfriends_gtk_double_click_us(block) / 1000 - 1);
     szfg_press(block, 1);

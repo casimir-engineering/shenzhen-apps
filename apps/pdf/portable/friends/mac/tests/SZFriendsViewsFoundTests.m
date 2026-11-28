@@ -13,8 +13,8 @@ NSDictionary *SZFTestFoundNearby(void) {
     NSMutableDictionary *data = [SZFTestSnapshot(@"nearby-visible-bluetooth-off") mutableCopy];
     NSMutableArray *people = [NSMutableArray array];
     NSArray *found = @[
-        SZFFound(@[ @"lan" ], @"Local network"), SZFFound(@[ @"bluetooth" ], @"Bluetooth"),
-        SZFFound(@[ @"lan", @"bluetooth" ], @"Local network and Bluetooth")
+        SZFFound(@[ @"lan" ], @"Local network"), SZFFound(@[ @"bluetooth" ], @"Bluetooth LE"),
+        SZFFound(@[ @"lan", @"bluetooth" ], @"Local network and Bluetooth LE")
     ];
     [data[@"people"] enumerateObjectsUsingBlock:^(NSDictionary *source, NSUInteger index, BOOL *stop) {
         (void)stop;
@@ -33,7 +33,7 @@ NSDictionary *SZFTestFoundList(void) {
     for (NSDictionary *source in data[@"rows"]) {
         NSMutableDictionary *row = [source mutableCopy];
         row[@"found"] = [row[@"conversation_id"] isEqual:@"c_mei"]
-                            ? SZFFound(@[ @"lan", @"bluetooth" ], @"Local network and Bluetooth")
+                            ? SZFFound(@[ @"lan", @"bluetooth" ], @"Local network and Bluetooth LE")
                             : (id)[NSNull null];
         [rows addObject:row];
     }
@@ -65,10 +65,10 @@ void SZFTestFoundRows(void) {
     if (rows.count < 3) return;
     SZFExpect([rows[0].foundMethods isEqual:@[ @"lan" ]] && [rows[0].foundLabel isEqualToString:@"Local network"],
               @"Kenji: %@ %@", rows[0].foundMethods, rows[0].foundLabel);
-    SZFExpect([rows[1].foundMethods isEqual:@[ @"bluetooth" ]] && [rows[1].foundLabel isEqualToString:@"Bluetooth"],
+    SZFExpect([rows[1].foundMethods isEqual:@[ @"bluetooth" ]] && [rows[1].foundLabel isEqualToString:@"Bluetooth LE"],
               @"Lena: %@ %@", rows[1].foundMethods, rows[1].foundLabel);
     SZFExpect([rows[2].foundMethods isEqual:(@[ @"lan", @"bluetooth" ])] &&
-                  [rows[2].foundLabel isEqualToString:@"Local network and Bluetooth"],
+                  [rows[2].foundLabel isEqualToString:@"Local network and Bluetooth LE"],
               @"Mei: %@ %@", rows[2].foundMethods, rows[2].foundLabel);
     // The icons sit at the start of the second line, in the local route colour: one for Kenji, two for Mei.
     uint32_t route = SZFTestResolved(SZFriendsRouteColor(context.appearance, @"local"), NSAppearanceNameAqua);
@@ -100,7 +100,7 @@ void SZFTestFoundRows(void) {
     [window.contentView layoutSubtreeIfNeeded];
     for (SZFriendsRowView *row in page.rows) {
         BOOL mei = [row.conversationID isEqualToString:@"c_mei"];
-        SZFExpect(mei ? [row.foundLabel isEqualToString:@"Local network and Bluetooth"] && row.foundMethods.count == 2
+        SZFExpect(mei ? [row.foundLabel isEqualToString:@"Local network and Bluetooth LE"] && row.foundMethods.count == 2
                       : row.foundLabel == nil && row.foundMethods.count == 0,
                   @"%@: %@", row.conversationID, row.foundLabel);
     }

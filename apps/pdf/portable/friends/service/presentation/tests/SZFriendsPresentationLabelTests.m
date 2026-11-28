@@ -88,9 +88,9 @@ static void TestSizesAndDurations(void) {
     SZPExpect([s transferEstimateForRemainingBytes:1 bytesPerSecond:1 route:SZFriendsRouteMethodPeerToPeerWiFi] == nil,
               @"no estimate over direct Wi-Fi");
     ExpectText([s transferEstimateForRemainingBytes:42318806 bytesPerSecond:117000 route:SZFriendsRouteMethodBluetooth],
-               @"Over Bluetooth, about 6 min");
+               @"Over Bluetooth LE, about 6 min");
     ExpectText([s transferEstimateForRemainingBytes:42318806 bytesPerSecond:0 route:SZFriendsRouteMethodBluetooth],
-               @"Over Bluetooth");
+               @"Over Bluetooth LE");
     ExpectText([s transferEstimateForRemainingBytes:18000000 bytesPerSecond:100000 route:SZFriendsRouteMethodRelay],
                @"Through the Friends relay, about 3 min");
     ExpectText([s transferEstimateAccessibilityForRemainingBytes:18000000 bytesPerSecond:100000
@@ -109,7 +109,7 @@ static void TestSmallWords(void) {
     ExpectText([s routeLabelForKind:SZFriendsRouteKindLocal method:SZFriendsRouteMethodPeerToPeerWiFi],
                @"Nearby, over direct Wi-Fi");
     ExpectText([s routeLabelForKind:SZFriendsRouteKindLocal method:SZFriendsRouteMethodBluetooth],
-               @"Nearby, over Bluetooth");
+               @"Nearby, over Bluetooth LE");
     ExpectText([s routeLabelForKind:SZFriendsRouteKindLocal method:SZFriendsRouteMethodNone], @"Nearby");
     ExpectText([s routeLabelForKind:SZFriendsRouteKindOnline method:SZFriendsRouteMethodInternet], @"Online, direct");
     ExpectText([s routeLabelForKind:SZFriendsRouteKindOnline method:SZFriendsRouteMethodNone], @"Online");

@@ -58,11 +58,11 @@ fn over_the_local_network() {
 
 #[test]
 fn over_bluetooth() {
-    assert_eq!(found_over(false, true, "Bluetooth")["methods"], json!(["bluetooth"]));
+    assert_eq!(found_over(false, true, "Bluetooth LE")["methods"], json!(["bluetooth"]));
 }
 
 #[test]
 fn over_both() {
-    let found = found_over(true, true, "Local network and Bluetooth");
+    let found = found_over(true, true, "Local network and Bluetooth LE");
     assert_eq!(found["methods"], json!(["lan", "bluetooth"]));
 }

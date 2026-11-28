@@ -1,5 +1,5 @@
 // How a nearby person was found (PROTOCOL.md found, capability nearby.found): the route icon of each method that sees
-// them, then the helper's label ("Local network and Bluetooth"), at the start of the row's second line. A friend's
+// them, then the helper's label ("Local network and Bluetooth LE"), at the start of the row's second line. A friend's
 // row in the Friends list draws the icons alone, so their latest message keeps the line.
 
 #import "mac/SZFriendsRowView.h"

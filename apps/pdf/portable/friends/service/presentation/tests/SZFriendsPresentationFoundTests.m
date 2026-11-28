@@ -2,7 +2,7 @@
 // the methods that see the person and their names joined, and their spoken labels end "Found over ...".
 //
 // nearby-found.json: both methods working, nobody visible, four people as SZPNearbyVisibleBluetoothOff has them, found
-// over: Kenji (friend) the local network and Bluetooth, Lena (stranger) Bluetooth, Tomás (request sent) the local
+// over: Kenji (friend) the local network and Bluetooth LE, Lena (stranger) Bluetooth, Tomás (request sent) the local
 // network, coral-lagoon (stranger, no name) direct Wi-Fi, the local network and Bluetooth (listed lan, p2p_wifi,
 // bluetooth whatever order the facts give). list-found.json: the list's people, Mei found over the local network and
 // Bluetooth, Kenji over Bluetooth, and Lena (a request, not a friend) over the local network, which her row never says.
@@ -68,17 +68,17 @@ static void TestFoundFixtures(void) {
     SZPExpectFixture(nearby, @"nearby-found.json", @"nearby");
     NSDictionary *kenji = Row(nearby[@"people"], @"conversation_id", @"c_kenji");
     SZPExpect([kenji[@"found"] isEqual:(@{@"methods" : @[ @"lan", @"bluetooth" ],
-                                          @"label" : @"Local network and Bluetooth"})] &&
-                  [kenji[@"accessibility_label"] hasSuffix:@", Found over Local network and Bluetooth"],
+                                          @"label" : @"Local network and Bluetooth LE"})] &&
+                  [kenji[@"accessibility_label"] hasSuffix:@", Found over Local network and Bluetooth LE"],
               @"%@", kenji);
     NSDictionary *coral = Row(nearby[@"people"], @"nearby_id", @"n_9d44");
     SZPExpect([coral[@"found"][@"methods"] isEqual:(@[ @"lan", @"p2p_wifi", @"bluetooth" ])] &&
-                  [coral[@"found"][@"label"] isEqual:@"Local network, Direct Wi-Fi and Bluetooth"],
+                  [coral[@"found"][@"label"] isEqual:@"Local network, Direct Wi-Fi and Bluetooth LE"],
               @"three, in their order: %@", coral[@"found"]);
     NSDictionary *list = [builder listWithPeople:FoundPeople() previewItems:SZPPreviewItems() profile:SZPProfileRaph()
                                            query:@"" now:SZPNow()];
     SZPExpectFixture(list, @"list-found.json", @"list");
-    SZPExpect([Row(list[@"rows"], @"conversation_id", @"c_kenji")[@"found"][@"label"] isEqual:@"Bluetooth"],
+    SZPExpect([Row(list[@"rows"], @"conversation_id", @"c_kenji")[@"found"][@"label"] isEqual:@"Bluetooth LE"],
               @"a friend nearby");
     SZPExpect(Row(list[@"rows"], @"conversation_id", @"c_lena")[@"found"] == NSNull.null &&
                   Row(list[@"rows"], @"conversation_id", @"c_priya")[@"found"] == NSNull.null,
