@@ -2,13 +2,13 @@
 
 A fast, free, open-source document reader for the Mac. Keep your documents in colourful tab groups, find anything in them, and ask the assistant about them. Collection, your own document library on your Mac, keeps every version.
 
-Reads PDF, EPUB, Markdown, plain text, code and images.
+Reads PDF, EPUB, Markdown, plain text, code, images and camera RAW photos. Fill in and sign forms, and draw, paint and write on any document with **Annotate**.
 
 <a href="https://github.com/casimir-engineering/shenzhen-pdf/releases/latest/download/ShenzhenPDF-mac-arm64.dmg"><img src="https://img.shields.io/badge/Download%20for%20macOS-Apple%20Silicon-2ea44f?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS (Apple Silicon)" height="46"></a>
 
 Apple Silicon · macOS 12+ · Signed and notarized
 
-<sub>Latest <b>26.11.19-1</b></sub> · [Release notes](https://github.com/casimir-engineering/shenzhen-pdf/releases/latest) · [Website](https://casimir-engineering.github.io/shenzhen-pdf/) · [中文](https://casimir-engineering.github.io/shenzhen-pdf/zh/)
+<sub>Latest <b>26.11.29-1</b></sub> · [Release notes](https://github.com/casimir-engineering/shenzhen-pdf/releases/latest) · [Website](https://casimir-engineering.github.io/shenzhen-pdf/) · [中文](https://casimir-engineering.github.io/shenzhen-pdf/zh/)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/portable/readme-reader-dark.png">
@@ -44,6 +44,18 @@ Apple Silicon · macOS 12+ · Signed and notarized
 
 The assistant needs an [OpenRouter](https://openrouter.ai) account with credits. What it reads from your documents is sent to the model you choose. You can turn off the chat and the automatic analysis separately. Models can misread documents: check the sources it links. [Assistant guide](portable/docs/document-assistant.md)
 
+## Annotate
+
+**Annotate** (⌥⌘F) opens a palette of tools over the document: on PDFs, pictures and blank canvases. A Markdown or text document is first saved as a PDF, beside the original.
+
+- **Fill & Sign.** A PDF with a form opens ready to fill: click a field, tick a box, and Tab to the next one. Typed text snaps to lines and boxes on any PDF. Draw or type your signature and initials, or take them from a picture; they stay on this Mac. **File › Save Final Copy…** makes a copy to send, with what you filled in as part of the pages.
+- **Every Paint tool.** Pencil, brushes, airbrush, eraser, fill and colour picker; shapes, lines, arrows and text; selections you can move, resize, turn, crop, flip and skew.
+- **PDF pages stay as they are.** What you draw goes on top of the page and is saved into the PDF as annotations, so other PDF readers show it too.
+- **Pictures** stay as they are under what you draw; crop, resize, rotate and flip change the whole picture. A picture is saved with your drawing in its own format, and Collection keeps the version from before your first change.
+- **Layers.** The page or picture is the base layer; add layers, hide, lock or fade them, and move objects between them with a right-click. Keep them in a Shenzhen Paint project (.szpaint).
+- **New Canvas.** **File › New Canvas…** starts a transparent picture from a searchable list of paper, screen, social and icon sizes, at the resolution you choose. It is saved as a PNG. **New Canvas from Clipboard** starts one from a copied picture.
+- Paste or drop a picture onto a page, picture or canvas. Scripts, the assistant and MCP can use every tool (`szpdf annotate`).
+
 ## Markdown and code
 
 Markdown opens as pages, with diagrams, maths, tables and highlighted code. Choose the paper size, margins and page breaks. When the file changes on disk, the pages and chapter list follow. Text and code files open with adjustable font size.
@@ -78,9 +90,11 @@ Message people nearby or by their Friends ID, and send them documents. Friends a
 - Paste (⌘V) to attach files copied in Finder, or a screenshot.
 - Drop files on the Friends button to send them.
 - Each friend's row shows the latest message in your conversation.
-- Files go over every connection you share at once, such as your network and Bluetooth, and pick up where they stopped.
+- Files go over every connection you share at once, such as your network and Bluetooth LE, and pick up where they stopped.
 - See how each file travels: an icon for each way it's using, and a bar showing how much each one carried, with the size, percentage, speed and time left.
-- Friends always tries a direct connection first, and stops using the relay as soon as one works.
+- Friends always tries a direct connection first, also while your Mac uses a VPN, and stops using the relay as soon as one works.
+- Direct Wi-Fi to a nearby Mac or phone is used only when neither of you is on a Wi-Fi network, so your Wi-Fi keeps its full speed.
+- Files on one of your computers show on your others at once. Choose **Download here** on the ones you want there.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/portable/readme-friends-list-dark.png">
@@ -96,7 +110,7 @@ Message people nearby or by their Friends ID, and send them documents. Friends a
 
 ## Tools that run on your Mac
 
-- **OCR** makes scans and photos searchable (OCRmyPDF and Tesseract).
+- **OCR** makes scans and photos searchable, with open source tools (OCRmyPDF and Tesseract) or macOS. Text in pictures is found by itself, so you can select, copy and search it.
 - **Translation** of a selection or a whole document (Argos Translate).
 - **Images:** paste, rotate, save as an image or PDF, copy as PDF.
 - **Reading:** a dark reading theme, printing and PDF export.
