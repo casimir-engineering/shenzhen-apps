@@ -41,9 +41,10 @@ static CFRunLoopRef StreamRunLoop(void) {
     return runLoop;
 }
 
-// While a stream moves bytes the helper (a menu-bar-less agent, so App Nap applies to it) holds a latency-critical
-// activity: napped, its stream thread woke about every 75 ms, which let a phone send 2 KiB per wake-up (26 KB/s).
-// Released after kAwakeIdle without a byte, so an idle Bluetooth session leaves App Nap alone.
+// While a stream moves bytes the helper (an agent with no windows, so App Nap applies to it) holds a latency-critical
+// activity. Without it, and with this thread at utility QoS, a phone's 2 KiB SDUs were read about every 75 ms (26 KB/s
+// on a 15 ms link); with both, a 30 ms link read 1.2 KiB about every 20 ms (60 KB/s). Released after kAwakeIdle
+// without a byte, so an idle Bluetooth session leaves App Nap alone.
 static const NSTimeInterval kAwakeIdle = 5;
 
 static void OnStreamThread(dispatch_block_t block);
