@@ -270,8 +270,13 @@ sentence each, and `szpdf annotate schema shape.add` gives one operation's argum
   top, each with its `objects` back to front, with ids, kinds, bounds and settings, the `active` layer, selection,
   colours, unsaved changes, file and format) and, on a PDF, `form` (its fields with names, kinds, values, pages and
   boxes, what was placed, and "3 of 12 filled").
-- **Layers.** A document starts with its base layer (a PDF's page, locked; a picture's or canvas's Background) and
-  Layer 1, which takes every object and the drawing. `layer.add` adds a layer above the active one and makes it
+- **Layers.** A document starts with its base layer, the document itself and locked (a PDF's page, a picture's
+  pixels, a canvas's background, transparent or the pasted picture) and Layer 1, which takes every object and the
+  drawing. Nothing paints, erases or fills the base layer (`page_locked`); crop, resize, rotate and flip of the whole
+  picture or canvas still apply to it, and `layer.duplicate` of a picture's Background gives a layer the tools can
+  change. `paint.fill` fills an object (a shape's fill, a text box's background) or, elsewhere, the area bounded by
+  what was drawn, as a new "Fill" object (its id in the answer); an empty area open to the canvas edge is the document
+  and answers `nothing_selected`. `layer.add` adds a layer above the active one and makes it
   active: new objects and painting go there. `object.layer --ids 4,7 --to above` (or `below`, or `--layer 9`) moves
   objects to another layer where they are; `object.order` reorders within a layer, `layer.order` moves a layer with its
   objects; `layer.set` renames, hides, locks or fades a layer and everything on it. On a PDF the layers are kept in the
@@ -299,7 +304,8 @@ A canvas, from nothing to a PNG, as one script:
 szpdf canvas new --width 800 --height 600            # {"ok": true, "tab": "tab-4211-3", ...}
 szpdf canvas new --preset a4 --ppi 150 --landscape   # 1754 x 1240 px, saved at 150 ppi
 cat > sketch.json <<'JSON'
-[{"op": "paint.fill", "x": 10, "y": 10, "color": "#FFF6E0"},
+[{"op": "shape.add", "shape": "rectangle", "rect": {"x": 0, "y": 0, "w": 800, "h": 600},
+  "outline": {"style": "none"}, "fill": {"style": "solid", "color": "#FFF6E0"}},
  {"op": "shape.add", "shape": "star5", "rect": {"x": 300, "y": 180, "w": 200, "h": 200},
   "outline": {"style": "solid", "color": "#B07000", "width": 4}, "fill": {"style": "solid", "color": "#FFD040"}},
  {"op": "text.add", "rect": {"x": 250, "y": 420, "w": 300, "h": 60}, "text": "Well done", "size": 40,
@@ -331,7 +337,7 @@ szpdf annotate notes.pdf pen.add --page 1 --points "72,700 200,690 320,705" --co
 
 Annotate's own error codes (beside those of [Error codes](#szpdf-errors)): `unknown_op`, `invalid_argument` (the
 arguments do not fit the schema; the message names the argument), `invalid_json`, `page_locked` ("The page itself
-can't be changed."), `needs_pdf` ("Save this document as a PDF to annotate it."), `pdf_only` (a `form.*` operation
+can't be changed.", or the picture's or canvas's own sentence: the base layer is locked), `needs_pdf` ("Save this document as a PDF to annotate it."), `pdf_only` (a `form.*` operation
 on a picture or canvas), `not_found` (no layer, object or field with that id or name), `locked` (another reader's
 annotation: shown, not editable), `too_large` (over 16384 x 16384 or 268 M pixels), `nothing_selected`,
 `nothing_to_undo`, `no_signature` (no signature saved: agents never draw one), `io_error`, `no_memory`, `failed`.

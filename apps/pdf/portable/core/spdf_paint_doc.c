@@ -303,10 +303,19 @@ int spdf_paint_layer_is_page(const spdf_paint_doc* doc, const spdf_paint_layer* 
     return layer && layer->kind == SPDF_PAINT_LAYER_BACKGROUND && doc->kind == SPDF_PAINT_DOC_PDF;
 }
 
+int spdf_paint_layer_is_base(const spdf_paint_layer* layer) {
+    return layer && layer->kind == SPDF_PAINT_LAYER_BACKGROUND;
+}
+
+const char* spdf_paint_base_locked_text(const spdf_paint_doc* doc) {
+    if (!doc || doc->kind == SPDF_PAINT_DOC_PDF) return "The page itself can't be changed.";
+    if (doc->kind == SPDF_PAINT_DOC_PICTURE) return "The picture itself can't be changed. Draw on a layer above it.";
+    return "The canvas's background can't be changed. Draw on a layer above it.";
+}
+
 int spdf_paint_layer_paintable(const spdf_paint_doc* doc, const spdf_paint_layer* layer) {
-    if (!layer || layer->locked) return 0;
-    return layer->kind == SPDF_PAINT_LAYER_RASTER ||
-           (layer->kind == SPDF_PAINT_LAYER_BACKGROUND && doc->kind != SPDF_PAINT_DOC_PDF);
+    (void)doc;
+    return layer && !layer->locked && layer->kind == SPDF_PAINT_LAYER_RASTER;
 }
 
 int spdf_paint_paintable_below(const spdf_paint_doc* doc, int index) {
@@ -316,7 +325,7 @@ int spdf_paint_paintable_below(const spdf_paint_doc* doc, int index) {
 }
 
 fz_pixmap* spdf_paint_layer_pixels(spdf_paint_doc* doc, spdf_paint_layer* layer) {
-    if (!spdf_paint_layer_paintable(doc, layer)) return NULL;
+    if (!layer || layer->kind == SPDF_PAINT_LAYER_OBJECT || spdf_paint_layer_is_page(doc, layer)) return NULL;
     if (!layer->pixels)
         layer->pixels = spdf_paint_pixmap_new(doc->ctx, doc->width * doc->raster_scale,
                                               doc->height * doc->raster_scale);
@@ -426,13 +435,12 @@ void spdf_paint_layer_delete(spdf_paint_doc* doc, spdf_paint_layer* layer) {
     spdf_rect damage = spdf_paint_canvas_rect(doc);
     if (layer->object) { spdf_paint_object_update_bounds(layer->object); damage = layer->object->bounds; }
     spdf_paint_layer_detach(doc, layer->id);
-    if (doc->active == layer->id) { /* the nearest layer below, else above, else a picture's Background */
+    if (doc->active == layer->id) { /* the nearest layer below, else above (none: one is made when drawn on) */
         doc->active = 0;
         for (int i = index - 1; i > 0 && !doc->active; i--)
             if (doc->layers[i]->kind == SPDF_PAINT_LAYER_RASTER) doc->active = doc->layers[i]->id;
         for (int i = index; i < doc->layer_count && !doc->active; i++)
             if (doc->layers[i]->kind == SPDF_PAINT_LAYER_RASTER) doc->active = doc->layers[i]->id;
-        if (!doc->active && spdf_paint_layer_paintable(doc, doc->layers[0])) doc->active = doc->layers[0]->id;
     }
     spdf_paint_layer_free(doc->ctx, layer);
     spdf_paint_selection_prune(doc);

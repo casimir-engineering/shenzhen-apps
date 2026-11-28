@@ -122,7 +122,7 @@ int spdf_paint_normalize_layers(spdf_paint_doc* doc) {
 spdf_paint_status spdf_paint_fail_unpaintable(spdf_paint_call* call, const spdf_paint_layer* layer) {
     if (layer && layer->kind == SPDF_PAINT_LAYER_RASTER && layer->locked)
         return spdf_paint_call_fail(call, SPDF_PAINT_ERR_LOCKED, "This layer is locked; unlock it to change it.");
-    return spdf_paint_call_fail(call, SPDF_PAINT_ERR_PAGE_LOCKED, "The page itself can't be changed.");
+    return spdf_paint_call_fail(call, SPDF_PAINT_ERR_PAGE_LOCKED, "%s", spdf_paint_base_locked_text(call->doc));
 }
 
 /* ---- object.duplicate: a copy of each object just above it, the copies selected, all in one step ---- */

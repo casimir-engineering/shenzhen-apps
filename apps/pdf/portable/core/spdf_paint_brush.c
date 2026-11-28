@@ -8,6 +8,7 @@
  * two strokes over each other build up, as paint does. Pixels go into the given raster layer only: never into an
  * object, never into a locked layer (a PDF page). */
 #include "spdf_paint_brush_engine.h"
+#include "spdf_paint_model.h"
 
 #include <math.h>
 #include <string.h>
@@ -367,8 +368,7 @@ spdf_paint_status spdf_paint_brush_stroke(spdf_paint_doc* doc, spdf_paint_layer*
     if (damage) *damage = (spdf_rect){0, 0, 0, 0};
     if (!doc || !layer || !args || !args->points || args->point_count < 1 || args->tool >= SPDF_PAINT_BRUSH_COUNT)
         return SPDF_PAINT_ERR_INVALID_ARGUMENT;
-    if (layer->locked || (doc->kind == SPDF_PAINT_DOC_PDF && layer->kind == SPDF_PAINT_LAYER_BACKGROUND))
-        return SPDF_PAINT_ERR_PAGE_LOCKED;
+    if (layer->locked || spdf_paint_layer_is_base(layer)) return SPDF_PAINT_ERR_PAGE_LOCKED;
     if (layer->kind == SPDF_PAINT_LAYER_OBJECT || !(pix = layer->pixels) || pix->n != 4) return SPDF_PAINT_ERR_FAILED;
     ctx = doc->ctx;
     scale = doc->raster_scale > 0 ? (float)doc->raster_scale : 1.0f;

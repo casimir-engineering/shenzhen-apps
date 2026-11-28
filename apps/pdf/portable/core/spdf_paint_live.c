@@ -311,7 +311,7 @@ spdf_paint_status spdf_paint_live_begin(spdf_paint_doc* doc, const char* op_json
         live->size = live->args.size;
         if (live->args.tool >= SPDF_PAINT_BRUSH_COUNT) st = SPDF_PAINT_ERR_INVALID_ARGUMENT;
         else if (!spdf_paint_active_pixels(doc, &layer) || !layer || layer->locked || layer->pixels->n != 4 ||
-                 (doc->kind == SPDF_PAINT_DOC_PDF && layer->kind == SPDF_PAINT_LAYER_BACKGROUND))
+                 spdf_paint_layer_is_base(layer))
             st = SPDF_PAINT_ERR_PAGE_LOCKED;
     }
     cJSON_Delete(root);

@@ -1,15 +1,20 @@
-/* Annotate's Fill and Color picker (docs/plans/annotate.md § 2 Tools, § 8 Core spdf_paint_fill.c): scanline flood fill
- * with tolerance, contiguous or everywhere, bounded by the edges you see (every visible layer and object, the PDF page
- * included) and painted into the active raster layer; colour pick from what you see or the active layer. The
- * paint.fill handler sends a click on an object to the object: a shape gets a solid fill (a line its colour), a text
- * box an opaque background, a pen line or arrow its colour, a picture is filled within its own pixels. */
+/* Annotate's Fill and Color picker (docs/plans/annotate.md § 2 Tools, § 8 Core spdf_paint_fill.c). paint.fill sends a
+ * click on an object to the object: a shape gets a solid fill (a line its colour), a text box an opaque background, a
+ * pen line or arrow its colour, a picture (a Fill made before included) is filled within its own pixels. Anywhere else
+ * a scanline flood fill (tolerance, contiguous or everywhere) bounded by what was drawn on the layers makes a new
+ * "Fill" object, a picture of that area in the colour; the base layer (the page, picture or canvas background) is
+ * never an edge and is never filled. Colour pick from what you see or the active layer. */
 #include "spdf_paint_brush_engine.h"
 #include "spdf_paint_handlers.h"
 #include "spdf_paint_model.h"
 #include "spdf_fill_ink_geometry.h"
 
 #include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+
+static const char spdf_paint_fill_object_name[] = "Fill";
 
 static int channel(spdf_paint_color c, int shift) { return (int)((c >> shift) & 0xFF); }
 
@@ -101,8 +106,10 @@ static int inside_sel(const fz_pixmap* sel, int x, int y) {
     return sel->samples[(size_t)y * sel->stride + (size_t)x * sel->n + (sel->n - 1)] >= 128;
 }
 
-/* Lays `color` (replacing what was there) into dest where mask is set, over box. */
-static void lay_fill(fz_pixmap* dest, const unsigned char* mask, int mw, fz_irect box, spdf_paint_color color) {
+/* Lays `color` (replacing what was there) into dest where mask is set, over box; mask rows are mw wide and start at
+ * (mx, my) of dest's coordinates. */
+static void lay_fill(fz_pixmap* dest, const unsigned char* mask, int mw, int mx, int my, fz_irect box,
+                     spdf_paint_color color) {
     unsigned a = (unsigned)channel(color, 0);
     unsigned char px[4] = {(unsigned char)((channel(color, 24) * a + 127) / 255),
                            (unsigned char)((channel(color, 16) * a + 127) / 255),
@@ -110,7 +117,8 @@ static void lay_fill(fz_pixmap* dest, const unsigned char* mask, int mw, fz_irec
     int x, y;
     for (y = box.y0; y < box.y1; ++y)
         for (x = box.x0; x < box.x1; ++x)
-            if (mask[(size_t)y * mw + x]) memcpy(dest->samples + (size_t)y * dest->stride + (size_t)x * 4, px, 4);
+            if (mask[(size_t)(y + my) * mw + (x + mx)])
+                memcpy(dest->samples + (size_t)y * dest->stride + (size_t)x * 4, px, 4);
 }
 
 static int tolerance_bytes(float tolerance) {
@@ -118,41 +126,92 @@ static int tolerance_bytes(float tolerance) {
     return (int)lrintf(t * 255);
 }
 
-spdf_paint_status spdf_paint_flood_fill(spdf_paint_doc* doc, spdf_paint_layer* layer, const spdf_paint_fill_args* args,
-                                        spdf_rect* damage) {
+/* Grows the filled area into the soft edge of what bounds it (pixels drawn partly transparent, an antialiased line's
+ * rim), `passes` pixels deep, so the fill meets the line with no gap of the document showing between them. */
+static void grow_into_edges(unsigned char* mask, const unsigned char* rgba, ptrdiff_t stride, int w, int h, int passes,
+                            fz_irect* used) {
+    for (int pass = 1; pass <= passes; pass++) {
+        fz_irect box = fz_intersect_irect(fz_make_irect(used->x0 - 1, used->y0 - 1, used->x1 + 1, used->y1 + 1),
+                                          fz_make_irect(0, 0, w, h));
+        for (int y = box.y0; y < box.y1; y++)
+            for (int x = box.x0; x < box.x1; x++) {
+                size_t i = (size_t)y * w + x;
+                if (mask[i] || rgba[y * stride + x * 4 + 3] == 255) continue;
+                int near = (x > 0 && mask[i - 1] == 1) || (x + 1 < w && mask[i + 1] == 1) ||
+                           (y > 0 && mask[i - w] == 1) || (y + 1 < h && mask[i + w] == 1);
+                if (near) mask[i] = (unsigned char)(pass + 1);
+            }
+        for (int y = box.y0; y < box.y1; y++) /* this pass's pixels count as filled for the next */
+            for (int x = box.x0; x < box.x1; x++)
+                if (mask[(size_t)y * w + x] == pass + 1) mask[(size_t)y * w + x] = 1;
+        *used = box;
+    }
+}
+
+static int touches_edge(fz_irect used, int w, int h) {
+    return used.x0 <= 0 || used.y0 <= 0 || used.x1 >= w || used.y1 >= h;
+}
+
+spdf_paint_status spdf_paint_fill_region(spdf_paint_doc* doc, const spdf_paint_fill_args* args, fz_pixmap** out,
+                                         spdf_rect* rect) {
     spdf_paint_render_options options;
     spdf_bitmap seen = {0, 0, 0, NULL};
-    fz_pixmap* pix;
+    spdf_paint_id* drawn;
     unsigned char* mask;
     fz_irect used;
     char err[256];
     float scale;
-    int sx, sy;
+    int w, h, sx, sy, count = 0, empty_seed;
     spdf_paint_status st;
-    if (damage) *damage = (spdf_rect){0, 0, 0, 0};
-    if (!doc || !layer || !args) return SPDF_PAINT_ERR_INVALID_ARGUMENT;
-    if (layer->locked || (doc->kind == SPDF_PAINT_DOC_PDF && layer->kind == SPDF_PAINT_LAYER_BACKGROUND))
-        return SPDF_PAINT_ERR_PAGE_LOCKED;
-    if (layer->kind == SPDF_PAINT_LAYER_OBJECT || !(pix = layer->pixels) || pix->n != 4) return SPDF_PAINT_ERR_FAILED;
+    *out = NULL;
+    *rect = (spdf_rect){0, 0, 0, 0};
     scale = doc->raster_scale > 0 ? (float)doc->raster_scale : 1.0f;
+    w = (int)lrintf(doc->width * scale), h = (int)lrintf(doc->height * scale);
     sx = (int)floorf(args->x * scale), sy = (int)floorf(args->y * scale);
-    if (sx < 0 || sy < 0 || sx >= pix->w || sy >= pix->h) return SPDF_PAINT_OK;
+    if (sx < 0 || sy < 0 || sx >= w || sy >= h) return SPDF_PAINT_OK;
+    /* The edges are what was drawn: every shown layer and object above the base layer (none: an empty list, which
+     * draws nothing, so a transparent page of edges). */
+    drawn = malloc(sizeof(*drawn) * (size_t)(doc->layer_count + 1));
+    if (!drawn) return SPDF_PAINT_ERR_NO_MEMORY;
+    for (int i = 1; i < doc->layer_count; i++)
+        if (spdf_paint_entry_shown(doc, i)) drawn[count++] = doc->layers[i]->id;
+    if (!count) drawn[count++] = (spdf_paint_id)-1; /* no such id: nothing drawn */
     memset(&options, 0, sizeof(options));
     options.scale = scale;
-    st = spdf_paint_render(doc, &options, &seen, err, sizeof(err)); /* the edges you see, page included */
+    options.layers = drawn, options.layer_count = count;
+    st = spdf_paint_render(doc, &options, &seen, err, sizeof(err));
+    free(drawn);
     if (st != SPDF_PAINT_OK) return st;
-    if (seen.width < pix->w || seen.height < pix->h) {
+    if (seen.width < w || seen.height < h) {
         spdf_free_bitmap(&seen);
         return SPDF_PAINT_ERR_FAILED;
     }
-    mask = flood_region(doc->ctx, seen.rgba, seen.stride, pix->w, pix->h, sx, sy, tolerance_bytes(args->tolerance),
+    empty_seed = seen.rgba[(size_t)sy * seen.stride + (size_t)sx * 4 + 3] == 0;
+    mask = flood_region(doc->ctx, seen.rgba, seen.stride, w, h, sx, sy, tolerance_bytes(args->tolerance),
                         args->contiguous, doc->selection.active ? doc->selection.mask : NULL, &used);
+    if (mask && !fz_is_empty_irect(used) && !doc->selection.active)
+        grow_into_edges(mask, seen.rgba, seen.stride, w, h, 2 * (int)scale, &used);
     spdf_free_bitmap(&seen);
     if (!mask) return SPDF_PAINT_ERR_NO_MEMORY;
+    /* An empty area open to the edge of the canvas is the document itself, unless a pixel selection bounds it. */
+    if (!fz_is_empty_irect(used) && empty_seed && !doc->selection.active && touches_edge(used, w, h)) {
+        fz_free(doc->ctx, mask);
+        return SPDF_PAINT_ERR_NOTHING_SELECTED;
+    }
     if (!fz_is_empty_irect(used)) {
-        spdf_paint_history_save_pixels(doc, layer, used);
-        lay_fill(pix, mask, pix->w, used, args->color);
-        if (damage) *damage = (spdf_rect){used.x0 / scale, used.y0 / scale, used.x1 / scale, used.y1 / scale};
+        fz_pixmap* pix = NULL;
+        fz_try(doc->ctx) {
+            pix = spdf_paint_pixmap_new(doc->ctx, used.x1 - used.x0, used.y1 - used.y0);
+            lay_fill(pix, mask, w, used.x0, used.y0, fz_make_irect(0, 0, pix->w, pix->h), args->color);
+        }
+        fz_catch(doc->ctx) {
+            fz_ignore_error(doc->ctx);
+            fz_drop_pixmap(doc->ctx, pix);
+            pix = NULL;
+        }
+        if (!pix) { fz_free(doc->ctx, mask); return SPDF_PAINT_ERR_NO_MEMORY; }
+        *out = pix;
+        *rect = (spdf_rect){used.x0 / scale, used.y0 / scale, used.x1 / scale, used.y1 / scale};
     }
     fz_free(doc->ctx, mask);
     return SPDF_PAINT_OK;
@@ -228,7 +287,7 @@ static spdf_paint_status fill_picture(spdf_paint_doc* doc, spdf_paint_layer* l, 
     if (!mask) return SPDF_PAINT_ERR_NO_MEMORY;
     if (!fz_is_empty_irect(used)) {
         spdf_paint_history_save_object(doc, l);
-        lay_fill(pix, mask, pix->w, used, args->color);
+        lay_fill(pix, mask, pix->w, 0, 0, used, args->color);
     }
     fz_free(doc->ctx, mask);
     return SPDF_PAINT_OK;
@@ -253,9 +312,8 @@ static spdf_paint_status fill_object(spdf_paint_doc* doc, spdf_paint_layer* l, c
 spdf_paint_status spdf_paint_op_paint_fill(spdf_paint_call* call) {
     spdf_paint_doc* doc = call->doc;
     spdf_paint_fill_args args;
-    spdf_paint_layer *layer = NULL, *hit;
+    spdf_paint_layer* hit;
     spdf_paint_status st;
-    spdf_rect damage = {0, 0, 0, 0};
     double v;
     int b = 1;
     st = spdf_paint_arg_check_page(call);
@@ -276,18 +334,34 @@ spdf_paint_status spdf_paint_op_paint_fill(spdf_paint_call* call) {
         cJSON_AddNumberToObject(call->reply, "object", hit->id);
         return SPDF_PAINT_OK;
     }
-    if (!spdf_paint_active_pixels(doc, &layer) || !layer)
-        return layer ? spdf_paint_fail_unpaintable(call, layer)
-                     : spdf_paint_call_fail(call, SPDF_PAINT_ERR_FAILED, "There is no layer to fill into.");
-    st = spdf_paint_flood_fill(doc, layer, &args, &damage);
-    if (st == SPDF_PAINT_ERR_PAGE_LOCKED) return spdf_paint_call_fail(call, st, "The page itself can't be changed.");
+    /* Anywhere else: the area bounded by what was drawn becomes a Fill object of its own on the active layer, on top
+     * of its objects, as a new shape would be; the document under the drawing is never filled. */
+    spdf_paint_layer* home = spdf_paint_home_layer(doc);
+    if (!home) return spdf_paint_call_fail(call, SPDF_PAINT_ERR_FAILED, "There is no layer to fill on.");
+    if (home->locked) return spdf_paint_fail_unpaintable(call, home);
+    fz_pixmap* pix = NULL;
+    spdf_rect rect;
+    st = spdf_paint_fill_region(doc, &args, &pix, &rect);
+    if (st == SPDF_PAINT_ERR_NOTHING_SELECTED)
+        return spdf_paint_call_fail(call, st, "Fill fills shapes and closed outlines you drew. Click inside one.");
     if (st == SPDF_PAINT_ERR_NO_MEMORY) return spdf_paint_call_fail(call, st, "There isn't enough memory to fill this.");
-    if (st != SPDF_PAINT_OK) return spdf_paint_call_fail(call, st, "This layer can't be filled.");
-    if (damage.x1 > damage.x0) {
-        spdf_paint_damage(doc, damage);
-        if (doc->kind == SPDF_PAINT_DOC_PDF) spdf_paint_pdf_note_change(doc, layer);
+    if (st != SPDF_PAINT_OK) return spdf_paint_call_fail(call, st, "This area can't be filled.");
+    if (!pix) return SPDF_PAINT_OK;
+    spdf_paint_id id = 0;
+    spdf_paint_object* o = spdf_paint_object_new(doc, SPDF_PAINT_OBJ_PICTURE, &id);
+    if (!o) {
+        fz_drop_pixmap(doc->ctx, pix);
+        return spdf_paint_call_fail(call, SPDF_PAINT_ERR_NO_MEMORY, "There isn't enough memory to fill this.");
     }
-    cJSON_AddNumberToObject(call->reply, "layer", layer->id);
+    o->u.picture.pixels = pix;
+    o->place.rect = rect;
+    spdf_paint_layer* entry = spdf_paint_layer_find(doc, id);
+    snprintf(entry->name, sizeof(entry->name), "%s", spdf_paint_fill_object_name);
+    spdf_paint_history_save_active(doc);
+    spdf_paint_object_update_bounds(o);
+    spdf_paint_changed(doc, entry, o->bounds);
+    cJSON_AddNumberToObject(call->reply, "id", id);
+    cJSON_AddNumberToObject(call->reply, "layer", home->id);
     return SPDF_PAINT_OK;
 }
 

@@ -1,14 +1,13 @@
 /* Annotate's layers and depth (docs/plans/annotate.md § 1 Layers panel, § 3, § 6 Layers and Colours): the layer
  * handlers, ordering (shared with object.order), merging down (shared with object.merge_down), and the colours. The
- * Background stays at the bottom; on a PDF page it is the page itself, and nothing here changes it. */
+ * Background stays at the bottom: it is the document (the page, the picture, the canvas's background), and nothing
+ * here changes it. */
 #include "spdf_paint_model.h"
 
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-static const char k_page_locked[] = "The page itself can't be changed.";
 
 static spdf_paint_status find_layer(spdf_paint_call* call, spdf_paint_layer** out) {
     double id = 0;
@@ -18,10 +17,8 @@ static spdf_paint_status find_layer(spdf_paint_call* call, spdf_paint_layer** ou
     return SPDF_PAINT_OK;
 }
 
-static spdf_paint_status refuse_background(spdf_paint_call* call, spdf_paint_layer* layer, const char* why) {
-    if (spdf_paint_layer_is_page(call->doc, layer))
-        return spdf_paint_call_fail(call, SPDF_PAINT_ERR_PAGE_LOCKED, k_page_locked);
-    return spdf_paint_call_fail(call, SPDF_PAINT_ERR_INVALID_ARGUMENT, "%s", why);
+static spdf_paint_status refuse_base(spdf_paint_call* call) {
+    return spdf_paint_call_fail(call, SPDF_PAINT_ERR_PAGE_LOCKED, "%s", spdf_paint_base_locked_text(call->doc));
 }
 
 static spdf_paint_status refuse_locked(spdf_paint_call* call, const spdf_paint_layer* layer) {
@@ -179,7 +176,7 @@ spdf_paint_status spdf_paint_order_layers(spdf_paint_call* call, const spdf_pain
     for (int i = 0; i < count; i++) {
         int index = spdf_paint_layer_index(doc, ids[i]);
         if (index < 0) return spdf_paint_call_fail(call, SPDF_PAINT_ERR_NOT_FOUND, "There is no layer %u.", ids[i]);
-        if (index == 0) return refuse_background(call, doc->layers[0], "The Background stays at the bottom.");
+        if (index == 0) return refuse_base(call);
         objects += doc->layers[index]->kind == SPDF_PAINT_LAYER_OBJECT;
     }
     if (objects && objects != count)
@@ -222,8 +219,7 @@ spdf_paint_status spdf_paint_op_layer_merge_down(spdf_paint_call* call) {
     spdf_paint_doc* doc = call->doc;
     spdf_paint_layer* layer = NULL;
     if (find_layer(call, &layer) != SPDF_PAINT_OK) return call->status;
-    if (layer->kind == SPDF_PAINT_LAYER_BACKGROUND)
-        return refuse_background(call, layer, "Nothing is below the Background.");
+    if (spdf_paint_layer_is_base(layer)) return refuse_base(call);
     if (layer->object) {
         if (spdf_paint_entry_locked(doc, spdf_paint_layer_index(doc, layer->id))) return refuse_locked(call, layer);
         return spdf_paint_merge_object_down(call, layer);
@@ -232,11 +228,8 @@ spdf_paint_status spdf_paint_op_layer_merge_down(spdf_paint_call* call) {
     int g = spdf_paint_layer_index(doc, layer->id), below = g - 1;
     while (below > 0 && doc->layers[below]->kind != SPDF_PAINT_LAYER_RASTER) below--;
     spdf_paint_layer* target = doc->layers[below];
-    if (!spdf_paint_layer_paintable(doc, target)) {
-        if (below == 0 && spdf_paint_layer_is_page(doc, target))
-            return spdf_paint_call_fail(call, SPDF_PAINT_ERR_PAGE_LOCKED, k_page_locked);
-        return refuse_locked(call, target);
-    }
+    if (!spdf_paint_layer_paintable(doc, target))
+        return spdf_paint_layer_is_base(target) ? refuse_base(call) : refuse_locked(call, target);
     float rs = (float)doc->raster_scale;
     spdf_paint_history_save_active(doc);
     if (layer->pixels && layer->visible) {
@@ -246,28 +239,16 @@ spdf_paint_status spdf_paint_op_layer_merge_down(spdf_paint_call* call) {
         spdf_paint_history_save_pixels(doc, target, box);
         spdf_paint_draw_raster(doc, layer->pixels, pix, box, rs, layer->opacity, 0);
     }
-    if (below == 0) { /* into a picture's Background: everything on the layer becomes its pixels */
-        fz_pixmap* pix = spdf_paint_layer_pixels(doc, target);
-        for (int i = g + 1; pix && i < spdf_paint_group_end(doc, g); i++) {
-            spdf_paint_layer* o = doc->layers[i];
-            spdf_paint_object_update_bounds(o->object);
-            fz_irect box = spdf_paint_raster_box(doc, o->object->bounds);
-            spdf_paint_history_save_pixels(doc, target, box);
-            if (o->visible && layer->visible)
-                spdf_paint_object_draw(doc, o->object, fz_scale(rs, rs), pix, box, o->opacity * layer->opacity);
-        }
-        delete_group(doc, layer);
-    } else { /* into the layer below: its objects stay objects, on top of that layer's, as they looked */
-        int end = spdf_paint_group_end(doc, g);
-        spdf_paint_history_save_order(doc);
-        for (int i = g + 1; i < end; i++) {
-            spdf_paint_layer* o = doc->layers[i];
-            spdf_paint_history_save_layer_props(doc, o);
-            o->opacity *= layer->opacity;
-            if (!layer->visible) o->visible = 0;
-        }
-        spdf_paint_layer_delete(doc, layer); /* its objects now follow the layer below */
+    /* into the layer below: its objects stay objects, on top of that layer's, as they looked */
+    int end = spdf_paint_group_end(doc, g);
+    spdf_paint_history_save_order(doc);
+    for (int i = g + 1; i < end; i++) {
+        spdf_paint_layer* o = doc->layers[i];
+        spdf_paint_history_save_layer_props(doc, o);
+        o->opacity *= layer->opacity;
+        if (!layer->visible) o->visible = 0;
     }
+    spdf_paint_layer_delete(doc, layer); /* its objects now follow the layer below */
     doc->active = target->id;
     spdf_paint_damage_all(doc);
     cJSON_AddNumberToObject(call->reply, "into", target->id);
@@ -299,7 +280,8 @@ spdf_paint_status spdf_paint_op_layer_duplicate(spdf_paint_call* call) {
     spdf_paint_layer* layer = NULL;
     if (find_layer(call, &layer) != SPDF_PAINT_OK) return call->status;
     if (layer->object) return spdf_paint_op_object_duplicate(call);
-    if (spdf_paint_layer_is_page(doc, layer)) return spdf_paint_call_fail(call, SPDF_PAINT_ERR_PAGE_LOCKED, k_page_locked);
+    /* a picture's or canvas's Background is copied into a layer of its own, which the tools may change */
+    if (spdf_paint_layer_is_page(doc, layer)) return refuse_base(call);
     int g = spdf_paint_layer_index(doc, layer->id);
     int end = layer->kind == SPDF_PAINT_LAYER_RASTER ? spdf_paint_group_end(doc, g) : g + 1, at = end;
     spdf_paint_id first = 0;
@@ -338,8 +320,7 @@ spdf_paint_status spdf_paint_op_layer_duplicate(spdf_paint_call* call) {
 spdf_paint_status spdf_paint_op_layer_delete(spdf_paint_call* call) {
     spdf_paint_layer* layer = NULL;
     if (find_layer(call, &layer) != SPDF_PAINT_OK) return call->status;
-    if (layer->kind == SPDF_PAINT_LAYER_BACKGROUND)
-        return refuse_background(call, layer, "The Background can't be deleted; clear it instead.");
+    if (spdf_paint_layer_is_base(layer)) return refuse_base(call);
     if (layer->locked) return refuse_locked(call, layer);
     spdf_paint_history_save_active(call->doc);
     if (layer->object) spdf_paint_layer_delete(call->doc, layer);
@@ -350,8 +331,7 @@ spdf_paint_status spdf_paint_op_layer_delete(spdf_paint_call* call) {
 spdf_paint_status spdf_paint_op_layer_set(spdf_paint_call* call) {
     spdf_paint_layer* layer = NULL;
     if (find_layer(call, &layer) != SPDF_PAINT_OK) return call->status;
-    if (spdf_paint_layer_is_page(call->doc, layer))
-        return spdf_paint_call_fail(call, SPDF_PAINT_ERR_PAGE_LOCKED, k_page_locked);
+    if (spdf_paint_layer_is_base(layer)) return refuse_base(call);
     int is_layer = layer->kind != SPDF_PAINT_LAYER_OBJECT;
     if (layer->locked && !is_layer) return refuse_locked(call, layer); /* a layer the person locked can be unlocked */
     int locked = layer->locked;
@@ -390,8 +370,7 @@ spdf_paint_status spdf_paint_op_layer_activate(spdf_paint_call* call) {
     spdf_paint_layer* layer = NULL;
     spdf_paint_doc* doc = call->doc;
     if (find_layer(call, &layer) != SPDF_PAINT_OK) return call->status;
-    if (spdf_paint_layer_is_page(doc, layer))
-        return spdf_paint_call_fail(call, SPDF_PAINT_ERR_PAGE_LOCKED, k_page_locked);
+    if (spdf_paint_layer_is_base(layer)) return refuse_base(call);
     if (layer->object) { /* an object's row (Layers panel, context menus): selects it; its layer becomes active */
         spdf_paint_layer* owner = spdf_paint_owner(doc, layer);
         spdf_paint_select_objects(doc, &layer->id, 1);

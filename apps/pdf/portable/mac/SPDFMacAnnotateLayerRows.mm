@@ -17,7 +17,8 @@ NSArray<NSDictionary*>* SPDFAnnotateLayerRows(NSDictionary* state, NSSet<NSNumbe
             @"id" : layer[@"id"], @"base" : @(base), @"object" : @NO, @"count" : @(objects.count), @"folded" : @(fold),
             @"name" : [layer[@"name"] isKindOfClass:[NSString class]] ? layer[@"name"] : @"",
             @"visible" : @(layer[@"visible"] ? [layer[@"visible"] boolValue] : YES), @"opacity" : @(SPDFLayerRowOpacity(layer)),
-            @"locked" : @([layer[@"locked"] boolValue]), @"page" : @(base && pdf),
+            // "page": the base layer, locked on every document as a PDF's page is (the document under the drawing).
+            @"locked" : @([layer[@"locked"] boolValue]), @"page" : @(base), @"pdf" : @(base && pdf),
             @"canvas" : @(base && [state[@"kind"] isEqual:@"canvas"]),
         }];
         if (fold) continue;

@@ -19,11 +19,16 @@ extern "C" {
 /* ---- spdf_paint_doc.c ---- */
 
 fz_pixmap* spdf_paint_pixmap_new(fz_context* ctx, int w, int h); /* RGBA, transparent, x = y = 0 */
-/* The layer's pixels, made (transparent, canvas-sized) when it had none; NULL for object layers and a PDF page. */
+/* The layer's pixels, made (transparent, canvas-sized) when it had none; NULL for objects and a PDF page. Whole-canvas
+ * changes (resize, rotate, crop, undo) reach a picture's or canvas's Background through it; the tools do not. */
 fz_pixmap* spdf_paint_layer_pixels(spdf_paint_doc* doc, spdf_paint_layer* layer);
-/* Pixels the pixel tools may change: a raster layer, or a picture's or canvas's Background. */
+/* Pixels the pixel tools may change: an unlocked layer. Never the base layer, which is the document (the picture, the
+ * canvas's background, the PDF page) and stays as it is, like a page under the drawing. */
 int spdf_paint_layer_paintable(const spdf_paint_doc* doc, const spdf_paint_layer* layer);
 int spdf_paint_layer_is_page(const spdf_paint_doc* doc, const spdf_paint_layer* layer); /* a PDF page's Background */
+int spdf_paint_layer_is_base(const spdf_paint_layer* layer); /* the Background of any document: locked */
+/* Why the base layer refused: "The page itself can't be changed." on a PDF, the picture's or canvas's own sentence. */
+const char* spdf_paint_base_locked_text(const spdf_paint_doc* doc);
 /* The nearest paintable layer below index, or -1. */
 int spdf_paint_paintable_below(const spdf_paint_doc* doc, int index);
 spdf_paint_layer* spdf_paint_layer_clone(fz_context* ctx, const spdf_paint_layer* layer, int with_pixels);
@@ -143,7 +148,7 @@ int spdf_paint_object_insert_index(spdf_paint_doc* doc, const spdf_paint_layer* 
 /* Old stacks (one object per layer): objects right above the base layer, or no layer at all, get a new "Layer 1"
  * just above the base layer. No history. 1 when it changed. */
 int spdf_paint_normalize_layers(spdf_paint_doc* doc);
-/* Fails the call for a layer the pixel tools can't change: a locked layer, else the PDF page. */
+/* Fails the call for a layer the pixel tools can't change: a locked layer, else the base layer (page_locked). */
 spdf_paint_status spdf_paint_fail_unpaintable(spdf_paint_call* call, const spdf_paint_layer* layer);
 cJSON* spdf_paint_layers_json(const spdf_paint_doc* doc); /* doc.state "layers": each with its "objects" */
 spdf_paint_status spdf_paint_op_object_layer(spdf_paint_call* call);

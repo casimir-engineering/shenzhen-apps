@@ -395,10 +395,13 @@ typedef struct spdf_paint_fill_args {
     int contiguous;
 } spdf_paint_fill_args;
 
-/* Flood fill bounded by the edges you see (the composite of every visible layer, PDF page included), painted into
- * `layer`. *damage is the canvas rect filled. */
-spdf_paint_status spdf_paint_flood_fill(spdf_paint_doc* doc, spdf_paint_layer* layer, const spdf_paint_fill_args* args,
-                                        spdf_rect* damage);
+/* The area a Fill click covers, bounded by what was drawn (every visible layer and object above the base layer; the
+ * page, picture or canvas background under them is not an edge and is never filled), as a new RGBA pixmap of the
+ * fill colour (*out, raster pixels) and its place (*rect, canvas units). SPDF_PAINT_ERR_NOTHING_SELECTED when the
+ * click is on the document itself (an empty area that reaches the edge of the canvas, outside any pixel selection);
+ * OK with *out NULL when nothing matched. */
+spdf_paint_status spdf_paint_fill_region(spdf_paint_doc* doc, const spdf_paint_fill_args* args, fz_pixmap** out,
+                                         spdf_rect* rect);
 /* The colour at a canvas point: from the visible composite (from_visible 1) or the active layer alone. */
 spdf_paint_status spdf_paint_pick_color(spdf_paint_doc* doc, float x, float y, int from_visible,
                                         spdf_paint_color* out);

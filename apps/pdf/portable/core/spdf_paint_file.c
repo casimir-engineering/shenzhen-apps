@@ -298,10 +298,10 @@ spdf_paint_doc* spdf_paint_read_project(const char* path, char* err, size_t err_
     spdf_paint_json_color(cJSON_GetObjectItemCaseSensitive(m, "color2"), &doc->color2);
     for (int i = 0; i < SPDF_PAINT_CUSTOM_COLORS; i++)
         spdf_paint_json_color(cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(m, "custom"), i), &doc->custom[i]);
-    int converted = spdf_paint_normalize_layers(doc); /* a version 1 project: its objects on a layer */
+    spdf_paint_normalize_layers(doc); /* a version 1 project: its objects on a layer */
     doc->active = (spdf_paint_id)cJSON_GetNumberValue(cJSON_GetObjectItemCaseSensitive(m, "active"));
     spdf_paint_layer* active = spdf_paint_layer_find(doc, doc->active);
-    if (!active || active->kind == SPDF_PAINT_LAYER_OBJECT || (converted && active->kind == SPDF_PAINT_LAYER_BACKGROUND))
+    if (!active || active->kind == SPDF_PAINT_LAYER_OBJECT || active->kind == SPDF_PAINT_LAYER_BACKGROUND)
         active = spdf_paint_home_layer(doc); /* new drawing goes on Layer 1, as in a new document */
     doc->active = active ? active->id : doc->layers[0]->id;
     if (!doc->layers[0]->pixels) doc->layers[0]->pixels = spdf_paint_pixmap_new(ctx, w, h);

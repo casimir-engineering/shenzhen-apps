@@ -49,7 +49,8 @@ typedef uint32_t spdf_paint_id;               /* a layer or object id, unique in
 /* What a canvas is. A text document (Markdown, plain text, EPUB...) never gets a canvas: the frontend answers its
  * operations itself with spdf_paint_check_op, which refuses all but doc.save_as_pdf with needs_pdf. */
 typedef enum spdf_paint_doc_kind {
-    SPDF_PAINT_DOC_PICTURE = 1,  /* a picture file: its pixels are the Background, and every tool can change them */
+    SPDF_PAINT_DOC_PICTURE = 1,  /* a picture file: its pixels are the Background, locked as a PDF page is (the tools
+                                  * draw on the layers above; whole-picture crop, resize, rotate and flip still apply) */
     SPDF_PAINT_DOC_CANVAS = 2,   /* File > New Canvas, or a .szpaint project */
     SPDF_PAINT_DOC_PDF = 4,      /* one PDF page: its Background is the page itself, locked */
     SPDF_PAINT_DOC_TEXT = 8      /* a text document (no canvas; used in the operation table only) */
@@ -65,7 +66,7 @@ typedef enum spdf_paint_status {
     SPDF_PAINT_ERR_INVALID_JSON = -2,    /* "invalid_json" */
     SPDF_PAINT_ERR_UNKNOWN_OP = -3,      /* "unknown_op" */
     SPDF_PAINT_ERR_INVALID_ARGUMENT = -4,/* "invalid_argument": fails the operation's argument schema */
-    SPDF_PAINT_ERR_PAGE_LOCKED = -5,     /* "page_locked": "The page itself can't be changed." */
+    SPDF_PAINT_ERR_PAGE_LOCKED = -5,     /* "page_locked": the Background (page, picture, canvas background) is locked */
     SPDF_PAINT_ERR_NEEDS_PDF = -6,       /* "needs_pdf": "Save this document as a PDF to annotate it." */
     SPDF_PAINT_ERR_PDF_ONLY = -7,        /* "pdf_only": a form operation on a picture or canvas */
     SPDF_PAINT_ERR_NOT_FOUND = -8,       /* "not_found": no layer or object with that id */

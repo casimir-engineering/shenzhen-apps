@@ -377,7 +377,9 @@ static char kSPDFAnnotateZoomContext;
     if (page < 0 && self.session.kind == SPDFAnnotateDocumentPDF) page = [self pageInView];  // a key before any click
     if (page >= 0) sent[@"page"] = @(page + 1);
     [self.controller applyOperation:sent tab:self.session.tab completion:^(NSDictionary* result) {
-        if (![result[@"ok"] boolValue] && result[@"message"] && ![result[@"error"] isEqual:@"nothing_selected"])
+        // Nothing selected is no news, except for Fill, which says where it fills (not the document itself).
+        BOOL silent = [result[@"error"] isEqual:@"nothing_selected"] && ![sent[@"op"] isEqual:@"paint.fill"];
+        if (![result[@"ok"] boolValue] && result[@"message"] && !silent)
             [self.controller.host fillShowError:@"Annotate couldn't do that" detail:result[@"message"]];
         if (done) done(result);
     }];

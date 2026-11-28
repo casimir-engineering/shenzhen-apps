@@ -277,7 +277,7 @@ static const spdf_paint_op_info k_ops[] = {
     {"image.invert", "Image", U | P, ANYC, CANVAS,
      "Inverts the colours of the selection, the selected object or the active layer."},
     {"image.clear", "Image", U | P, ANYC, CANVAS,
-     "Clears the active layer to transparent (to Color 2 on a picture that can't be transparent)."},
+     "Clears the active layer to transparent; the page, picture or canvas background under it stays."},
     {"image.remove_background", "Image", U | P | I, ANYC, CANVAS, "Makes everything outside the main subject "
      "transparent, on the active layer or the selected picture (macOS 14 or later, done on this Mac)."},
     {"select.rect", "Selection", S | P, ANYC, CANVAS, "Selects a rectangle of pixels."},
@@ -302,7 +302,10 @@ static const spdf_paint_op_info k_ops[] = {
     {"paint.stroke", "Pixels", U | P, ANYC, CANVAS, "Paints one stroke into the active layer with the pencil, a "
      "brush, the airbrush, the eraser or the color eraser."},
     {"paint.fill", "Pixels", U | P, ANYC, CANVAS,
-     "Fills the area around a point with a colour, up to the edges you see."},
+     "Fills what is at a point: an object (a shape's fill, a text box's background, a line's colour), else the area "
+     "around the point bounded by what was drawn, as a new \"Fill\" object on the active layer (answers its id). The "
+     "document itself (page, picture or canvas background) is never filled; an empty area open to the canvas edge "
+     "answers nothing_selected."},
     {"color.pick", "Pixels", R | P, ANYC, CANVAS,
      "Reads the colour at a point, from what you see or from the active layer."},
     {"shape.add", "Objects", U | P, ANYC, CANVAS,
@@ -326,9 +329,11 @@ static const spdf_paint_op_info k_ops[] = {
     {"layer.add", "Layers", U | P, ANYC, CANVAS,
      "Adds an empty layer above the active one and makes it active: new drawing and objects go into it. Answers its id."},
     {"layer.duplicate", "Layers", U | P, ANYC, CANVAS,
-     "Copies a layer and its objects just above itself and answers the copy's id."},
+     "Copies a layer and its objects just above itself and answers the copy's id. The Background of a picture or "
+     "canvas is copied into an ordinary layer, which the tools can change."},
     {"layer.delete", "Layers", U | P, ANYC, CANVAS,
-     "Deletes a layer and the objects on it; a PDF page itself can't be deleted."},
+     "Deletes a layer and the objects on it; the Background (the page, picture or canvas background) can't be "
+     "deleted."},
     {"layer.merge_down", "Layers", U | P, ANYC, CANVAS,
      "Merges a layer into the layer below it: its drawing into that layer's, its objects on top of that layer's."},
     {"layer.set", "Layers", U | P, ANYC, CANVAS,

@@ -74,7 +74,7 @@ NSArray<SPDFAnnotateEntry*>* SPDFAnnotateTools(void) {
             @[ @"pen", @"Pen", @"pencil.tip", @"P", @"Draws a line you can move or change later." ],
             @[ @"arrow", @"Arrow", @"arrow.up.right", @"A", @"Drag from the tail to the tip." ],
             @[ @"pencil", @"Pencil", @"pencil", @"N", @"Draws thin, hard-edged lines." ],
-            @[ @"fill", @"Fill", @"spdf.paintbucket", @"F", @"Click an area to fill it with Color 1, or a shape to fill the shape. "
+            @[ @"fill", @"Fill", @"spdf.paintbucket", @"F", @"Click inside a shape or an outline you drew to fill it with Color 1. "
                                                              @"Right-click: Color 2." ],
             @[ @"text_box", @"Text box", @"character.textbox", @"⇧T", @"Click or drag a box, then type." ],
             @[ @"eraser", @"Eraser", @"eraser", @"E", @"Drag over what you want to remove." ],

@@ -280,7 +280,8 @@ static void SPDFSetImage(NSButton* button, NSImage* image) { if (button.image !=
     cell.name.textColor = visible ? NSColor.labelColor : NSColor.tertiaryLabelColor;
     cell.thumb.image = _thumbs[r[@"id"]];
     // Under the base layer's name, what it is (a canvas's Background needs no words); under a layer's, what it holds.
-    cell.detail.stringValue = base ? (page ? @"The page itself" : [r[@"canvas"] boolValue] ? @"" : @"The picture")
+    BOOL pdf = [r[@"pdf"] boolValue], canvas = [r[@"canvas"] boolValue];
+    cell.detail.stringValue = base ? (pdf ? @"The page itself" : canvas ? @"" : @"The picture")
                                    : SPDFObjectsCount([r[@"count"] integerValue]);
     cell.disclosure.hidden = object || ![r[@"count"] integerValue];
     BOOL folded = [r[@"folded"] boolValue];
@@ -290,7 +291,10 @@ static void SPDFSetImage(NSButton* button, NSImage* image) { if (button.image !=
     BOOL objectLocked = object && locked;  // on a locked layer, or another app's annotation
     cell.badge.image = (page || objectLocked) ? SPDFLayerSymbol(@"lock.fill", @"Locked")
                        : active ? SPDFLayerSymbol(@"paintbrush.pointed.fill", @"Drawing and new objects go here") : nil;
-    cell.badge.toolTip = page ? SPDFAnnotatePageLockedText : objectLocked ? @"Locked" : active ? @"Drawing and new objects go here" : nil;
+    NSString* baseLocked = pdf ? SPDFAnnotatePageLockedText
+                           : canvas ? @"The canvas's background can't be changed. Draw on a layer above it."
+                                    : @"The picture itself can't be changed. Draw on a layer above it.";
+    cell.badge.toolTip = page ? baseLocked : objectLocked ? @"Locked" : active ? @"Drawing and new objects go here" : nil;
     cell.badge.hidden = !cell.badge.image;
     cell.lock.hidden = object || base;
     cell.lockWidth.constant = cell.lock.hidden ? 0 : 22;
@@ -352,7 +356,7 @@ static void SPDFSetImage(NSButton* button, NSImage* image) { if (button.image !=
     BOOL editable = row && ![row[@"locked"] boolValue] && !base;
     NSDictionary* below = object || !row ? nil : [self layerBelow:row];
     _add.enabled = _session != nil;
-    _duplicate.enabled = row && ![row[@"page"] boolValue] && !(object && [row[@"locked"] boolValue]);
+    _duplicate.enabled = row && ![row[@"pdf"] boolValue] && !(object && [row[@"locked"] boolValue]);
     _merge.enabled = editable && (object || (below && ![below[@"locked"] boolValue] && ![below[@"page"] boolValue]));
     _delete.enabled = editable;
     _merge.toolTip = _merge.enabled || !row ? @"Merge Down" : @"Merge Down: there is no layer below it that can change";
