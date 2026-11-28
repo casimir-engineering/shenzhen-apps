@@ -4,6 +4,7 @@
 package app.shenzhen.friends.nearby
 
 import android.util.Base64
+import android.util.Log
 import app.tauri.plugin.Channel
 import app.tauri.plugin.JSObject
 import java.io.Closeable
@@ -15,7 +16,45 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
 
 object Streams {
-    private class Open(val output: OutputStream, val closeable: Closeable, val writer: ExecutorService)
+    private class Open(val output: OutputStream, val closeable: Closeable, val writer: ExecutorService) {
+        val meter = Meter()
+    }
+
+    /**
+     * What a stream moved, one logcat line (SZFriendsBle) per 2 s while it moves: how fast the radio takes and gives
+     * bytes, and how long a write waited for room in the socket.
+     */
+    private class Meter {
+        private var since = System.nanoTime()
+        private var wrote = 0L
+        private var read = 0L
+        private var reads = 0
+        private var waitedNanos = 0L
+
+        @Synchronized
+        fun note(id: Long, written: Int = 0, got: Int = 0, waited: Long = 0) {
+            wrote += written
+            read += got
+            if (got > 0) reads++
+            waitedNanos += waited
+            val now = System.nanoTime()
+            val seconds = (now - since) / 1e9
+            if (seconds < 2) return
+            if (wrote > 0 || read > 0) {
+                Log.i(
+                    "SZFriendsBle",
+                    "stream $id: wrote %.1f KB/s (writes waited %.0f ms), read %.1f KB/s in %d reads over %.1f s".format(
+                        wrote / 1e3 / seconds, waitedNanos / 1e6, read / 1e3 / seconds, reads, seconds
+                    )
+                )
+            }
+            since = now
+            wrote = 0
+            read = 0
+            reads = 0
+            waitedNanos = 0
+        }
+    }
 
     private val next = AtomicLong(1)
     private val open = ConcurrentHashMap<Long, Open>()
@@ -23,7 +62,8 @@ object Streams {
     /** Starts reading at once; returns the id the core names the stream by. */
     fun add(input: InputStream, output: OutputStream, closeable: Closeable, channel: Channel): Long {
         val id = next.getAndIncrement()
-        open[id] = Open(output, closeable, Executors.newSingleThreadExecutor())
+        val opened = Open(output, closeable, Executors.newSingleThreadExecutor())
+        open[id] = opened
         Thread({
             val buffer = ByteArray(65_536)
             try {
@@ -31,6 +71,7 @@ object Streams {
                     val count = input.read(buffer)
                     if (count < 0) break
                     if (count == 0) continue
+                    opened.meter.note(id, got = count)
                     val data = Base64.encodeToString(buffer, 0, count, Base64.NO_WRAP)
                     channel.send(JSObject().put("kind", "bytes").put("stream", id).put("data", data))
                 }
@@ -54,8 +95,10 @@ object Streams {
         try {
             stream.writer.execute {
                 try {
+                    val started = System.nanoTime()
                     stream.output.write(data)
                     stream.output.flush()
+                    stream.meter.note(id, written = data.size, waited = System.nanoTime() - started)
                 } catch (_: Exception) {
                     close(id)
                 } finally {

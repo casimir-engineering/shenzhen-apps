@@ -4,6 +4,9 @@
 // such stream is scheduled on one shared thread that only runs a run loop. All stream state below is touched on
 // that thread; session callbacks hop to the queue given to -startWithQueue:.
 
+#import <os/log.h>
+#import <time.h>
+
 #import "service/discovery/SZFriendsDiscoveryInternal.h"
 
 enum { kReadBufferSize = 16384 }; // an enum, so the stack buffer below is a constant array; a 16 KiB PART per read
@@ -54,6 +57,9 @@ static void OnStreamThread(dispatch_block_t block) {
     NSMutableArray *_completions; // NSNull or a completion block, one per write
     NSUInteger _writtenOfFirst;
     BOOL _started, _finished, _closeRequested, _spaceSignalled, _outputEnded;
+    // What the stream moved since _meterSince: one line in the system log per 2 s while it moves (`log show
+    // --predicate 'category == "streams"'`), so a slow link shows whether the radio or the session waits.
+    uint64_t _meterSince, _meterRead, _meterWritten, _meterReads, _meterWrites;
 }
 
 @synthesize onData = _onData;
@@ -139,6 +145,28 @@ static void OnStreamThread(dispatch_block_t block) {
 
 #pragma mark - On the stream thread
 
+- (void)meterRead:(NSUInteger)read written:(NSUInteger)written {
+    static os_log_t log;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        log = os_log_create("com.intuition.shenzhen-friends", "streams");
+    });
+    uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    if (_meterSince == 0) _meterSince = now;
+    _meterRead += read;
+    _meterWritten += written;
+    if (read) _meterReads++;
+    if (written) _meterWrites++;
+    double seconds = (now - _meterSince) / 1e9;
+    if (seconds < 2) return;
+    if (_meterRead || _meterWritten) {
+        os_log(log, "stream %p: read %.1f KB/s in %llu reads, wrote %.1f KB/s in %llu writes, over %.1f s", self,
+               _meterRead / 1e3 / seconds, _meterReads, _meterWritten / 1e3 / seconds, _meterWrites, seconds);
+    }
+    _meterSince = now;
+    _meterRead = _meterWritten = _meterReads = _meterWrites = 0;
+}
+
 - (void)stream:(NSStream *)stream handleEvent:(NSStreamEvent)event {
     if (_finished) return;
     switch (event) {
@@ -176,6 +204,7 @@ static void OnStreamThread(dispatch_block_t block) {
     while (!_finished && (atEnd || _input.hasBytesAvailable)) {
         NSInteger count = [_input read:buffer maxLength:sizeof buffer];
         if (count <= 0) break; // 0 is end of stream, reported as its own event
+        [self meterRead:(NSUInteger)count written:0];
         NSData *data = [NSData dataWithBytes:buffer length:(NSUInteger)count];
         dispatch_async(_callbackQueue, ^{
             if (self.onData) self.onData(data);
@@ -194,6 +223,7 @@ static void OnStreamThread(dispatch_block_t block) {
             return;
         }
         if (count == 0) break;
+        [self meterRead:0 written:(NSUInteger)count];
         _writtenOfFirst += (NSUInteger)count;
         if (_writtenOfFirst < first.length) continue;
         _writtenOfFirst = 0;
