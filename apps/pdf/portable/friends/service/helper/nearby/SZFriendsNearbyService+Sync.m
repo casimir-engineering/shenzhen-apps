@@ -15,6 +15,10 @@
 #import "service/store/SZFriendsStoreDevices.h"
 #import "service/sync/SZFriendsSync.h"
 
+#ifndef SZFRIENDS_TEST_BLUETOOTH_ONLY
+#define SZFRIENDS_TEST_BLUETOOTH_ONLY 0
+#endif
+
 // What the merger names our own devices' sightings by: "dev-" and the device key in hex.
 static NSString *const SZFriendsOwnDevicePrefix = @"dev-";
 // A dial to one of our devices that did not go live is not tried again before this.
@@ -423,7 +427,8 @@ static NSData *_Nullable SZFriendsKeyFromHex(NSString *hex) {
 
 - (void)reachOwnDevicesOnline {
     SZFriendsOnlineDriver *driver = self.onlineDriver;
-    SZFriendsSyncEngine *engine = driver.available ? [self activeSyncEngine] : nil;
+    // A test build that measures Bluetooth between our own devices reaches them on nothing else.
+    SZFriendsSyncEngine *engine = driver.available && !SZFRIENDS_TEST_BLUETOOTH_ONLY ? [self activeSyncEngine] : nil;
     for (NSData *device in engine.otherDeviceKeys) {
         SZFriendsPeerLink *live = self.syncLinks[SZFriendsKeyHex(device)];
         if (live != nil && !live.closed && !SZFriendsRouteIsBetter(SZFriendsRouteMethodInternet, live.raceRoute)) {
@@ -435,7 +440,7 @@ static NSData *_Nullable SZFriendsKeyFromHex(NSString *hex) {
 
 - (nullable SZFriendsOnlineFriend *)onlineOwnDeviceWithKey:(NSData *)deviceKey {
     NSData *root = [self isOwnDeviceKey:deviceKey] ? [self activeSyncEngine].rootKey : nil;
-    if (root == nil) return nil;
+    if (root == nil || SZFRIENDS_TEST_BLUETOOTH_ONLY) return nil;
     SZFriendsStore *store = self.services.store;
     NSData *staticKey = [store staticKeyForDeviceKey:deviceKey ofRootKey:root];
     if (staticKey.length != 32) return nil;

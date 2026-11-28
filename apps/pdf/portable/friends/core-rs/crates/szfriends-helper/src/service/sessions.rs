@@ -108,6 +108,9 @@ pub fn is_request_answer(entry: &OutboxEntry) -> bool {
     payload.get("transfer_id").is_none() && matches!(payload["frame"].as_str(), Some("accept" | "decline" | "cancel"))
 }
 
+/// One write on a Bluetooth link (the Mac's SZFriendsL2CAPPreferredWriteSize); four of them are the in-flight budget.
+const BLUETOOTH_WRITE_SIZE: usize = 16 * 1024;
+
 impl State {
     /// A session id handed out before its channel existed (the key policy names its session).
     pub(super) fn reserve_session_id(&mut self) -> u64 {
@@ -125,7 +128,18 @@ impl State {
     ) -> Option<u64> {
         let mut channel = channel;
         let capabilities = self.session_capabilities | self.direct_wifi_capability();
-        channel.set_config(szfriends_core::session::ChannelConfig { capabilities, ..Default::default() });
+        // Bluetooth keeps a quarter of the bytes in the link's hands (64 KiB, as the Mac's L2CAP channels): at 100 to
+        // 200 KB/s that is under half a second, so a HAVE or an ask queued now never waits seconds behind file data.
+        let preferred_write_size = if meta.dialed_route == szfriends_core::wire::RouteMethod::Bluetooth {
+            BLUETOOTH_WRITE_SIZE
+        } else {
+            szfriends_core::session::ChannelConfig::default().preferred_write_size
+        };
+        channel.set_config(szfriends_core::session::ChannelConfig {
+            capabilities,
+            preferred_write_size,
+            ..Default::default()
+        });
         let rate = self.route_rates.get(&meta.dialed_route).copied();
         let silence = self.route_silence.clone().map(|path| (path, super::route_name(meta.dialed_route).to_owned()));
         let emulated = (rate.is_some() || silence.is_some()).then_some((rate, silence));
