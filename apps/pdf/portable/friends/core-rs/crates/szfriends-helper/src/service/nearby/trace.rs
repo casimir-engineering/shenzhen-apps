@@ -182,6 +182,7 @@ impl State {
         let Some(s) = self.sessions.map.get(&id) else { return };
         let meta = &s.meta;
         let side = if s.channel.is_initiator() { "we dialed" } else { "they dialed" };
+        // FRIENDS-PROTOCOL-1: remove after 2027-06-30. A peer without bit 8 is logged as Friends protocol 1.
         let protocol = if s.channel.remote_capabilities() & szfriends_core::wire::consts::CAPABILITY_PROTOCOL_2 != 0 {
             2
         } else {

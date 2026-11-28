@@ -248,6 +248,8 @@ const char SZFriendsPrologueLabel[18] = "SZFriends session"; // the array's 18th
 }
 
 - (BOOL)directWiFiAllowed {
+    // FRIENDS-PROTOCOL-1: remove after 2027-06-30. A Friends protocol 1 peer never sets bit 6, so it never gets direct
+    // Wi-Fi.
     return (self.localCapabilities & SZFriendsCapabilityDirectWiFiAllowed) &&
            (self.remoteCapabilities & SZFriendsCapabilityDirectWiFiAllowed);
 }
@@ -259,6 +261,8 @@ const char SZFriendsPrologueLabel[18] = "SZFriends session"; // the array's 18th
 }
 
 - (BOOL)aesSession {
+    // FRIENDS-PROTOCOL-1: remove after 2027-06-30. A Friends protocol 1 peer never sets bit 7: ChaChaPoly throughout (a
+    // protocol 2 device without hardware AES keeps this case).
     return self.fastTransfers && (self.localCapabilities & SZFriendsCapabilityAESSession) &&
            (self.remoteCapabilities & SZFriendsCapabilityAESSession);
 }

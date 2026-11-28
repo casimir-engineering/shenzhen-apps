@@ -124,6 +124,8 @@
     // The owner's rule (ADR 0022, +PeerToPeer): on peer-to-peer Wi-Fi only when both handshakes allow direct Wi-Fi. A
     // boost's lane (the Mac dials it, always as a lane of its group) was judged by BOOST's Abilities instead.
     BOOL boostLane = link.channel.isInitiator && link.laneHead != nil && [self boostingGroup:link.laneHead];
+    // FRIENDS-PROTOCOL-1: remove after 2027-06-30. Closes direct Wi-Fi a Friends protocol 1 peer dialled or answered
+    // (no bit 6).
     if (link.raceRoute == SZFriendsRouteMethodPeerToPeerWiFi && !link.channel.directWiFiAllowed && !boostLane) {
         SZFriendsHelperLog(@"%@ #%llu %@ on direct Wi-Fi closed: both devices must allow direct Wi-Fi (on no Wi-Fi "
                            @"network, or a phone on mobile data)",
@@ -350,6 +352,7 @@
 - (void)adoptLink:(SZFriendsPeerLink *)link {
     NSString *conversationID = link.conversationID;
     SZFriendsSecureChannel *channel = link.channel;
+    // FRIENDS-PROTOCOL-1: remove after 2027-06-30. A peer without bit 8 is logged as Friends protocol 1.
     NSString *what = [NSString
         stringWithFormat:@"carries the conversation%@, Friends protocol %d%@",
                          channel.fastTransfers ? @", fast transfers" : @"",

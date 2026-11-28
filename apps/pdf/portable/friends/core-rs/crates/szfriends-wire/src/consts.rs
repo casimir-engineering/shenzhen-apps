@@ -17,8 +17,8 @@ pub const CAPABILITY_FAST_TRANSFERS: u32 = 1 << 0;
 pub const CAPABILITY_AES_LANES: u32 = 1 << 1;
 /// Bit 7: an AES session (ADR 0018 § 9.2 (c)): this side has hardware AES; a fast session whose two sides set it runs
 /// AES-256-GCM from the second transport message in each direction (`szfriends_crypto::noise::Transport::
-/// aes_from_second_message`). A side that does not set it (a protocol-1 helper, or one without hardware AES) keeps
-/// ChaChaPoly throughout.
+/// aes_from_second_message`). A side that does not set it (a Friends protocol 1 helper, or one without hardware AES)
+/// keeps ChaChaPoly throughout.
 pub const CAPABILITY_AES_SESSION: u32 = 1 << 7;
 /// Bit 2: compressed parts, zstd (ADR 0018 § 9.4): this side reads PARTs with Codec 1.
 pub const CAPABILITY_COMPRESSED_PARTS: u32 = 1 << 2;
@@ -35,9 +35,9 @@ pub const CAPABILITY_DIRECT_WIFI_BOOST: u32 = 1 << 5;
 /// on no Wi-Fi network, or it is a phone that stays online over mobile data. A session or lane on the peer-to-peer
 /// Wi-Fi route stays open only when both handshakes set it (a boost's lane is judged by BOOST's Abilities instead).
 /// Unlike the bits above it says how the device is now, so each handshake reads it afresh; a peer that never sets it
-/// (a Friends protocol 1 helper, ADR 0023) never gets direct Wi-Fi.
+/// (a Friends protocol 1 helper, ADR 0024) never gets direct Wi-Fi.
 pub const CAPABILITY_DIRECT_WIFI_ALLOWED: u32 = 1 << 6;
-/// Bit 8: Friends protocol 2 (ADR 0023): this helper knows bits 6 and 7 and BOOST's Abilities bit 4, so a peer can
+/// Bit 8: Friends protocol 2 (ADR 0024): this helper knows bits 6 and 7 and BOOST's Abilities bit 4, so a peer can
 /// tell that a missing bit 6 or 7 means "not now" or "no hardware AES" rather than "a released app from before them".
 /// Set in every handshake with fast transfers. A peer without it speaks Friends protocol 1 (every release up to
 /// ShenzhenPDF and Shenzhen Files 26.11.19-1 and Shenzhen 3D 0.2.10). An Android phone that sets it asks for the ATT
@@ -140,7 +140,7 @@ pub mod boost_ability {
     pub const JOIN_KEEPS_WIFI: u8 = 1 << 3;
     /// Direct Wi-Fi allowed on this device now, under the owner's rule (ADR 0022): on no Wi-Fi network, or a phone
     /// that stays online over mobile data. A boost goes ahead only when both sides set it; a side that does not (a
-    /// protocol-1 helper, ADR 0023, or a device the rule does not allow now) is declined as unsupported.
+    /// Friends protocol 1 helper, ADR 0024, or a device the rule does not allow now) is declined as unsupported.
     pub const DIRECT_WIFI_ALLOWED: u8 = 1 << 4;
 }
 /// BOOST's Reason values for END and DECLINE (logs, and whether to ask again).

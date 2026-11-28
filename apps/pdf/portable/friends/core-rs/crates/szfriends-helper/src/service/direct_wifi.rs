@@ -48,6 +48,8 @@ impl State {
         if session.meta.race_route(&session.channel) != RouteMethod::PeerToPeerWifi || self.boost.linking() {
             return false;
         }
+        // FRIENDS-PROTOCOL-1: remove after 2027-06-30. Closes direct Wi-Fi a Friends protocol 1 peer dialled or
+        // answered (no bit 6).
         let refused = !session.channel.direct_wifi_allowed();
         if refused {
             log!("direct Wi-Fi: session {id} closed: both devices must allow direct Wi-Fi (on no Wi-Fi network, or a phone on mobile data)");

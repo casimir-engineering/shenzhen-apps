@@ -311,6 +311,8 @@ impl State {
                     self.phase = Phase::First { waiting: Some(since) };
                     return Some(NAP);
                 }
+                // FRIENDS-PROTOCOL-1: remove after 2027-06-30. A Friends protocol 1 Rust helper sends no piece HAVEs
+                // for copies and pulls: the link goes unpaced.
                 self.phase = Phase::Unpaced;
             }
         }

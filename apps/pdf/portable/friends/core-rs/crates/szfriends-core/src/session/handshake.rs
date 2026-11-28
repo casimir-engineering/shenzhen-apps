@@ -402,6 +402,8 @@ impl SecureChannel {
         match payload.minor_range.and_then(|range| negotiate_minor(local, range)) {
             Some(minor) => {
                 self.negotiated_minor = minor;
+                // FRIENDS-PROTOCOL-1: remove after 2027-06-30. A peer without bit 8 (Friends protocol 1) still gets a
+                // session.
                 self.remote_capabilities = payload.capabilities;
                 true
             }

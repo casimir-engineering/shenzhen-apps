@@ -208,8 +208,8 @@ pub type PublicProfile = Fields;
 /// Time since an arbitrary origin that keeps counting while the device sleeps: `CLOCK_BOOTTIME` on Linux and
 /// Android, `CLOCK_MONOTONIC` on Apple systems (which counts sleep there), the performance counter on Windows.
 /// The capability bits this build sets in its handshakes (ADR 0018 § 1): none without fast transfers; with them, bit 0,
-/// bit 8 (Friends protocol 2, ADR 0023), bits 1 and 7 where this processor has hardware AES (§ 9.2), bit 3, pieces (§ 3), and the compressed parts it reads
-/// (§ 9.4): bit 2 (zstd) and bit 4 (LZ4), or bit 4 alone on Android. A test home plays a peer without AES lanes, AES
+/// bit 8 (Friends protocol 2, ADR 0024), bits 1 and 7 where this processor has hardware AES (§ 9.2), bit 3, pieces
+/// (§ 3), and the compressed parts it reads (§ 9.4): bit 2 (zstd) and bit 4 (LZ4), or bit 4 alone on Android. A test home plays a peer without AES lanes, AES
 /// sessions or compression with `SZFRIENDS_TEST_AES_LANES=0`, `SZFRIENDS_TEST_AES_SESSION=0` or
 /// `SZFRIENDS_TEST_COMPRESSED_PARTS=0`: the helper and the interop peer read them and clear those bits in
 /// [`ChannelConfig::capabilities`].

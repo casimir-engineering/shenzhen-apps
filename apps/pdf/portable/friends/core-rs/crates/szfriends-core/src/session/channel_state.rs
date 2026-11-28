@@ -87,6 +87,8 @@ impl SecureChannel {
     /// sides have hardware AES and set bit 7 on a fast session; a session that is AES-GCM from its handshake, a lane,
     /// has nothing to switch).
     pub fn aes_session(&self) -> bool {
+        // FRIENDS-PROTOCOL-1: remove after 2027-06-30. A Friends protocol 1 peer never sets bit 7: ChaChaPoly
+        // throughout (a protocol 2 device without hardware AES keeps this case).
         self.cipher == NoiseCipher::ChaChaPoly && self.fast_with(szfriends_wire::consts::CAPABILITY_AES_SESSION)
     }
 
@@ -128,6 +130,8 @@ impl SecureChannel {
     /// The owner's rule (ADR 0022): both handshakes said direct Wi-Fi is allowed on their device (capability bit 6),
     /// so this session or lane may run on the peer-to-peer Wi-Fi route. Any minor: it is about the route, not frames.
     pub fn direct_wifi_allowed(&self) -> bool {
+        // FRIENDS-PROTOCOL-1: remove after 2027-06-30. A Friends protocol 1 peer never sets bit 6, so it never gets
+        // direct Wi-Fi.
         let bit = szfriends_wire::consts::CAPABILITY_DIRECT_WIFI_ALLOWED;
         self.config.capabilities & bit != 0 && self.remote_capabilities & bit != 0
     }

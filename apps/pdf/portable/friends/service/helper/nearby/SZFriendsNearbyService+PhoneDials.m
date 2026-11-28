@@ -46,6 +46,8 @@ static NSString *SZFriendsPhoneDialsKeyHex(NSData *key) {
 }
 
 // A phone (Android) whose last session here said it asks for full-size packets.
+// FRIENDS-PROTOCOL-1: remove after 2027-06-30. A Friends protocol 1 phone dials with 27-byte packets, so the Mac dials
+// it at once; once every phone sets bit 8, defer to every phone and drop the store record.
 - (BOOL)phoneDialsAtFullSize:(SZFriendsDeviceRecord *)device {
     return SZFriendsIsPhoneSystem(device.system) && [self.services.store staticKeySetsProtocol2:device.staticKey];
 }

@@ -16,8 +16,8 @@
 //! Being able to stay on the Wi-Fi network beside the direct link (station and peer-to-peer at once) does not count:
 //! that is exactly the shared radio the rule avoids. Each device judges its own side ([`WifiStanding`]) and tells
 //! the other: handshake capability bit 6 for sessions and lanes, BOOST's Abilities bit 4 for a boost. Both must say
-//! yes ([`direct_wifi_allowed`]); a peer that says nothing (a helper from before this rule) never gets direct Wi-Fi.
-//! A device never leaves its network silently. Pure: the platforms hand their answers in.
+//! yes ([`direct_wifi_allowed`]); a peer that says nothing (a Friends protocol 1 helper, ADR 0024) never gets direct
+//! Wi-Fi. A device never leaves its network silently. Pure: the platforms hand their answers in.
 
 /// Whether this platform has a peer-to-peer Wi-Fi route the racer can dial (AWDL, through Network.framework's
 /// `includePeerToPeer`). Whether it may be used now is [`WifiStanding`]'s.

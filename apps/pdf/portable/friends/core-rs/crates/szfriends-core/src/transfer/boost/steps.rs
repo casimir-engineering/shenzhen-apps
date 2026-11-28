@@ -8,6 +8,8 @@ impl Boost {
     /// question or READY.
     pub(super) fn peer_said(&mut self, peer: Abilities, now: Duration) {
         // The owner's rule (ADR 0022): both devices allow direct Wi-Fi now, or there is no boost.
+        // FRIENDS-PROTOCOL-1: remove after 2027-06-30. A Friends protocol 1 peer's Abilities never set bit 4: declined
+        // as unsupported.
         let allowed = crate::nearby::direct_wifi_allowed(self.local.direct_wifi_allowed, peer.direct_wifi_allowed);
         let paired = role(self.local, peer, self.local_sorts_first).filter(|_| self.local.any() && allowed);
         let Some(role) = paired else {

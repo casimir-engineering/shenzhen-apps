@@ -257,6 +257,8 @@ static BOOL SZFWriteChain(SZFriendsStoreDB *db, SZFriendsDeviceChain *chain, BOO
     return devices;
 }
 
+// FRIENDS-PROTOCOL-1: remove after 2027-06-30. Kept only to tell a Friends protocol 1 phone (no bit 8) from one on
+// Friends protocol 2 (+PhoneDials); the settings key keeps its name.
 static NSString *SZFDialsSetting(NSData *staticKey) {
     NSMutableString *key = [NSMutableString stringWithString:@"bluetooth_phone_dials."];
     const uint8_t *bytes = staticKey.bytes;

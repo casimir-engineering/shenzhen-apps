@@ -401,6 +401,7 @@
         return NO;
     }
     self.negotiatedMinor = negotiated;
+    // FRIENDS-PROTOCOL-1: remove after 2027-06-30. A peer without bit 8 (Friends protocol 1) still gets a session.
     self.remoteCapabilities = payload.capabilities;
     return YES;
 }

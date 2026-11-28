@@ -323,6 +323,8 @@ static NSData *SZFriendsBoostByte(uint8_t value) {
 
 - (void)peerSaid:(SZFriendsBoostAbilities)peer now:(NSTimeInterval)now {
     // The owner's rule (ADR 0022): both devices allow direct Wi-Fi now, or there is no boost.
+    // FRIENDS-PROTOCOL-1: remove after 2027-06-30. A Friends protocol 1 peer's Abilities never set bit 4: declined as
+    // unsupported.
     BOOL allowed = (_local & SZFriendsBoostDirectWiFiAllowed) && (peer & SZFriendsBoostDirectWiFiAllowed);
     SZFriendsBoostRole role = (allowed && (_local & (SZFriendsBoostCanHost | SZFriendsBoostCanJoin)))
                                   ? SZFriendsBoostRoleFor(_local, peer, _sortsFirst)
