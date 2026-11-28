@@ -4,7 +4,7 @@ A free viewer for CAD models, meshes and drawings: open an assembly, find a part
 
 <a href="https://github.com/casimir-engineering/shenzhen-3D/releases"><img src="https://img.shields.io/badge/Download%20for%20macOS-Apple%20Silicon-2ea44f?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS (Apple Silicon), newest release first" height="46"></a>
 
-[0.2.10 release notes](docs/MAC-0.2.10.md) · [Platform delivery and validation](docs/DELIVERY.md)
+[0.2.11 release notes](docs/MAC-0.2.11.md) · [Platform delivery and validation](docs/DELIVERY.md)
 
 ![Shenzhen 3D measuring between the arm and the base of a desk lamp model](docs/images/readme-measure-dark.png)
 
@@ -39,7 +39,7 @@ A free viewer for CAD models, meshes and drawings: open an assembly, find a part
 
 ## Friends (Beta)
 
-Message people nearby or by their Friends ID, and send them models and projects, in every version except the browser one. It is the same Friends as in ShenzhenPDF and Shenzhen Files. Type **#** to attach the open model, marked **Current**, or paste copied files and pictures. Each friend's row shows the latest message in your conversation, and files go over every connection you share at once, such as your network and Bluetooth. Each file shows how it travels: an icon for each way it's using, and a bar showing how much each one carried, with the size, percentage, speed and time left. Friends always tries a direct connection first, and stops using the relay as soon as one works. On Android, a large file can go over direct Wi-Fi when only Bluetooth reaches a friend. [Shenzhen Friends](docs/FRIENDS.md)
+Message people nearby or by their Friends ID, and send them models and projects, in every version except the browser one. It is the same Friends as in ShenzhenPDF and Shenzhen Files. Type **#** to attach the open model, marked **Current**, or paste copied files and pictures. Each friend's row shows the latest message in your conversation, and files go over every connection you share at once, such as your network and Bluetooth LE. Each file shows how it travels: an icon for each way it's using, and a bar showing how much each one carried, with the size, percentage, speed and time left. Friends always tries a direct connection first, also behind a VPN, and stops using the relay as soon as one works. Files on one of your computers or phones show on your others at once: choose **Download here** on the ones you want there. Direct Wi-Fi is used only when neither of you is on a Wi-Fi network, so your Wi-Fi keeps its full speed; when only Bluetooth reaches a friend, a phone with mobile data can leave its Wi-Fi for a minute to send a large file over direct Wi-Fi, and asks you first. [Shenzhen Friends](docs/FRIENDS.md)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme-friends-transfer-dark.png">
