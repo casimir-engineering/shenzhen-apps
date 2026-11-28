@@ -443,32 +443,6 @@ impl Scheduler {
         Ok(())
     }
 
-    /// A write on `lane` completed (bytes left this side): the lane is moving.
-    pub fn written(&mut self, lane: LaneId, now: Duration) {
-        let Some(entry) = self.lanes.get_mut(&lane) else { return };
-        if entry.in_flight > 0 {
-            entry.progress_at = now;
-            if entry.silent {
-                self.recover(lane);
-                self.fill(now);
-            }
-        }
-    }
-
-    /// The last part of `block` was written on `lane`: its round trip starts.
-    pub fn sent(&mut self, lane: LaneId, key: TransferKey, block: u32, now: Duration) {
-        self.sent_at(lane, key, block, now, now);
-    }
-
-    /// The same with the time the block left (a pull: when it was asked for), so the round trip includes the asking.
-    pub fn sent_at(&mut self, lane: LaneId, key: TransferKey, block: u32, sent_at: Duration, now: Duration) {
-        let Some(transfer) = self.transfers.iter_mut().find(|t| t.key == key) else { return };
-        if let Some(p) = transfer.open.get_mut(&block).and_then(|ps| ps.iter_mut().find(|p| p.lane == lane)) {
-            p.sent_at.get_or_insert(sent_at);
-        }
-        self.written(lane, now);
-    }
-
     /// A byte from the peer on `lane` (any frame, PING included).
     pub fn heard(&mut self, lane: LaneId, now: Duration) {
         if let Some(entry) = self.lanes.get_mut(&lane) {

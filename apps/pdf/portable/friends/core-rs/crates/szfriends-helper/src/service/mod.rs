@@ -55,6 +55,7 @@ pub mod seed;
 mod serving;
 mod sessions;
 mod tcp_health;
+mod test_routes;
 mod transfers;
 mod views;
 
@@ -314,42 +315,8 @@ pub const ENV_TEST_LANES: &str = "SZFRIENDS_TEST_LANES";
 pub const ENV_TEST_AES_LANES: &str = "SZFRIENDS_TEST_AES_LANES";
 pub const ENV_TEST_AES_SESSION: &str = "SZFRIENDS_TEST_AES_SESSION";
 pub const ENV_TEST_COMPRESSED_PARTS: &str = "SZFRIENDS_TEST_COMPRESSED_PARTS";
-/// A test home's emulated route rates, `lan=1250000,bluetooth=175000` (bytes per second each side writes at), so
-/// lanes over several routes can be measured on one computer (WP5's bench emulates one route at a time).
-pub const ENV_TEST_ROUTE_RATES: &str = "SZFRIENDS_TEST_ROUTE_RATES";
-/// A test home's file: while it names a route (`lan`, `bluetooth`, …), links on it write nothing (out of range).
-pub const ENV_TEST_ROUTE_SILENCE: &str = "SZFRIENDS_TEST_ROUTE_SILENCE";
-
-/// The names `SZFRIENDS_TEST_ROUTE_RATES` and `SZFRIENDS_TEST_ROUTE_SILENCE` use.
-pub(crate) fn route_name(route: szfriends_core::wire::RouteMethod) -> &'static str {
-    use szfriends_core::wire::RouteMethod;
-    match route {
-        RouteMethod::Lan => "lan",
-        RouteMethod::PeerToPeerWifi => "p2p_wifi",
-        RouteMethod::Bluetooth => "bluetooth",
-        RouteMethod::Internet => "internet",
-        RouteMethod::Relay => "relay",
-        RouteMethod::None => "none",
-    }
-}
-
-fn route_rates(text: &str) -> HashMap<szfriends_core::wire::RouteMethod, f64> {
-    use szfriends_core::wire::RouteMethod;
-    text.split(',')
-        .filter_map(|pair| {
-            let (name, rate) = pair.split_once('=')?;
-            let route = match name.trim() {
-                "lan" => RouteMethod::Lan,
-                "p2p_wifi" => RouteMethod::PeerToPeerWifi,
-                "bluetooth" => RouteMethod::Bluetooth,
-                "internet" => RouteMethod::Internet,
-                "relay" => RouteMethod::Relay,
-                _ => return None,
-            };
-            Some((route, rate.trim().parse::<f64>().ok().filter(|r| *r > 0.0)?))
-        })
-        .collect()
-}
+pub use test_routes::{ENV_TEST_ROUTE_RATES, ENV_TEST_ROUTE_SILENCE};
+pub(crate) use test_routes::{route_name, route_rates};
 
 pub(crate) struct State {
     pub identity: Identity,

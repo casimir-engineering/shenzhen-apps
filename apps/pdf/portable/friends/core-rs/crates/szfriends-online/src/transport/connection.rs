@@ -274,29 +274,6 @@ impl Connection {
         self.offer_local(candidate, technique)
     }
 
-    /// A line for the helper's log (super::set_log): which connection, how long since it started, what.
-    fn log(&self, what: &str) {
-        let kind = if self.kind == Kind::Relay { "relay" } else { "direct" };
-        super::log_line(&format!("online {kind} +{:.2} s: {what}", self.started.elapsed().as_secs_f64()));
-    }
-
-    fn log_selected_pair(&self, what: &str) {
-        let pair = self.pc.as_ref().and_then(PeerConnection::selected_pair);
-        let Some((local, remote)) = pair.and_then(|(l, r)| Candidate::parse(&l).zip(Candidate::parse(&r))) else {
-            self.log(&format!("{what} (no selected pair to read)"));
-            return;
-        };
-        // The signalled candidate where one matches: the stack reports a pair learnt from checks as peer-reflexive.
-        let local = self.local.get(&local.endpoint()).map_or(local, |(c, _)| c.clone());
-        let remote = self.remote.get(&remote.endpoint()).map_or(remote, |(c, _)| c.clone());
-        self.log(&format!(
-            "{what} on our {} with their {} (technique {})",
-            local.summary(),
-            remote.summary(),
-            self.selected_route().technique as u8
-        ));
-    }
-
     fn offer_local(&mut self, candidate: Candidate, technique: Technique) -> Vec<ConnEvent> {
         self.log(&format!("offering our {}", candidate.summary()));
         let line = candidate.line();
@@ -508,3 +485,6 @@ impl Drop for Connection {
         self.close();
     }
 }
+
+#[path = "connection_log.rs"]
+mod log;
