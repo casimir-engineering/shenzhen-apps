@@ -50,8 +50,10 @@ struct Holder {
     delivered: u32,
 }
 
-/// How long a pull waits on silent holders before it starts again (unstick_pull).
+/// How long a pull waits on silent holders before it asks them again (unstick_pull), doubled for each round nobody
+/// answers: 10, 20 then 40 s.
 const STALL_AFTER: std::time::Duration = std::time::Duration::from_secs(10);
+const STALL_ROUNDS: u32 = 3;
 
 #[derive(Debug)]
 pub struct PullCopy {
@@ -71,6 +73,9 @@ pub struct PullCopy {
     pub(crate) logged: (std::time::Instant, u64),
     /// When a holder last sent anything for this pull (its tree, HASHES, a PART), for the stall watchdog.
     pub(crate) heard_at: std::time::Instant,
+    /// The watchdog's rounds since a holder last sent anything, and when it last asked them again.
+    stalls: u32,
+    asked_again_at: Option<std::time::Instant>,
 }
 
 /// The pull running now (one file at a time, as the requesters copy).
@@ -228,26 +233,6 @@ impl State {
         self.stop_pull();
     }
 
-    /// A pull none of its holders has sent anything for in STALL_AFTER (a serve that ended on the other side, a tree
-    /// that never came) steps aside and starts again at once: the holders are asked anew and send their trees again.
-    /// Without this a pull whose tree never came waits forever (no planner, so no timers), and every copy behind it.
-    fn unstick_pull(&mut self) {
-        let Some(current) = self.pulls.current.as_ref() else { return };
-        if current.heard_at.elapsed() < STALL_AFTER {
-            return;
-        }
-        crate::log!(
-            "pull {}: nothing from its holders for {} s, {:.1} MB here; asked again",
-            &current.transfer_id[..current.transfer_id.len().min(8)],
-            STALL_AFTER.as_secs(),
-            current.copy.received_bytes() as f64 / 1e6
-        );
-        if let Some(current) = self.pulls.current.take() {
-            current.copy.pause();
-        }
-        self.changed();
-    }
-
     /// The running pull stops: what arrived stays in its map, and its holders hear to stop (a HAVE of every block,
     /// so their serves end and their You rows stop saying the file is being copied).
     fn stop_pull(&mut self) {
@@ -311,7 +296,15 @@ impl State {
             asked_blocks: 0,
             logged: (std::time::Instant::now(), 0),
             heard_at: std::time::Instant::now(),
+            stalls: 0,
+            asked_again_at: None,
         });
+        // A copy resumed whole (its map holds every block): nobody needs asking, and nobody would answer with the
+        // PART that completes it, so without this it waited on its holders for ever.
+        if self.pulls.current.as_ref().is_some_and(|c| c.copy.is_complete()) {
+            let wire = self.pulls.current.as_ref().and_then(|c| super::unhex(&c.transfer_id)).unwrap_or_default();
+            self.pull_complete(0, &wire);
+        }
     }
 
     /// Every live session that can serve the file and is not asked yet gets its first WANT BLOCKS: one block, so it

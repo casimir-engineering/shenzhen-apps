@@ -424,8 +424,9 @@ fn run(mut state: State, inbox: Receiver<Input>) {
         }
         state.service_sessions();
         state.notify_pass(state.dirty);
-        // Only while a copy moves; otherwise every change shows at once, as before: throttled always, a Get asked
-        // right after another copy ended never started its pull (szfriends-interop tests/pulls.rs).
+        // Only while a copy moves; otherwise every change shows at once. (The 40 s stall once blamed on the throttle
+        // in szfriends-interop's pulls test was the friend's Get again slot, held for a minute after a serve by
+        // blocks: AgainServer::finished_serving. The throttle only moved the timing that let the friend serve.)
         let moving = state.sessions.moving();
         if state.dirty && (!moving || state.views_at.is_none_or(|at| at.elapsed() >= VIEWS_EVERY)) {
             state.dirty = false;

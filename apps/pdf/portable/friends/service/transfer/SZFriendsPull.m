@@ -20,9 +20,10 @@ static const SZFriendsTransferKey SZFriendsPullKey = 0;
 @implementation SZFriendsPull {
     SZFriendsScheduler *_scheduler;
     NSMutableDictionary<NSNumber *, NSMutableIndexSet *> *_asked; // per source: asked, not delivered nor told about
-    // When each block was asked of its source: its arrival then measures the round trip, asking included. Credited
-    // at arrival alone, every round trip read 0 and the lane stayed at its floor of 8 blocks in flight.
-    NSMutableDictionary<NSNumber *, NSNumber *> *_askedAt;
+    // When each block was asked of each source (source -> block -> time): its arrival then measures that source's round
+    // trip, asking included. Credited at arrival alone, every round trip read 0 and the lane stayed at its floor of 8
+    // blocks in flight; by block alone, a block asked again of a second source credited the first with its time.
+    NSMutableDictionary<NSNumber *, NSMutableDictionary<NSNumber *, NSNumber *> *> *_askedAt;
     double _now;
     uint8_t _nextIndex;
 }
@@ -51,6 +52,7 @@ static const SZFriendsTransferKey SZFriendsPullKey = 0;
 - (void)sourceDown:(SZFriendsSourceID)source now:(double)now {
     if (_asked[@(source)] == nil) return;
     [_asked removeObjectForKey:@(source)];
+    [_askedAt removeObjectForKey:@(source)];
     [_scheduler laneEvent:[SZFriendsLaneEvent down:source] now:now];
 }
 
@@ -64,14 +66,15 @@ static const SZFriendsTransferKey SZFriendsPullKey = 0;
     _now = now;
     [_asked[@(source)] removeIndex:block];
     // Credited to that source as a copy sent whole: its rate and round trip are measured this way.
-    NSNumber *askedAt = _askedAt[@(block)];
-    [_askedAt removeObjectForKey:@(block)];
+    NSNumber *askedAt = _askedAt[@(source)][@(block)];
+    for (NSMutableDictionary *times in _askedAt.allValues) [times removeObjectForKey:@(block)];
     [_scheduler sent:source transfer:SZFriendsPullKey block:block at:askedAt ? askedAt.doubleValue : now now:now];
     [_scheduler have:SZFriendsPullKey ranges:SZFriendsRange(block, 1) now:now];
 }
 
 - (void)failed:(uint32_t)block now:(double)now {
     for (NSMutableIndexSet *asked in _asked.allValues) [asked removeIndex:block];
+    for (NSMutableDictionary *times in _askedAt.allValues) [times removeObjectForKey:@(block)];
     [_scheduler want:SZFriendsPullKey ranges:SZFriendsRange(block, 1) now:now];
 }
 
@@ -116,7 +119,8 @@ static const SZFriendsTransferKey SZFriendsPullKey = 0;
         case SZFriendsScheduleSend:
             if (asked == nil) break;
             [asked addIndex:action.block];
-            _askedAt[@(action.block)] = @(_now);
+            if (_askedAt[@(action.lane)] == nil) _askedAt[@(action.lane)] = [NSMutableDictionary dictionary];
+            _askedAt[@(action.lane)][@(action.block)] = @(_now);
             [entry(wants, action.lane) addIndex:action.block];
             [haves[@(action.lane)] removeIndex:action.block];
             break;
@@ -125,6 +129,7 @@ static const SZFriendsTransferKey SZFriendsPullKey = 0;
                 [asked removeIndex:action.block];
                 [entry(haves, action.lane) addIndex:action.block];
             }
+            [_askedAt[@(action.lane)] removeObjectForKey:@(action.block)];
             [wants[@(action.lane)] removeIndex:action.block];
             break;
         // Sources are the sessions that hold the file; the scheduler's lane requests do not apply.

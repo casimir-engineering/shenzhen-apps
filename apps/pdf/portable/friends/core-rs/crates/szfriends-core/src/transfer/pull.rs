@@ -40,9 +40,10 @@ pub struct Pull {
     geometry: Geometry,
     /// What each source was asked for and has not delivered or been told about.
     asked: BTreeMap<SourceId, BTreeSet<u32>>,
-    /// When each block was asked of its source: its arrival then measures the round trip, asking included. Credited at
-    /// arrival alone, every round trip read 0 and the lane stayed at its floor of 8 blocks in flight.
-    asked_at: BTreeMap<u32, Duration>,
+    /// When each block was asked of each source: its arrival then measures that source's round trip, asking included.
+    /// Credited at arrival alone, every round trip read 0 and the lane stayed at its floor of 8 blocks in flight; by
+    /// block alone, a block asked again of a second source (the endgame) credited the first with the second's time.
+    asked_at: BTreeMap<(u32, SourceId), Duration>,
     now: Duration,
     next_index: u8,
 }
@@ -87,6 +88,7 @@ impl Pull {
         if self.asked.remove(&source).is_some() {
             self.scheduler.lane_event(LaneEvent::Down { lane: source }, now);
         }
+        self.asked_at.retain(|(_, asked_of), _| *asked_of != source);
     }
 
     /// Something arrived from a source (any part, any frame): it is alive.
@@ -105,9 +107,19 @@ impl Pull {
             asked.remove(&block);
         }
         // Credited to that source as a copy sent whole: its rate and round trip are measured this way.
-        let asked_at = self.asked_at.remove(&block).unwrap_or(now);
+        let asked_at = self.asked_at.remove(&(block, source)).unwrap_or(now);
+        self.forget_asked(block);
         self.scheduler.sent_at(source, KEY, block, asked_at, now);
         let _ = self.scheduler.have(KEY, &[(block, 1)], now);
+    }
+
+    /// When `block` was asked of each source: forgotten once it arrived or failed.
+    fn forget_asked(&mut self, block: u32) {
+        let asked: Vec<(u32, SourceId)> =
+            self.asked_at.range((block, 0)..=(block, SourceId::MAX)).map(|(k, _)| *k).collect();
+        for key in asked {
+            self.asked_at.remove(&key);
+        }
     }
 
     /// A block failed its leaf: asked for again, alone.
@@ -115,6 +127,7 @@ impl Pull {
         for asked in self.asked.values_mut() {
             asked.remove(&block);
         }
+        self.forget_asked(block);
         let _ = self.scheduler.want(KEY, &[(block, 1)], now);
     }
 
@@ -141,7 +154,7 @@ impl Pull {
                 Action::Send { lane, block, .. } => {
                     if let Some(asked) = self.asked.get_mut(&lane) {
                         asked.insert(block);
-                        self.asked_at.insert(block, self.now);
+                        self.asked_at.insert((block, lane), self.now);
                         wants.entry(lane).or_default().insert(block);
                         haves.entry(lane).or_default().remove(&block);
                     }
@@ -150,6 +163,7 @@ impl Pull {
                     if self.asked.get_mut(&lane).is_some_and(|asked| asked.remove(&block)) {
                         haves.entry(lane).or_default().insert(block);
                     }
+                    self.asked_at.remove(&(block, lane));
                     if let Some(wanted) = wants.get_mut(&lane) {
                         wanted.remove(&block);
                     }

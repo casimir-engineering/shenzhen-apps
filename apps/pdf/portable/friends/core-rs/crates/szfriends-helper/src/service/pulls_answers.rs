@@ -109,6 +109,11 @@ impl State {
                             missing.iter().map(|r| u64::from(r.1)).sum::<u64>()
                         );
                         current.pull = Some(pull);
+                        if current.copy.is_complete() {
+                            // Every block was here already (a resumed copy): nothing will arrive to complete it.
+                            let wire = frame.get(tag::ID).unwrap_or_default().to_vec();
+                            return self.pull_complete(id, &wire);
+                        }
                     }
                     Some(_) => {}
                 }
@@ -246,6 +251,52 @@ impl State {
             current.copy.pause();
         }
         self.changed();
+    }
+
+    /// A pull none of whose holders sent anything for a while (a serve that ended on the other side, a tree that never
+    /// came): the copy stays as it is and each holder still in it is asked again for one missing block, which brings
+    /// its tree back and restarts a serve that ended, after 10, 20 and 40 s of silence. Reopening the copy instead
+    /// re-read its blocks from disk and left the holders' serves running unannounced. Silent through all three, the
+    /// pull steps aside as Cancel stops it (its holders hear a HAVE of every block) and is tried again later, so a
+    /// copy behind it is not held up for ever.
+    pub(super) fn unstick_pull(&mut self) {
+        let Some(current) = self.pulls.current.as_mut() else { return };
+        if current.asked_again_at.is_some_and(|at| current.heard_at > at) {
+            current.stalls = 0; // heard since the last round
+        }
+        let since = current.asked_again_at.map_or(current.heard_at, |at| at.max(current.heard_at));
+        let wait = STALL_AFTER * 2u32.pow(current.stalls.min(STALL_ROUNDS - 1));
+        if since.elapsed() < wait {
+            return;
+        }
+        let transfer = current.transfer_id.clone();
+        let here = current.copy.received_bytes() as f64 / 1e6;
+        if current.stalls >= STALL_ROUNDS {
+            crate::log!(
+                "pull {}: nothing from its holders after {STALL_ROUNDS} asks, {here:.1} MB here; steps aside",
+                &transfer[..transfer.len().min(8)]
+            );
+            self.pulls.not_before.insert(transfer, std::time::Instant::now() + NOT_NOW);
+            self.stop_pull();
+            return;
+        }
+        current.stalls += 1;
+        current.asked_again_at = Some(std::time::Instant::now());
+        let (shift, missing) = (current.copy.shift(), current.copy.missing());
+        let mut asks = Vec::new();
+        for (id, holder) in current.holders.iter().filter(|(_, h)| !h.out) {
+            asks.push((*id, holder.via, nth_block(&missing, current.probes).unwrap_or(0)));
+            current.probes += 1;
+        }
+        crate::log!(
+            "pull {}: nothing from its holders for {} s, {here:.1} MB here; {} asked again",
+            &transfer[..transfer.len().min(8)],
+            wait.as_secs(),
+            asks.len()
+        );
+        for (id, via, block) in asks {
+            self.ask_holder(id, via, &transfer, shift, vec![(block, 1)]);
+        }
     }
 
     /// The pull's timers (silent holders, the endgame).

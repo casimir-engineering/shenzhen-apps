@@ -130,6 +130,20 @@ impl AgainServer {
         })
     }
 
+    /// A file given again by blocks is done or given up (every block acknowledged, the file gone, the session ended):
+    /// the friend's one-file-at-a-time slot is free again at once, as the Mac's `-finishedServing:` frees it. Left
+    /// taken, every other file was "not now" for ONE_FILE_SECONDS after the last WANT BLOCKS, so a pull that had the
+    /// friend serve one small file found the friend out of every pull for a minute after.
+    pub fn finished_serving(&mut self, id: &str) {
+        for friend in self.friends.values_mut() {
+            if let Some((current, _, finished)) = friend.current.as_mut() {
+                if current == id {
+                    *finished = true;
+                }
+            }
+        }
+    }
+
     /// The checks every answer makes: a file this computer sent this friend, its bytes here and unchanged, within the
     /// limits. Its row and path, or the NONE to answer.
     fn check(

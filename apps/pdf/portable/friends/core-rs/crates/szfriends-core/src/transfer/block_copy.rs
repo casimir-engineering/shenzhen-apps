@@ -363,6 +363,11 @@ mod tests {
             let _ = copy.part(o, &data[o as usize..o as usize + l]);
         }
         assert!(copy.is_complete());
+        // Stopped whole before it was kept (a restart at that moment): reopened, it is complete at once, which is what
+        // a pull checks so it finishes instead of asking holders whose PARTs could only come too late.
+        copy.pause();
+        let copy = BlockCopy::open(data.len() as u64, digest, partial.clone(), map.clone()).unwrap();
+        assert!(copy.is_complete() && copy.missing().is_empty(), "{:?}", copy.missing());
         let path = copy.finish().unwrap();
         assert_eq!(std::fs::read(&path).unwrap(), data);
         assert!(!map.exists());

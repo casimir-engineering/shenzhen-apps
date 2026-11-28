@@ -18,15 +18,11 @@
 #import "service/transfer/SZFriendsBlockCopy.h"
 #import "service/transfer/SZFriendsPull.h"
 
-// A file no holder could give is tried again after this long.
-static const NSTimeInterval SZFriendsPullNotNow = 5;
+const NSTimeInterval SZFriendsPullNotNow = 5;
 // The pull's timers (silent holders, the endgame), and how often a copy running by itself looks for a Get again.
 static const NSTimeInterval SZFriendsPullTick = 0.25;
 
-// A pull none of its holders sent anything for this long starts again (as pulls.rs's STALL_AFTER).
-static const double SZFriendsPullStallAfter = 10;
-
-static double SZFriendsPullNow(void) {
+double SZFriendsPullNow(void) {
     return (double)clock_gettime_nsec_np(CLOCK_MONOTONIC) / 1e9;
 }
 
@@ -37,8 +33,7 @@ static double SZFriendsPullNow(void) {
 
 static uint64_t SZFriendsNextPullSource = 0;
 
-// The `n`th block of `ranges` (wrapping), so each holder's first ask is a different block.
-static uint32_t SZFriendsNthBlock(NSData *ranges, uint32_t n) {
+uint32_t SZFriendsNthBlock(NSData *ranges, uint32_t n) {
     const uint32_t *pairs = ranges.bytes;
     uint64_t total = 0;
     for (NSUInteger i = 0; i < ranges.length / 8; i++) total += pairs[2 * i + 1];
@@ -159,19 +154,6 @@ static uint32_t SZFriendsNthBlock(NSData *ranges, uint32_t n) {
                                              containsObject:current.transferID];
     if (wanted) return;
     [self stopHoldersOf:current];
-    [current.blockCopy pause];
-    self.pullCurrent = nil;
-    [self changed];
-}
-
-// A pull whose holders went silent (a serve that ended there, a tree that never came) steps aside and starts again:
-// its holders are asked anew. Without it a pull with no tree yet has no planner and no timers, and waits for ever.
-- (void)unstickPull {
-    SZFriendsPullCopy *current = self.currentPull;
-    if (current == nil || SZFriendsPullNow() - MAX(current.heardAt, current.startedAt) < SZFriendsPullStallAfter) return;
-    SZFriendsHelperLog(@"pull %@: nothing from its holders for %.0f s, %.1f MB here; asked again",
-                       [current.transferID substringToIndex:MIN((NSUInteger)8, current.transferID.length)],
-                       SZFriendsPullStallAfter, current.blockCopy.receivedBytes / 1e6);
     [current.blockCopy pause];
     self.pullCurrent = nil;
     [self changed];

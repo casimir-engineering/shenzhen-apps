@@ -157,7 +157,10 @@ impl State {
                 serving.heard();
                 let sync = serving.sync;
                 if serving.serve.all_acknowledged() {
-                    self.again.serving.remove(&(id, transfer));
+                    self.again.serving.remove(&(id, transfer.clone()));
+                    if !sync {
+                        self.again.server.finished_serving(&transfer); // the friend may ask for another file now
+                    }
                 }
                 if sync {
                     self.changed(); // the You row says how far the copy is
@@ -254,6 +257,9 @@ impl State {
                     // saying it is being copied).
                     self.again.serving.remove(&key);
                     self.changed();
+                    if !sync {
+                        self.again.server.finished_serving(&key.1);
+                    }
                     if sync {
                         let mut none = vec![6u8, key.1.len() as u8];
                         none.extend_from_slice(key.1.as_bytes());
@@ -296,7 +302,12 @@ impl State {
         self.join_session_closed(id);
         self.own_device_session_closed(id);
         self.again.requesters.remove(&id);
+        let ended: Vec<String> =
+            self.again.serving.iter().filter(|((s, _), v)| *s == id && !v.sync).map(|((_, t), _)| t.clone()).collect();
         self.again.serving.retain(|(session, _), _| *session != id);
+        for transfer in ended {
+            self.again.server.finished_serving(&transfer);
+        }
         self.pull_session_closed(id);
     }
 
