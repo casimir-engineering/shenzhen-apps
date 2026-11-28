@@ -280,12 +280,15 @@ spdf_paint_status spdf_paint_render_placed(spdf_paint_doc* doc, const spdf_paint
  * will send it, without its points; add points as they come (x, y, pressure triples: the operation's own values, as
  * it will round them); *changed (canvas units, empty when nothing) is what now looks different. Meanwhile every
  * drawing of the canvas shows the stroke: its pixels in the active layer over and under the other layers, the pen
- * lines the pixel Eraser cuts in their pieces, the lines the whole-line eraser takes faded. The release's operation,
+ * lines the pixel Eraser cuts in their pieces, the lines the whole-line eraser takes gone. The release's operation,
  * when it is that stroke, lays exactly what was shown; any other change, an undo, or a cancel puts everything back
  * (cancel: *changed is what to draw again). */
 spdf_paint_status spdf_paint_live_begin(spdf_paint_doc* doc, const char* op_json, char* err, size_t err_len);
 spdf_paint_status spdf_paint_live_add(spdf_paint_doc* doc, const float* xyp, int count, spdf_rect* changed);
 void spdf_paint_live_cancel(spdf_paint_doc* doc, spdf_rect* changed);
+/* A PDF page: the part of the page the release will draw again (canvas units, as spdf_paint_render_placed takes a
+ * region) in the reader's picture at `scale`, so what is drawn meanwhile samples the layer from where the reader will. */
+void spdf_paint_live_set_reader_crop(spdf_paint_doc* doc, spdf_rect region, float scale);
 int spdf_paint_live_active(const spdf_paint_doc* doc);
 /* What the release will report changed (spdf_paint_take_written_damage): the part of a PDF page the reader draws again
  * from the written page, while the rest of its picture stays. 0 when nothing. */

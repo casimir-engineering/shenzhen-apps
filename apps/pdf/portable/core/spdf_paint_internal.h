@@ -440,6 +440,9 @@ fz_pixmap* spdf_paint_scale_pixmap(fz_context* ctx, const fz_pixmap* src, int w,
 /* Rotates by any angle about its centre into a pixmap big enough for the result; transparent corners. */
 fz_pixmap* spdf_paint_rotate_pixmap(fz_context* ctx, const fz_pixmap* src, float degrees);
 
+/* What a layer shows (canvas units): an object's bounds, the whole canvas for a drawing (spdf_paint_doc_util.c). */
+spdf_rect spdf_paint_layer_box(spdf_paint_doc* doc, spdf_paint_layer* layer);
+
 /* ---- spdf_paint_live.c: a stroke being drawn ---- */
 
 /* Puts back what a stroke being drawn changed and forgets it (any change but its own release, undo, closing). */

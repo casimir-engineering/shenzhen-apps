@@ -169,6 +169,13 @@ szfriends_status szfriends_line_reader_next(szfriends_line_reader *reader, const
  * gate allows the reader no Friends work on the main thread, and failing loudly catches a host that forgot. */
 szfriends_status szfriends_spawn_helper(const char *helper_path, const char *state_dir, pid_t *pid_out);
 
+/* szfriends_spawn_helper for a host whose client connects at the same moment: spawns only in place of a listener
+ * the signing policy refuses (the once per launch the client's own retries never take), and spawns nothing when
+ * no helper listens, since the client's first attempt spawns one then and a second would only exit at once. The
+ * reader calls it from a background queue as it attaches after first paint, so no helper starts beside its
+ * first frame. Same threading rule and return values; *pid_out stays 0 when nothing was spawned. */
+szfriends_status szfriends_replace_refused_helper(const char *helper_path, const char *state_dir, pid_t *pid_out);
+
 /* ---- Client --------------------------------------------------------------------------------------- */
 
 typedef struct szfriends_client szfriends_client;

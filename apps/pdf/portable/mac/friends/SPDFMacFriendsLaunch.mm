@@ -17,19 +17,30 @@ NSString* const SPDFMacFriendsHelperExecutableName = @"Shenzhen Friends";
 
 @end
 
-BOOL SPDFMacFriendsSpawnAtLaunch(BOOL enabled, NSString* (^helperPath)(void),
-                                 SPDFMacFriendsLaunchEnvironment* environment) {
+BOOL SPDFMacFriendsPrepareAtLaunch(BOOL enabled, SPDFMacFriendsLaunchEnvironment* environment) {
     if (!enabled || !environment.spawn || !environment.dispatchBackground) return NO;
+    dispatch_block_t prepareSigning = environment.prepareSigning;
+    environment.dispatchBackground(^{
+        @autoreleasepool {
+            // Reading the app's own signature costs a few milliseconds, so it happens here, off the launch path,
+            // and the attach after first paint finds the policy already set.
+            if (prepareSigning) prepareSigning();
+        }
+    });
+    return YES;
+}
+
+BOOL SPDFMacFriendsSpawnBeforeAttach(NSString* (^helperPath)(void), SPDFMacFriendsLaunchEnvironment* environment) {
+    if (!environment.spawn || !environment.dispatchBackground) return NO;
     SPDFMacFriendsSpawnFunction spawn = environment.spawn;
     dispatch_block_t prepareSigning = environment.prepareSigning;
     NSString* (^path)(void) = [helperPath copy];
     environment.dispatchBackground(^{
         @autoreleasepool {
-            // Reading the app's own signature costs a few milliseconds, so it happens here, off the launch path.
-            if (prepareSigning) prepareSigning();
+            if (prepareSigning) prepareSigning(); // set at launch already; waits for it if still being read
             NSString* executable = path ? path() : nil;
-            // Nothing embedded (a development build): attaching after first paint will say Friends is
-            // unavailable through the link's status line; spawning a missing path would only log an error.
+            // Nothing embedded (a development build): the link's status line says Friends is unavailable;
+            // spawning a missing path would only log an error.
             if (!executable.length) return;
             pid_t pid = 0;
             (void)spawn(executable, nil, &pid);
@@ -55,6 +66,7 @@ NSString* SPDFMacFriendsHelperExecutablePath(NSBundle* bundle) {
     void (^_detach)(BOOL);
     BOOL _painted;
     BOOL _attached;
+    BOOL _spawnDue; // enabled at launch: the first attach also runs the environment's spawn
 }
 
 - (instancetype)initWithSettings:(SPDFMacFriendsSettingsState*)settings
@@ -75,14 +87,17 @@ NSString* SPDFMacFriendsHelperExecutablePath(NSBundle* bundle) {
 
 - (void)launchWithSettings:(NSDictionary*)settings {
     [_settings loadFromSettings:settings];
-    SPDFMacFriendsSpawnAtLaunch(_settings.enabled, _helperPath, _environment);
+    _spawnDue = SPDFMacFriendsPrepareAtLaunch(_settings.enabled, _environment);
 }
 
 - (void)apply:(BOOL)disabling {
     BOOL wanted = _painted && _settings.enabled;
     if (wanted && !_attached) {
-        // The link connects as it attaches; a launch spawn still reading the signature finishes first.
+        // The link connects as it attaches; a launch hop still reading the signature finishes first.
         if (_environment.prepareSigning) _environment.prepareSigning();
+        // After the first frame, never beside it: a helper starting up while the window is built costs the
+        // reader's main thread time on a busy Mac. The link's first attempt spawns it when nothing listens.
+        if (_spawnDue) _spawnDue = !SPDFMacFriendsSpawnBeforeAttach(_helperPath, _environment);
         _attached = YES;
         if (_attach) _attach();
     }

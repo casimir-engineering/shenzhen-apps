@@ -68,6 +68,7 @@ struct spdf_brush_run {
     /* Airbrush */
     rng r;
     float R, dots, dot_r;
+    spdf_brush_wet_noise noise; /* Watercolor's, made on first use over the run's box */
     /* Oil */
     int nb;
     float off[MAX_BRISTLES], rad[MAX_BRISTLES], load[MAX_BRISTLES], runout[MAX_BRISTLES], tone[MAX_BRISTLES];
@@ -337,6 +338,7 @@ void spdf_brush_run_drop(fz_context* ctx, spdf_brush_run* run) {
     if (!run) return;
     spdf_brush_mask_drop(ctx, &run->outer);
     spdf_brush_mask_drop(ctx, &run->inner);
+    spdf_brush_wet_noise_drop(ctx, &run->noise);
     fz_free(ctx, run);
 }
 
@@ -385,7 +387,15 @@ static void show_wet(fz_context* ctx, spdf_brush_run* run, const sample* tail, i
     copy_box(&work, &run->outer, wide);
     walk w = run->w;
     for (int i = 0; i < n; ++i) cover_step(run, &w, &tail[i], &work, NULL);
-    spdf_brush_wet_part(ctx, &work, run->R * run->ex, fz_invert_matrix(run->job.to_device), run->job.seed, area);
+    if (!run->noise.have) { /* calloc'd: only what is touched costs memory */
+        size_t count = (size_t)(run->box.x1 - run->box.x0) * (size_t)(run->box.y1 - run->box.y0);
+        run->noise.edge = fz_malloc_no_throw(ctx, count * sizeof(float));
+        run->noise.grain = fz_malloc_no_throw(ctx, count * sizeof(float));
+        run->noise.have = run->noise.edge && run->noise.grain ? fz_calloc_no_throw(ctx, count, 1) : NULL;
+        run->noise.box = run->box;
+    }
+    spdf_brush_wet_part(ctx, &work, run->R * run->ex, fz_invert_matrix(run->job.to_device), run->job.seed, area,
+                        &run->noise);
     copy_box(shown, &work, area);
     spdf_brush_mask_drop(ctx, &work);
 }

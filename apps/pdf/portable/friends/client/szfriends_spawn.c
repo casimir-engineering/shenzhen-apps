@@ -158,7 +158,8 @@ szfriends_status szfriends_probe_socket(const char *socket_path) {
     return SZFRIENDS_OK;
 }
 
-szfriends_status szfriends_spawn_helper(const char *helper_path, const char *state_dir, pid_t *pid_out) {
+static szfriends_status connect_or_spawn(const char *helper_path, const char *state_dir, pid_t *pid_out,
+                                         bool spawn_for_none) {
     char state[SZFRIENDS_PATH_CAP];
     char socket_path[SZFRIENDS_PATH_CAP];
     szfriends_status status;
@@ -186,12 +187,21 @@ szfriends_status szfriends_spawn_helper(const char *helper_path, const char *sta
      * so a squatter costs one process per launch, never a loop. */
     if (status != SZFRIENDS_ERR_NO_HELPER && status != SZFRIENDS_ERR_PEER_SIGNATURE)
         return status; /* unsafe directory, another user's helper... */
+    if (status == SZFRIENDS_ERR_NO_HELPER && !spawn_for_none) return SZFRIENDS_OK; /* the client spawns it */
 
     status = szfriends_spawn_process(helper_path, state_dir, &pid);
     if (status != SZFRIENDS_OK) return status;
     start_reaper(pid);
     if (pid_out) *pid_out = pid;
     return SZFRIENDS_OK;
+}
+
+szfriends_status szfriends_spawn_helper(const char *helper_path, const char *state_dir, pid_t *pid_out) {
+    return connect_or_spawn(helper_path, state_dir, pid_out, true);
+}
+
+szfriends_status szfriends_replace_refused_helper(const char *helper_path, const char *state_dir, pid_t *pid_out) {
+    return connect_or_spawn(helper_path, state_dir, pid_out, false);
 }
 
 typedef struct spawn_job {

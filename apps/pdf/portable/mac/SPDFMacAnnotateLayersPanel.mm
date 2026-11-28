@@ -1,5 +1,5 @@
 // The Layers sidebar (SPDFMacAnnotateLayersPanel.h).
-#import "SPDFMacAnnotateLayersPanel.h"
+#import "SPDFMacAnnotateLayersPanelPrivate.h"
 
 #import <objc/runtime.h>
 
@@ -14,29 +14,7 @@
 
 static NSPasteboardType const kSPDFLayerRowType = @"com.intuition.shenzhenpdf.annotate.layer-row";
 
-@interface SPDFMacAnnotateLayersPanel () <NSTableViewDataSource, NSTableViewDelegate>
-@end
-
-@implementation SPDFMacAnnotateLayersPanel {
-    __weak SPDFMacFillController* _controller;
-    __weak SPDFMacAnnotateSession* _session;
-    NSTableView* _table;
-    NSScrollView* _scroll;
-    NSArray<NSDictionary*>* _rows;  // front first: layers, each followed by its objects unless folded
-    NSMutableSet<NSNumber*>* _folded;  // layers whose objects are hidden from the list
-    NSMutableDictionary<NSNumber*, NSImage*>* _thumbs;
-    uint64_t _thumbGeneration;
-    spdf_paint_doc* _thumbDoc;  // generations count per document: another tab's can be the same number
-    NSNumber* _activeId;
-    NSButton* _add;
-    NSButton* _duplicate;
-    NSButton* _merge;
-    NSButton* _delete;
-    NSLayoutConstraint* _height;
-    NSLayoutConstraint* _top;
-    BOOL _inSlot;  // in the minimap's place (the palette is not above it)
-    BOOL _syncing;
-}
+@implementation SPDFMacAnnotateLayersPanel
 
 - (instancetype)initWithController:(SPDFMacFillController*)controller {
     self = [super initWithFrame:NSZeroRect];
@@ -53,6 +31,8 @@ static NSPasteboardType const kSPDFLayerRowType = @"com.intuition.shenzhenpdf.an
         // The rows follow every change (a stroke, a shape, edited text, undo, the selection), not only the palette.
         [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(sessionChanged:)
                                                    name:SPDFAnnotateSessionDidChangeNotification object:nil];
+        [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(liveStrokeChanged:)
+                                                   name:SPDFAnnotateLiveStrokeNotification object:controller];
     }
     return self;
 }
@@ -228,41 +208,6 @@ static NSPasteboardType const kSPDFLayerRowType = @"com.intuition.shenzhenpdf.an
 }
 
 - (void)selectionDidChange { [self selectRowsFor:SPDFAnnotateDocState(_controller)]; }
-
-#pragma mark - Thumbnails
-
-- (spdf_paint_doc*)canvas {
-    SPDFMacAnnotateSession* session = _session;
-    if (!session) return NULL;
-    if (session.kind != SPDFAnnotateDocumentPDF) return session.canvas;
-    // The page the rows were read from (SPDFAnnotateOnCurrentPage): the page last touched, else the first.
-    return [session canvasForPage:MAX(0, session.currentPage) document:[_controller.host fillDocument] create:YES];
-}
-
-- (void)scheduleThumbnails {
-    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(drawThumbnails) object:nil];
-    [self performSelector:@selector(drawThumbnails) withObject:nil afterDelay:0.3];
-}
-
-- (void)drawThumbnails {
-    spdf_paint_doc* doc = [self canvas];
-    if (!doc || !self.superview) return;
-    uint64_t generation = spdf_paint_generation(doc);
-    if (doc == _thumbDoc && generation == _thumbGeneration && _thumbs.count) return;
-    _thumbDoc = doc, _thumbGeneration = generation;
-    [_thumbs removeAllObjects];
-    for (NSDictionary* row in _rows) {  // a layer's thumbnail shows its drawing and its objects
-        spdf_bitmap bitmap = {0};
-        char err[128];
-        if (spdf_paint_layer_thumbnail(doc, (spdf_paint_id)[row[@"id"] unsignedIntValue], 72, &bitmap, err, sizeof(err)) ==
-            SPDF_PAINT_OK) {
-            NSImage* image = SPDFAnnotateThumbnailImage(&bitmap);
-            if (image) _thumbs[row[@"id"]] = image;
-        }
-        spdf_free_bitmap(&bitmap);
-    }
-    for (NSInteger i = 0; i < (NSInteger)_rows.count; ++i) [self configure:[_table viewAtColumn:0 row:i makeIfNecessary:NO] row:i];
-}
 
 #pragma mark - Rows
 

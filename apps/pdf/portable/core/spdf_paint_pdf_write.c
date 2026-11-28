@@ -8,6 +8,7 @@
  * The caller saves (Fill & Sign's commit cycle). */
 #include "spdf_paint_pdf_internal.h"
 #include "spdf_paint_pdf_layers.h"
+#include "spdf_paint_written.h"
 
 #include "spdf_core_document.h"
 
@@ -491,6 +492,7 @@ spdf_paint_status spdf_paint_pdf_write_back(spdf_paint_doc* doc, int* pages_chan
             spdf_paint_set_error(err, err_len, fz_caught_message(ctx));
             return SPDF_PAINT_ERR_FAILED;
         }
+        spdf_paint_pdf_warm(doc); /* its pictures decoded whole for the reader, as the preview drew them */
     }
     if (pages_changed) *pages_changed = changed;
     return SPDF_PAINT_OK;

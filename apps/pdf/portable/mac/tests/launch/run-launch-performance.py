@@ -8,7 +8,7 @@ signed copy: no window on screen, no Dock icon, no activation, state in a scratc
 
     release            the previous release
     friends-off        this tree with Friends turned off in Settings
-    friends-on         this tree as installed (Friends on, its helper spawned at launch)
+    friends-on         this tree as installed (Friends on, its helper spawned as it attaches after first paint)
 
 each with an empty window and with a restored synthetic drawing set. Wall time from process spawn to the first
 frame moves with machine load; the main thread's CPU time before the first frame moves far less. Interleaving
@@ -42,7 +42,8 @@ CPU_RATIO = 1.05
 WALL_RATIO = 1.08
 FIRST_ROUNDS, CONFIRM_ROUNDS = 15, 15
 # Friends' own main-thread work before the first frame, from 1 kHz samples of the main thread: reading its
-# setting and queueing the helper spawn take well under a millisecond, so a sample or two at most lands there.
+# setting and queueing the signing policy's read take well under a millisecond, so a sample or two at most lands
+# there.
 # A process spawn on the main thread before the first frame (posix_spawn, posix_spawnp, fork, NSTask) fails outright,
 # in any launch of this tree: the probe records every one (SPDFMacLaunchSpawnGuard.mm), so this is no sample.
 FRIENDS_PRE_FRAME_SAMPLES = 3
