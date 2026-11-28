@@ -88,6 +88,10 @@ typedef NS_ENUM(NSInteger, SZFriendsChainMergeResult) {
 - (NSArray<SZFriendsDeviceRecord *> *)devicesOfRootKey:(NSData *)rootKey;
 // A session with `deviceKey` went live: "last connection" in Your devices. Unknown keys change nothing.
 - (BOOL)noteDeviceKey:(NSData *)deviceKey seenAtDate:(NSDate *)date error:(NSError **)error;
+// Whether the last live session here with the device of X25519 `staticKey` set Friends protocol 2 (handshake bit 8;
+// settings key bluetooth_phone_dials.<hex>): an Android phone that does dials Bluetooth with full-size packets.
+- (BOOL)staticKeySetsProtocol2:(NSData *)staticKey;
+- (void)noteStaticKey:(NSData *)staticKey setsProtocol2:(BOOL)sets;
 @end
 
 NS_ASSUME_NONNULL_END

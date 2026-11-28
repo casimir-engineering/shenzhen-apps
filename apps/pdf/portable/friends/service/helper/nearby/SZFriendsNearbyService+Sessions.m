@@ -119,6 +119,7 @@
     if (link.closed) return;
     link.live = YES;
     link.liveAt = [NSDate date];
+    [self notePhoneDialsOfLink:link]; // whether a phone may be left to dial (+PhoneDials)
     if (link.dialKey != nil) [self.dialing removeObject:link.dialKey];
     // The owner's rule (ADR 0022, +PeerToPeer): on peer-to-peer Wi-Fi only when both handshakes allow direct Wi-Fi. A
     // boost's lane (the Mac dials it, always as a lane of its group) was judged by BOOST's Abilities instead.

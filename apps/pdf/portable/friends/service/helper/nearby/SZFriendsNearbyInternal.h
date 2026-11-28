@@ -568,10 +568,10 @@ SZFriendsAnswerAttestation SZFriendsJudgeAnswerAttestation(NSData *_Nullable pre
                           keyKnown:(BOOL)keyKnown;
 @end
 
-// Bluetooth to a phone: whether `plan`'s peer is a phone that dials a Mac itself, as the link's central (and the
-// Mac's own dial waits SZFriendsBluetoothDialDeferToPhone).
+// Bluetooth to a phone: whether `plan`'s peer dials the Mac itself (its dial waits), learnt from live links.
 @interface SZFriendsNearbyService (PhoneDials)
 - (BOOL)bluetoothPeerDialsItself:(SZFriendsDialPlan *)plan;
+- (void)notePhoneDialsOfLink:(SZFriendsPeerLink *)link;
 @end
 
 NS_ASSUME_NONNULL_END

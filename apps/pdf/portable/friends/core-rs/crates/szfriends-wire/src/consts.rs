@@ -40,7 +40,9 @@ pub const CAPABILITY_DIRECT_WIFI_ALLOWED: u32 = 1 << 6;
 /// Bit 8: Friends protocol 2 (ADR 0023): this helper knows bits 6 and 7 and BOOST's Abilities bit 4, so a peer can
 /// tell that a missing bit 6 or 7 means "not now" or "no hardware AES" rather than "a released app from before them".
 /// Set in every handshake with fast transfers. A peer without it speaks Friends protocol 1 (every release up to
-/// ShenzhenPDF and Shenzhen Files 26.11.19-1 and Shenzhen 3D 0.2.10).
+/// ShenzhenPDF and Shenzhen Files 26.11.19-1 and Shenzhen 3D 0.2.10). An Android phone that sets it asks for the ATT
+/// MTU as it dials Bluetooth (full-size packets), so a Mac that knows it from an earlier session leaves the dial to it
+/// (`SZFriendsNearbyService+PhoneDials.m`); to a phone without it, the Mac dials at once.
 pub const CAPABILITY_PROTOCOL_2: u32 = 1 << 8;
 
 /// Every Noise message, handshake or transport, including the 16-byte tag.

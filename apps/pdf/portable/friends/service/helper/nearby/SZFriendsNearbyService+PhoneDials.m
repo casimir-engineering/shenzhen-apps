@@ -7,12 +7,15 @@
 // 85 to 98 KB/s each way on a link the phone dialled, 20 to 57 KB/s on one the Mac dialled. So a Mac waits before
 // it dials a phone over Bluetooth: long enough for a phone in the foreground, which sees the Mac too, to dial first
 // (the race then keeps its session); a phone in the background cannot scan, so the Mac's dial still comes, later.
+//
+// Only for a phone known to ask for full-size packets: an Android build that sets Friends protocol 2 (handshake bit
+// 8) asks for the ATT MTU as it dials; released ones from before it dial with 27-byte packets, 9 to 26 KB/s, slower
+// than the Mac's own dial. What each device's last live session here set is kept in the store's settings, by its
+// static key ("bluetooth_phone_dials.<hex>"); a device not known to set it is dialled at once.
 
 #import "service/helper/nearby/SZFriendsNearbyInternal.h"
 #import "service/identity/SZFriendsDeviceChain.h"
-#import "service/store/SZFriendsStoreDevices.h"
-#import "service/sync/SZFriendsSync.h"
-#import "service/identity/SZFriendsDeviceChain.h"
+#import "service/session/SZFriendsSession.h"
 #import "service/store/SZFriendsStoreDevices.h"
 #import "service/sync/SZFriendsSync.h"
 
@@ -34,6 +37,19 @@ static NSString *SZFriendsPhoneDialsKeyHex(NSData *key) {
 
 @implementation SZFriendsNearbyService (PhoneDials)
 
+- (void)notePhoneDialsOfLink:(SZFriendsPeerLink *)link {
+    SZFriendsSecureChannel *channel = link.channel;
+    if (link.purpose != SZFriendsLinkPurposeFriend && link.purpose != SZFriendsLinkPurposeOwnDevice) return;
+    if (channel.remoteStaticKey.length != 32) return;
+    [self.services.store noteStaticKey:channel.remoteStaticKey
+                         setsProtocol2:(channel.remoteCapabilities & SZFriendsCapabilityProtocol2) != 0];
+}
+
+// A phone (Android) whose last session here said it asks for full-size packets.
+- (BOOL)phoneDialsAtFullSize:(SZFriendsDeviceRecord *)device {
+    return SZFriendsIsPhoneSystem(device.system) && [self.services.store staticKeySetsProtocol2:device.staticKey];
+}
+
 - (BOOL)bluetoothPeerDialsItself:(SZFriendsDialPlan *)plan {
     SZFriendsStore *store = self.services.store;
     if (plan.purpose == SZFriendsLinkPurposeOwnDevice && plan.ownDeviceHex != nil) {
@@ -41,20 +57,20 @@ static NSString *SZFriendsPhoneDialsKeyHex(NSData *key) {
         if (root == nil) return NO;
         for (SZFriendsDeviceRecord *device in [store devicesOfRootKey:root]) {
             if ([SZFriendsPhoneDialsKeyHex(device.deviceKey) isEqualToString:plan.ownDeviceHex.lowercaseString]) {
-                return SZFriendsIsPhoneSystem(device.system);
+                return [self phoneDialsAtFullSize:device];
             }
         }
         return NO;
     }
     if (plan.purpose == SZFriendsLinkPurposeFriend && plan.conversationID != nil) {
         // Which of a friend's devices a Bluetooth sighting is cannot be told before the session: only a friend whose
-        // every device is a phone is left to dial.
+        // every device is a phone known to ask for full-size packets is left to dial.
         NSData *root = [store personWithConversationID:plan.conversationID].identityKey;
         if (root == nil) return NO;
         NSUInteger phones = 0;
         for (SZFriendsDeviceRecord *device in [store devicesOfRootKey:root]) {
             if (device.state != SZFriendsChainDeviceAuthorized) continue;
-            if (!SZFriendsIsPhoneSystem(device.system)) return NO;
+            if (![self phoneDialsAtFullSize:device]) return NO;
             phones++;
         }
         return phones > 0;

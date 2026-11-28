@@ -257,6 +257,31 @@ static BOOL SZFWriteChain(SZFriendsStoreDB *db, SZFriendsDeviceChain *chain, BOO
     return devices;
 }
 
+static NSString *SZFDialsSetting(NSData *staticKey) {
+    NSMutableString *key = [NSMutableString stringWithString:@"bluetooth_phone_dials."];
+    const uint8_t *bytes = staticKey.bytes;
+    for (NSUInteger i = 0; i < staticKey.length; i++) [key appendFormat:@"%02x", bytes[i]];
+    return key;
+}
+
+- (BOOL)staticKeySetsProtocol2:(NSData *)staticKey {
+    if (staticKey.length != 32) return NO;
+    return [[self deviceScalar:@"SELECT value FROM settings WHERE key = ?" binds:@[ SZFDialsSetting(staticKey) ]]
+        boolValue];
+}
+
+- (void)noteStaticKey:(NSData *)staticKey setsProtocol2:(BOOL)sets {
+    if (staticKey.length != 32 || [self staticKeySetsProtocol2:staticKey] == sets) return;
+    NSString *key = SZFDialsSetting(staticKey);
+    [self performWrite:^BOOL(SZFriendsStoreDB *db, NSError **inner) {
+        if (!sets) return [db run:@"DELETE FROM settings WHERE key = ?" binds:@[ key ] row:nil error:inner];
+        return [db run:@"INSERT INTO settings(key, value) VALUES (?, 1) ON CONFLICT(key) DO UPDATE SET value = 1"
+                 binds:@[ key ]
+                   row:nil
+                 error:inner];
+    } error:NULL];
+}
+
 - (BOOL)noteDeviceKey:(NSData *)deviceKey seenAtDate:(NSDate *)date error:(NSError **)error {
     return [self performWrite:^BOOL(SZFriendsStoreDB *db, NSError **inner) {
         return [db run:@"UPDATE chain_devices SET last_seen_at = ? WHERE device_pk = ?" binds:@[ date, deviceKey ]
