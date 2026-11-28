@@ -59,6 +59,7 @@ mod tcp_health;
 mod test_routes;
 mod transfers;
 mod views;
+mod write_rate;
 
 use std::collections::HashMap;
 use std::path::Path;

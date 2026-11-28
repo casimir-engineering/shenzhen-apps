@@ -112,7 +112,8 @@ pub fn is_request_answer(entry: &OutboxEntry) -> bool {
 /// queued now waits behind at most one 4 KiB part there (`lanes.rs`; a second, with its framing, does not fit) and
 /// what the link's pace lets the stack hold (`radio_pace.rs`), a tenth of a second or so at 90 KB/s.
 const BLUETOOTH_WRITE_SIZE: usize = 2 * 1024;
-/// One write on a LAN or direct Wi-Fi link; four of them are its in-flight budget.
+/// One write on a LAN or direct Wi-Fi link until its rate is measured; four of them are its in-flight budget, which
+/// then holds a tenth of a second of the link's writes, 256 KiB to 1 MiB (`write_rate.rs`).
 const FAST_WRITE_SIZE: usize = 256 * 1024;
 
 impl State {
@@ -134,8 +135,9 @@ impl State {
         let capabilities = self.session_capabilities | self.direct_wifi_capability();
         // Bluetooth keeps 8 KiB in the link's hands, paced to the radio there, so a HAVE or an ask queued now waits
         // behind a tenth of a second of file data, not the seconds an Android phone's stack would hold. A LAN or
-        // direct Wi-Fi link keeps 1 MiB (45 ms at 24 MB/s): a phone's kernel buffer holds only some 10 ms of its
-        // Wi-Fi, and with 256 KiB the link went idle whenever the service's thread was late for one pass.
+        // direct Wi-Fi link keeps a tenth of a second of its measured rate, 256 KiB to 1 MiB (1 MiB is 45 ms at
+        // 24 MB/s: a phone's kernel buffer holds only some 10 ms of its Wi-Fi, and with 256 KiB the link went idle
+        // whenever the service's thread was late for one pass; at 1 MB/s it kept a message a second behind).
         let preferred_write_size = match meta.dialed_route {
             szfriends_core::wire::RouteMethod::Bluetooth => BLUETOOTH_WRITE_SIZE,
             szfriends_core::wire::RouteMethod::Lan | szfriends_core::wire::RouteMethod::PeerToPeerWifi => {
@@ -159,7 +161,9 @@ impl State {
         let mut meta = meta;
         meta.tcp_fd = stream.tcp_fd();
         let bluetooth = route == szfriends_core::wire::RouteMethod::Bluetooth;
-        let link = match Link::start(id, stream, self.input.clone(), Input::Link, emulated, bluetooth) {
+        let fast =
+            matches!(route, szfriends_core::wire::RouteMethod::Lan | szfriends_core::wire::RouteMethod::PeerToPeerWifi);
+        let link = match Link::start(id, stream, self.input.clone(), Input::Link, emulated, (bluetooth, fast)) {
             Ok(link) => link,
             Err(error) => {
                 log!("session link: {error}");
@@ -203,6 +207,9 @@ impl State {
             }
             LinkEvent::Written(id) => {
                 if let Some(s) = self.sessions.map.get_mut(&id) {
+                    if let Some(size) = s.link.write_size() {
+                        s.channel.set_preferred_write_size(size);
+                    }
                     s.channel.write_completed(now);
                 }
                 self.lane_written(id, false);

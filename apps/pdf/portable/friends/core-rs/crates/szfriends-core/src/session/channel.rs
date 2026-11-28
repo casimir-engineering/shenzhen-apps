@@ -289,6 +289,11 @@ impl SecureChannel {
         self.config = config;
     }
 
+    /// While live: the route's efficient write size as the driver measures it ([`ChannelConfig::preferred_write_size`]).
+    pub fn set_preferred_write_size(&mut self, size: usize) {
+        self.config.preferred_write_size = size;
+    }
+
     /// Before `start`: the random source (tests and the transcript replays).
     pub fn set_random(&mut self, rng: Box<dyn SessionRandom>) {
         self.rng = rng;

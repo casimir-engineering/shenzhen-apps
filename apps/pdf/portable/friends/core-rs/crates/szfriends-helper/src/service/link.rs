@@ -21,6 +21,7 @@ use szfriends_core::session::LinkWrite;
 use szfriends_online::transport::{ChannelStream, StreamInput};
 
 use super::radio_pace::RadioPace;
+use super::write_rate::{self, WriteRate};
 use crate::nearby::stream::{LinkStream, PlatformStream};
 
 /// What the link reports to the loop, tagged with the session it belongs to.
@@ -132,23 +133,31 @@ pub struct Link {
     finished: bool,
     /// A Bluetooth link's pace (`radio_pace.rs`), told of the friend's acknowledgements.
     radio: Option<Arc<RadioPace>>,
+    /// A LAN or direct Wi-Fi link's write rate (`write_rate.rs`), which sizes its in-flight budget.
+    written: Option<Arc<WriteRate>>,
 }
 
 impl Link {
     /// Starts both threads for `stream`; events go to `events` wrapped by `wrap`. `emulated`: a test home's emulated
     /// route; `None` everywhere else. `bluetooth`: the stream is a Bluetooth channel, paced to its radio
-    /// (`radio_pace.rs`) when the platform owns it.
+    /// (`radio_pace.rs`) when the platform owns it. `fast`: a LAN or direct Wi-Fi link, whose write rate is measured
+    /// (`write_rate.rs`).
     pub fn start<E: Send + 'static>(
         id: u64,
         stream: LinkStream,
         events: Sender<E>,
         wrap: fn(LinkEvent) -> E,
         emulated: Option<Emulated>,
-        bluetooth: bool,
+        (bluetooth, fast): (bool, bool),
     ) -> std::io::Result<Self> {
         let pace = Pace::new(emulated);
         match stream {
-            LinkStream::Tcp(stream) => Self::start_tcp(id, stream, events, wrap, pace),
+            LinkStream::Tcp(stream) => {
+                let written = fast.then(|| Arc::new(WriteRate::default()));
+                let mut link = Self::start_tcp(id, stream, events, wrap, pace, written.clone())?;
+                link.written = written;
+                Ok(link)
+            }
             LinkStream::Platform(stream) => {
                 let radio = bluetooth.then(|| Arc::new(RadioPace::new()));
                 let mut link = Self::start_platform(id, stream, events, wrap, pace, radio.clone());
@@ -236,7 +245,7 @@ impl Link {
                 None => outgoing(None),
             }
         });
-        Self { writer, finished: false, radio: None }
+        Self { writer, finished: false, radio: None, written: None }
     }
 
     fn start_tcp<E: Send + 'static>(
@@ -245,6 +254,7 @@ impl Link {
         events: Sender<E>,
         wrap: fn(LinkEvent) -> E,
         mut pace: Option<Pace>,
+        written: Option<Arc<WriteRate>>,
     ) -> std::io::Result<Self> {
         stream.set_nodelay(true)?;
         let finishing = Arc::new(AtomicBool::new(false));
@@ -277,7 +287,9 @@ impl Link {
         let mut out = stream.try_clone()?;
         std::thread::spawn(move || {
             let mut buffer = Vec::new();
+            let mut waiting = Instant::now();
             while let Ok(message) = inbox.recv() {
+                let started = Instant::now();
                 let WriterMessage::Write(first) = message else { break };
                 let (writes, finish) = gather(first, &inbox, &mut buffer);
                 Pace::silenced(&pace);
@@ -286,6 +298,10 @@ impl Link {
                     return;
                 }
                 Pace::carried(&mut pace, buffer.len());
+                if let Some(written) = &written {
+                    written.wrote(buffer.len(), started, started.duration_since(waiting) >= write_rate::IDLE);
+                }
+                waiting = Instant::now();
                 for _ in 0..writes {
                     if events.send(wrap(LinkEvent::Written(id))).is_err() {
                         return;
@@ -300,7 +316,7 @@ impl Link {
             finishing.store(true, Ordering::SeqCst);
             let _ = out.set_read_timeout(Some(Duration::from_secs(2)));
         });
-        Ok(Self { writer, finished: false, radio: None })
+        Ok(Self { writer, finished: false, radio: None, written: None })
     }
 
     /// Both threads for a data channel the online driver opened: its messages in, the session's bytes out, and on
@@ -346,7 +362,7 @@ impl Link {
             out.drain(Duration::from_secs(2));
             out.close();
         });
-        Self { writer, finished: false, radio: None }
+        Self { writer, finished: false, radio: None, written: None }
     }
 
     /// The friend acknowledged `bytes` that crossed this link (a HAVE's pieces): a Bluetooth link paces itself by
@@ -355,6 +371,12 @@ impl Link {
         if let Some(radio) = &self.radio {
             radio.acknowledged(bytes);
         }
+    }
+
+    /// A LAN or direct Wi-Fi link's write size for its in-flight budget, as its measured rate sets it; `None` for any
+    /// other link.
+    pub fn write_size(&self) -> Option<usize> {
+        self.written.as_ref().map(|w| w.write_size())
     }
 
     /// A Bluetooth link's pace for a log line, `None` for any other link.
