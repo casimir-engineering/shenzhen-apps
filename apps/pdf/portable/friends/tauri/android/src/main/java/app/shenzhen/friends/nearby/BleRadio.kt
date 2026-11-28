@@ -152,7 +152,7 @@ class BleRadio(private val context: Context) {
                     PUBLIC_CHARACTERISTIC -> publicValue ?: ByteArray(0)
                     else -> ByteArray(0)
                 }
-                Log.i(TAG, "served ${characteristic.uuid.toString().take(8)} to ${device.address} offset=$offset size=${value.size}")
+                Log.i(TAG, "served ${characteristic.uuid.toString().take(8)} to ${logName(device.address)} offset=$offset size=${value.size}")
                 val gatt = server ?: return
                 if (offset > value.size) {
                     gatt.sendResponse(device, requestId, BluetoothGatt.GATT_INVALID_OFFSET, offset, null)
@@ -210,7 +210,7 @@ class BleRadio(private val context: Context) {
                 val last = reported[address]
                 if (last != null && last.first == public && now - last.second < 10_000) return
                 if (last == null || last.first != public) {
-                    Log.i(TAG, "seen $address public=$public rssi=${result.rssi} record=${hex(result.scanRecord?.bytes)}")
+                    Log.i(TAG, "seen ${logName(address)} public=$public rssi=${result.rssi} record=${hex(result.scanRecord?.bytes)}")
                 }
                 reported[address] = Pair(public, now)
                 send(JSObject().put("kind", "discovered").put("peripheral", address).put("public", public))
@@ -291,14 +291,14 @@ class BleRadio(private val context: Context) {
             val opened = channel
             while (socket != null && opened != null) {
                 val accepted = runCatching { socket.accept() }.getOrNull() ?: break
-                val link = links.speedUpAccepted(accepted)
+                val link = links.accepted(accepted)
                 val owner = java.io.Closeable {
                     runCatching { accepted.close() }
                     runCatching { link.close() }
                 }
-                val id = Streams.add(accepted.inputStream, accepted.outputStream, owner, opened)
+                val id = Streams.add(accepted.inputStream, accepted.outputStream, owner, opened, link::moved)
                 val peer = accepted.remoteDevice?.address
-                Log.i(TAG, "accepted channel from $peer public=$public")
+                Log.i(TAG, "accepted channel from ${logName(peer)} public=$public")
                 send(JSObject().put("kind", "accepted").put("stream", id).put("public", public).put("peer", peer))
             }
         }, "szfriends-l2cap-listen").start()
@@ -326,7 +326,7 @@ class BleRadio(private val context: Context) {
             }
             runCatching { gatt.disconnect() }
             runCatching { gatt.close() }
-            Log.i(TAG, "read $peripheral value=${hex(value)} public=${hex(publicRead)}")
+            Log.i(TAG, "read ${logName(peripheral)} value=${hex(value)} public=${hex(publicRead)}")
             send(
                 JSObject().put("kind", "read").put("peripheral", peripheral).put("value", hex(value))
                     .put("publicValue", hex(publicRead))
@@ -409,7 +409,7 @@ class BleRadio(private val context: Context) {
                 if (settled) return
                 settled = true
             }
-            Log.i(TAG, "open $peripheral psm=$psm failed: $why")
+            Log.i(TAG, "open ${logName(peripheral)} psm=$psm failed: $why")
             closeGatt()
             send(JSObject().put("kind", "opened").put("dial", dial))
         }
@@ -422,7 +422,7 @@ class BleRadio(private val context: Context) {
                 Thread.sleep(if (attempt == 1) 1_500L else 2_000L)
                 if (settled) break
                 socket = runCatching { device.createInsecureL2capChannel(psm).apply { connect() } }
-                Log.i(TAG, "open $peripheral psm=$psm attempt $attempt: ${socket.exceptionOrNull()?.message ?: "ok"}")
+                Log.i(TAG, "open ${logName(peripheral)} psm=$psm attempt $attempt: ${socket.exceptionOrNull()?.message ?: "ok"}")
                 if (socket.isSuccess) break
             }
             val connected = socket.getOrNull()
@@ -432,7 +432,7 @@ class BleRadio(private val context: Context) {
                     if (!settled) {
                         settled = true
                         closeGatt()
-                        Log.i(TAG, "open $peripheral psm=$psm failed: ${socket.exceptionOrNull()?.message}")
+                        Log.i(TAG, "open ${logName(peripheral)} psm=$psm failed: ${socket.exceptionOrNull()?.message}")
                         send(JSObject().put("kind", "opened").put("dial", dial))
                     }
                     return@Thread
@@ -441,13 +441,14 @@ class BleRadio(private val context: Context) {
             }
             val link = connected ?: return@Thread
             val reports = opened ?: return@Thread
-            Log.i(TAG, "open $peripheral psm=$psm ok")
-            gatt?.let { links.speedUp(it, link, "open $peripheral", central = true) }
+            Log.i(TAG, "open ${logName(peripheral)} psm=$psm ok")
+            val speed = links.dialled(gatt, link, peripheral, "open ${logName(peripheral)}")
             val owner = java.io.Closeable {
                 runCatching { link.close() }
+                speed.close()
                 closeGatt()
             }
-            val id = Streams.add(link.inputStream, link.outputStream, owner, reports)
+            val id = Streams.add(link.inputStream, link.outputStream, owner, reports, speed::moved)
             send(JSObject().put("kind", "opened").put("dial", dial).put("stream", id))
         }, "szfriends-l2cap-open").start()
 
@@ -482,7 +483,7 @@ class BleRadio(private val context: Context) {
             ) = startChannelOnce()
 
             override fun onPhyUpdate(connected: BluetoothGatt, txPhy: Int, rxPhy: Int, status: Int) {
-                Log.i(TAG, "link open $peripheral: PHY tx $txPhy rx $rxPhy (status $status)")
+                Log.i(TAG, "link open ${logName(peripheral)}: PHY tx $txPhy rx $rxPhy (status $status)")
             }
 
             @Suppress("unused") // called by the platform (noteInterval)

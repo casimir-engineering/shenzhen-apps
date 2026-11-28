@@ -13,18 +13,28 @@ import java.io.OutputStream
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
 object Streams {
-    private class Open(val output: OutputStream, val closeable: Closeable, val writer: ExecutorService) {
-        val meter = Meter()
+    private class Open(val output: OutputStream, val closeable: Closeable, val writer: ExecutorService, moved: () -> Unit) {
+        val meter = Meter(moved)
+    }
+
+    /** One write; `done` runs exactly once, whether the write went, failed, or was dropped by a close. */
+    private class Write(private val body: (Write) -> Unit, private val done: () -> Unit) : Runnable {
+        private val told = AtomicBoolean(false)
+        fun finish() {
+            if (told.compareAndSet(false, true)) done()
+        }
+        override fun run() = body(this)
     }
 
     /**
      * What a stream moved, one logcat line (SZFriendsBle) per 2 s while it moves: how fast the radio takes and gives
      * bytes, and how long a write waited for room in the socket.
      */
-    private class Meter {
+    private class Meter(private val moved: () -> Unit) {
         private var since = System.nanoTime()
         private var wrote = 0L
         private var read = 0L
@@ -33,6 +43,7 @@ object Streams {
 
         @Synchronized
         fun note(id: Long, written: Int = 0, got: Int = 0, waited: Long = 0) {
+            if (written > 0 || got > 0) moved()
             wrote += written
             read += got
             if (got > 0) reads++
@@ -59,10 +70,10 @@ object Streams {
     private val next = AtomicLong(1)
     private val open = ConcurrentHashMap<Long, Open>()
 
-    /** Starts reading at once; returns the id the core names the stream by. */
-    fun add(input: InputStream, output: OutputStream, closeable: Closeable, channel: Channel): Long {
+    /** Starts reading at once; returns the id the core names the stream by. `moved` runs whenever bytes go either way. */
+    fun add(input: InputStream, output: OutputStream, closeable: Closeable, channel: Channel, moved: () -> Unit = {}): Long {
         val id = next.getAndIncrement()
-        val opened = Open(output, closeable, Executors.newSingleThreadExecutor())
+        val opened = Open(output, closeable, Executors.newSingleThreadExecutor(), moved)
         open[id] = opened
         Thread({
             val buffer = ByteArray(65_536)
@@ -92,38 +103,37 @@ object Streams {
      */
     fun write(id: Long, data: ByteArray, done: () -> Unit) {
         val stream = open[id] ?: return done()
-        try {
-            stream.writer.execute {
-                try {
-                    val started = System.nanoTime()
-                    stream.output.write(data)
-                    stream.output.flush()
-                    stream.meter.note(id, written = data.size, waited = System.nanoTime() - started)
-                } catch (_: Exception) {
-                    close(id)
-                } finally {
-                    done()
-                }
+        val write = Write({ write ->
+            try {
+                val started = System.nanoTime()
+                stream.output.write(data)
+                stream.output.flush()
+                stream.meter.note(id, written = data.size, waited = System.nanoTime() - started)
+            } catch (_: Exception) {
+                close(id)
+            } finally {
+                write.finish()
             }
+        }, done)
+        try {
+            stream.writer.execute(write)
         } catch (_: java.util.concurrent.RejectedExecutionException) {
-            done() // closed meanwhile
+            write.finish() // closed meanwhile
         }
     }
 
-    /** After everything already written. */
+    /**
+     * The socket closes at once, which ends a write blocked in it (a link that stopped taking bytes would otherwise
+     * hold the writer, and the core's writer waiting on it, for ever); writes still queued are dropped, each told
+     * done. The core asks for the end only after its last write was done, so nothing it sent is cut short.
+     */
     fun close(id: Long) {
         val stream = open.remove(id) ?: return
-        stream.writer.execute {
-            try {
-                stream.output.flush()
-            } catch (_: Exception) {
-            }
-            try {
-                stream.closeable.close()
-            } catch (_: Exception) {
-            }
+        try {
+            stream.closeable.close()
+        } catch (_: Exception) {
         }
-        stream.writer.shutdown()
+        for (dropped in stream.writer.shutdownNow()) (dropped as? Write)?.finish()
     }
 
     fun closeAll() {
