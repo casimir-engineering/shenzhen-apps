@@ -400,6 +400,8 @@ class BleRadio(private val context: Context) {
         }
         var settled = false
         var gatt: BluetoothGatt? = null
+        /** Whether this phone asked for the ATT MTU before the channel (so the link need not ask again). */
+        var mtuAsked = false
         fun closeGatt() {
             runCatching { gatt?.disconnect() }
             runCatching { gatt?.close() }
@@ -442,7 +444,7 @@ class BleRadio(private val context: Context) {
             val link = connected ?: return@Thread
             val reports = opened ?: return@Thread
             Log.i(TAG, "open ${logName(peripheral)} psm=$psm ok")
-            val speed = links.dialled(gatt, link, peripheral, "open ${logName(peripheral)}")
+            val speed = links.dialled(gatt, link, peripheral, "open ${logName(peripheral)}", mtuAsked)
             val owner = java.io.Closeable {
                 runCatching { link.close() }
                 speed.close()
@@ -460,10 +462,25 @@ class BleRadio(private val context: Context) {
             }
             connectChannel()
         }
+        var discovering = false
+        fun discover(connected: BluetoothGatt) {
+            synchronized(this) {
+                if (discovering) return
+                discovering = true
+            }
+            if (!connected.discoverServices()) startChannelOnce()
+        }
         val callback = object : BluetoothGattCallback() {
             override fun onConnectionStateChange(connected: BluetoothGatt, status: Int, state: Int) {
                 when (state) {
-                    BluetoothProfile.STATE_CONNECTED -> if (!connected.discoverServices()) startChannelOnce()
+                    BluetoothProfile.STATE_CONNECTED -> {
+                        // Full-size packets before the channel: the MTU exchange is what makes Android lengthen its LE
+                        // packets, and asked only once the channel was up it took effect seconds into a copy (the
+                        // phone's data reached a Mac at 30 KB/s, then 80). Services after the answer, or after 2 s.
+                        links.preferFastPhy(connected)
+                        mtuAsked = runCatching { connected.requestMtu(517) }.getOrDefault(false)
+                        if (mtuAsked) handler.postDelayed({ discover(connected) }, 2_000) else discover(connected)
+                    }
                     BluetoothProfile.STATE_DISCONNECTED -> fail("disconnected (status $status)")
                 }
             }
@@ -488,6 +505,7 @@ class BleRadio(private val context: Context) {
 
             override fun onMtuChanged(connected: BluetoothGatt, mtu: Int, status: Int) {
                 Log.i(TAG, "link open ${logName(peripheral)}: MTU $mtu (status $status)")
+                discover(connected)
             }
 
             @Suppress("unused") // called by the platform (noteInterval)

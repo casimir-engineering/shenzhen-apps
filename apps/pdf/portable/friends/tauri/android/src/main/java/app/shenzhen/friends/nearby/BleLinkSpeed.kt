@@ -101,22 +101,19 @@ internal class BleLinkSpeed(private val context: Context, private val handler: H
         private val fast = AtomicBoolean(false)
         private val idleCheck = Runnable { checkIdle() }
 
-        /** The GATT connection the link is asked through, once it is up: the LE 2M PHY at once, the interval on use. */
-        fun attach(connected: BluetoothGatt, socket: BluetoothSocket) {
+        /**
+         * The GATT connection the link is asked through, once it is up: the LE 2M PHY at once, the interval on use.
+         * [mtuAsked]: this phone already asked for the MTU on it, before the channel opened.
+         */
+        fun attach(connected: BluetoothGatt, socket: BluetoothSocket, mtuAsked: Boolean = false) {
             if (ended) return
             gatt = connected
-            if (Build.VERSION.SDK_INT >= 26) {
-                runCatching {
-                    connected.setPreferredPhy(
-                        BluetoothDevice.PHY_LE_2M_MASK, BluetoothDevice.PHY_LE_2M_MASK, BluetoothDevice.PHY_OPTION_NO_PREFERRED
-                    )
-                }
-            }
+            if (!mtuAsked) preferFastPhy(connected)
             // The ATT MTU exchange is what makes Android lengthen this side's LE packets (Data Length Extension, 27 to
             // 251 bytes): the L2CAP channel alone never does. Without it a link this phone dialled sent the Mac 27-byte
             // packets, and the phone's data crossed at 9 to 26 KB/s while the Mac's came back at 85 (bluetoothd: "Rx
             // [27 -> 27]" on the phone's link, 2026-11-28). A Mac that dials asks for the MTU itself.
-            val mtu = runCatching { connected.requestMtu(517) }.getOrNull()
+            val mtu = if (mtuAsked) "before the channel" else runCatching { connected.requestMtu(517) }.getOrNull()
             val buffer = shrinkSendBuffer(socket)
             val sizes = if (Build.VERSION.SDK_INT >= 29) {
                 runCatching { "tx ${socket.maxTransmitPacketSize} rx ${socket.maxReceivePacketSize}" }.getOrDefault("?")
@@ -165,9 +162,19 @@ internal class BleLinkSpeed(private val context: Context, private val handler: H
         }
     }
 
+    /** The LE 2M PHY both ways, asked once a GATT connection is up. */
+    fun preferFastPhy(connected: BluetoothGatt) {
+        if (Build.VERSION.SDK_INT < 26) return
+        runCatching {
+            connected.setPreferredPhy(
+                BluetoothDevice.PHY_LE_2M_MASK, BluetoothDevice.PHY_LE_2M_MASK, BluetoothDevice.PHY_OPTION_NO_PREFERRED
+            )
+        }
+    }
+
     /** The link of a channel this phone opened as central, on the GATT connection it dialled through. */
-    fun dialled(gatt: BluetoothGatt?, socket: BluetoothSocket, address: String, why: String): Link =
-        Link(why, address).also { link -> gatt?.let { link.attach(it, socket) } }
+    fun dialled(gatt: BluetoothGatt?, socket: BluetoothSocket, address: String, why: String, mtuAsked: Boolean): Link =
+        Link(why, address).also { link -> gatt?.let { link.attach(it, socket, mtuAsked) } }
 
     /** A GATT client on the link the friend's central made, only to ask for the interval; closed with the channel. */
     @SuppressLint("MissingPermission")
