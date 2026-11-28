@@ -86,9 +86,10 @@ internal class BleLinkSpeed(private val context: Context, private val handler: H
      *
      * The central decides the interval. CONNECTION_PRIORITY_HIGH asks for 11.25 to 15 ms: on a link this phone dialled
      * it gets 15 ms; on one a Mac dialled the Mac refuses it (Apple accepts only ranges from 15 ms up) and keeps 30 ms.
-     * A Mac moves about 1.8 KB per connection event, so 30 ms carried about 60 KB/s each way (2026-11-28, a POCO F7
-     * and a MacBook Pro); BluetoothGatt.requestLeConnectionUpdate, which could ask for exactly 15 ms, is not there
-     * for apps on this phone (NoSuchMethodException).
+     * Measured 2026-11-28 (a POCO F7 and a MacBook Pro): 85 to 98 KB/s each way on a link this phone dialled, 20 to
+     * 57 KB/s on one the Mac dialled, so a Mac waits for an Android phone to dial it (the Mac's +PhoneDials).
+     * BluetoothGatt.requestLeConnectionUpdate, which could ask a Mac for exactly 15 ms, is not there for apps on this
+     * phone (NoSuchMethodException).
      */
     inner class Link(private val why: String, private val address: String?) :
         java.io.Closeable {

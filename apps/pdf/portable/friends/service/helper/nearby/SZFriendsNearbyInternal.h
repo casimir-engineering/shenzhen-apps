@@ -117,6 +117,8 @@ extern const NSTimeInterval SZFriendsNearbyConnectingTimeout;
 @end
 
 // One connection attempt: which sighting, why, for whom, with what handshake, after what stagger.
+extern const NSTimeInterval SZFriendsBluetoothDialDeferToPhone;
+
 @interface SZFriendsDialPlan : NSObject
 + (instancetype)planWithSighting:(SZFriendsSighting *)sighting
                          purpose:(SZFriendsLinkPurpose)purpose
@@ -564,6 +566,12 @@ SZFriendsAnswerAttestation SZFriendsJudgeAnswerAttestation(NSData *_Nullable pre
                        attestation:(nullable SZFriendsHostAttestation *)attestation
                        requestedID:(nullable NSString *)requestedID
                           keyKnown:(BOOL)keyKnown;
+@end
+
+// Bluetooth to a phone: whether `plan`'s peer is a phone that dials a Mac itself, as the link's central (and the
+// Mac's own dial waits SZFriendsBluetoothDialDeferToPhone).
+@interface SZFriendsNearbyService (PhoneDials)
+- (BOOL)bluetoothPeerDialsItself:(SZFriendsDialPlan *)plan;
 @end
 
 NS_ASSUME_NONNULL_END

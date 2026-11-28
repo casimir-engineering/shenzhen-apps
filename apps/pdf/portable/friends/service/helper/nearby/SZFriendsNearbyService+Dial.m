@@ -215,6 +215,11 @@ BOOL SZFriendsNearbyDialIsPointless(SZFriendsRouteMethod live, SZFriendsRouteMet
         SZFriendsDialPlan *plan = make(attempt);
         if (plan == nil) continue;
         plan.delay = attempt.delay;
+        // A phone dials a Mac over Bluetooth itself, at a faster interval (+PhoneDials); the Mac's own dial waits.
+        if (attempt.sighting.method == SZFriendsDiscoveryMethodBluetooth && plan.laneHead == nil &&
+            [self bluetoothPeerDialsItself:plan]) {
+            plan.delay = MAX(plan.delay, SZFriendsBluetoothDialDeferToPhone);
+        }
         BOOL dialing = [self dial:plan];
         [notes addObject:dialing ? [NSString stringWithFormat:@"%@ dialing in %.1f s", route, plan.delay]
                                  : [NSString stringWithFormat:@"%@ already being dialed", route]];
