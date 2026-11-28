@@ -19,19 +19,14 @@ FRIENDS_BUILD := $(BUILD)/friends
 # Recursive '=' so a later override of the app's flags (release mode) reaches Friends too.
 # Headers include one another by path relative to portable/friends ("service/store/SZFriendsStore.h").
 FRIENDS_INCLUDES := -Ifriends
-# FRIENDS_TEST_BUILD_FLAGS: test builds only, never a release (tools/release.sh refuses to run while it or either
-# switch below is in the environment, and an SPDF_RELEASE_MODE=1 build stops on it). With
+# FRIENDS_TEST_BUILD_FLAGS: test builds only, never a release (tools/release.sh refuses to run while it or any
+# SZFRIENDS_TEST_* variable is in the environment, and build-mac-release.sh leaves them out). With
 # -DSZFRIENDS_TEST_INTERNET_ONLY=1 the helper reaches its own devices only over the Internet's direct routes: no
 # nearby dial to them and no relay, so a test measures the peer-to-peer route alone. Objects do not depend on it:
 # touch the files that read it (git grep SZFRIENDS_TEST_INTERNET_ONLY) when switching.
 # -DSZFRIENDS_TEST_BLUETOOTH_ONLY=1 reaches its own devices only over Bluetooth (no other nearby dial, nothing
 # online), so a test measures Bluetooth alone; the phones' core reads SZFRIENDS_TEST_BLUETOOTH_ONLY when compiled.
 FRIENDS_TEST_BUILD_FLAGS ?=
-ifeq ($(SPDF_RELEASE_MODE),1)
-ifneq ($(strip $(FRIENDS_TEST_BUILD_FLAGS)),)
-$(error FRIENDS_TEST_BUILD_FLAGS is for test builds only, never a release build (SPDF_RELEASE_MODE=1))
-endif
-endif
 FRIENDS_OBJC_FLAGS = $(MAC_TARGET_FLAGS) -fobjc-arc -Wall -Wextra -Werror $(FRIENDS_INCLUDES) $(FRIENDS_TEST_BUILD_FLAGS)
 FRIENDS_C_FLAGS = $(MAC_TARGET_FLAGS) -std=c99 -Wall -Wextra -Werror -pedantic $(FRIENDS_INCLUDES)
 

@@ -372,7 +372,7 @@ pub(crate) struct State {
     pub dirty: bool,
     /// When the views were last brought up to date: while a copy runs every PART marks them changed, and building
     /// every view's snapshot after each one took most of a phone core (LAN copies held near 15 MB/s), so they are
-    /// brought up to date at most every VIEWS_EVERY.
+    /// brought up to date at most every VIEWS_EVERY while a copy moves.
     pub views_at: Option<std::time::Instant>,
     /// Answered once the thread has closed the store (shutdown).
     stopped: Option<Sender<()>>,
@@ -424,13 +424,15 @@ fn run(mut state: State, inbox: Receiver<Input>) {
         }
         state.service_sessions();
         state.notify_pass(state.dirty);
-        if state.dirty && state.views_at.is_none_or(|at| at.elapsed() >= VIEWS_EVERY) {
+        // Only while a copy moves; otherwise every change shows at once, as before: throttled always, a Get asked
+        // right after another copy ended never started its pull (szfriends-interop tests/pulls.rs).
+        let moving = state.sessions.moving();
+        if state.dirty && (!moving || state.views_at.is_none_or(|at| at.elapsed() >= VIEWS_EVERY)) {
             state.dirty = false;
             state.views_at = Some(std::time::Instant::now());
             state.schedule_sync_capture();
             state.update_views();
         }
-        let moving = state.sessions.moving();
         state.busy.store(moving, Ordering::SeqCst);
     }
     // The store is closed before shutdown is answered, so whoever waited may reopen or remove it at once.

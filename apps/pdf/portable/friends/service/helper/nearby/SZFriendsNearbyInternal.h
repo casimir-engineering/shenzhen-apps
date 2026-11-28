@@ -216,7 +216,6 @@ NSString *SZFriendsTraceShort(NSString *_Nullable hex); // a conversation or tra
 @interface SZFriendsNearbyService (Dial)
 // Looks at every candidate and pending entry again on the next turn (coalesced).
 - (void)scheduleReconsider;
-- (void)scheduleReconsiderAfter:(NSTimeInterval)delay;
 - (void)reconsider;
 // NO when an attempt at that endpoint for that purpose is already running, or no adapter has it.
 - (BOOL)dial:(SZFriendsDialPlan *)plan;
@@ -229,6 +228,13 @@ NSString *SZFriendsTraceShort(NSString *_Nullable hex); // a conversation or tra
 - (void)browseOfEndpointFailed:(NSString *)endpointID;
 // An NN request that did not reach its device: tried again after a while rather than the next day.
 - (void)byIDAttemptFailed:(NSString *)attemptKey;
+// IK toward a person on `route`, presenting their Add by ID token until our ACCEPT reaches them.
+- (SZFriendsHandshakeOptions *)ikOptionsForPerson:(SZFriendsPersonRecord *)person route:(SZFriendsRouteMethod)route;
+@end
+
+// When to dial a person again (SZFriendsNearbyService+Backoff.m).
+@interface SZFriendsNearbyService (Backoff)
+- (void)scheduleReconsiderAfter:(NSTimeInterval)delay;
 - (void)noteFailureForConversation:(NSString *)conversationID;
 - (void)noteSuccessForConversation:(NSString *)conversationID;
 - (void)noteEndOfLink:(SZFriendsPeerLink *)link;
@@ -242,8 +248,6 @@ NSString *SZFriendsTraceShort(NSString *_Nullable hex); // a conversation or tra
                  succeeded:(BOOL)succeeded;
 - (BOOL)mayDialConversation:(NSString *)conversationID;
 - (void)pruneAttempts;
-// IK toward a person on `route`, presenting their Add by ID token until our ACCEPT reaches them.
-- (SZFriendsHandshakeOptions *)ikOptionsForPerson:(SZFriendsPersonRecord *)person route:(SZFriendsRouteMethod)route;
 @end
 
 // Add by ID online (SZFriendsNearbyService+ByIDOnline.m): each pending request goes to the ID's holder through the

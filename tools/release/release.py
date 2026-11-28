@@ -20,16 +20,17 @@ from common import Failure, git, label, say  # noqa: E402
 
 APPS = ("pdf", "files", "3d")
 
-# Friends' test-only switches (friends/friends.mk): a core or helper compiled with one of these set dials its own
-# devices over one route only. Every build a release starts inherits this environment, so a release refuses to run
-# while one is set rather than ship a test build.
-FRIENDS_TEST_SWITCHES = ("SZFRIENDS_TEST_INTERNET_ONLY", "SZFRIENDS_TEST_BLUETOOTH_ONLY", "FRIENDS_TEST_BUILD_FLAGS")
-
-
+# Friends' test-only switches: SZFRIENDS_TEST_* read when a core is compiled (option_env!: SZFRIENDS_TEST_INTERNET_ONLY,
+# SZFRIENDS_TEST_BLUETOOTH_ONLY, SZFRIENDS_TEST_STACK_LOG, SZFRIENDS_TEST_SCTP) and FRIENDS_TEST_BUILD_FLAGS for the
+# Objective-C helper (friends/friends.mk). Every build a release starts inherits this environment, so a release refuses
+# to run while one is set rather than ship a test build. (The suites' own SZFRIENDS_TEST_* settings are given to each
+# suite by the release itself, not taken from here.)
 def friends_test_switches_set():
-    names = [name for name in FRIENDS_TEST_SWITCHES if name in os.environ]
-    makeflags = os.environ.get("MAKEFLAGS", "") + " " + os.environ.get("MFLAGS", "")
-    names += [name for name in FRIENDS_TEST_SWITCHES if name in makeflags and name not in names]
+    flags = os.environ.get("MAKEFLAGS", "") + " " + os.environ.get("MFLAGS", "")
+    names = sorted(name for name in os.environ
+                   if name.startswith("SZFRIENDS_TEST_") or name == "FRIENDS_TEST_BUILD_FLAGS")
+    if "FRIENDS_TEST_BUILD_FLAGS" in flags or "SZFRIENDS_TEST_" in flags:
+        names.append("MAKEFLAGS")
     return names
 
 
