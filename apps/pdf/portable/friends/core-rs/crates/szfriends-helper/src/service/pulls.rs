@@ -50,6 +50,9 @@ struct Holder {
     delivered: u32,
 }
 
+/// How long a pull waits on silent holders before it starts again (unstick_pull).
+const STALL_AFTER: std::time::Duration = std::time::Duration::from_secs(10);
+
 #[derive(Debug)]
 pub struct PullCopy {
     pub transfer_id: String,
@@ -62,6 +65,12 @@ pub struct PullCopy {
     probes: u32,
     /// When the pull started, for the log's rate.
     pub(crate) started: std::time::Instant,
+    /// For the log's progress lines: WANTs sent, blocks asked in them, the last line's time and bytes.
+    pub(crate) wants: u32,
+    pub(crate) asked_blocks: u64,
+    pub(crate) logged: (std::time::Instant, u64),
+    /// When a holder last sent anything for this pull (its tree, HASHES, a PART), for the stall watchdog.
+    pub(crate) heard_at: std::time::Instant,
 }
 
 /// The pull running now (one file at a time, as the requesters copy).
@@ -162,6 +171,7 @@ impl State {
             return;
         }
         self.preempt_for_asked();
+        self.unstick_pull();
         if self.pulls.current.is_none() {
             self.start_pull();
         }
@@ -216,6 +226,26 @@ impl State {
             return;
         }
         self.stop_pull();
+    }
+
+    /// A pull none of its holders has sent anything for in STALL_AFTER (a serve that ended on the other side, a tree
+    /// that never came) steps aside and starts again at once: the holders are asked anew and send their trees again.
+    /// Without this a pull whose tree never came waits forever (no planner, so no timers), and every copy behind it.
+    fn unstick_pull(&mut self) {
+        let Some(current) = self.pulls.current.as_ref() else { return };
+        if current.heard_at.elapsed() < STALL_AFTER {
+            return;
+        }
+        crate::log!(
+            "pull {}: nothing from its holders for {} s, {:.1} MB here; asked again",
+            &current.transfer_id[..current.transfer_id.len().min(8)],
+            STALL_AFTER.as_secs(),
+            current.copy.received_bytes() as f64 / 1e6
+        );
+        if let Some(current) = self.pulls.current.take() {
+            current.copy.pause();
+        }
+        self.changed();
     }
 
     /// The running pull stops: what arrived stays in its map, and its holders hear to stop (a HAVE of every block,
@@ -277,6 +307,10 @@ impl State {
             holders: BTreeMap::new(),
             probes: 0,
             started: std::time::Instant::now(),
+            wants: 0,
+            asked_blocks: 0,
+            logged: (std::time::Instant::now(), 0),
+            heard_at: std::time::Instant::now(),
         });
     }
 
@@ -317,6 +351,10 @@ impl State {
     }
 
     fn ask_holder(&mut self, id: u64, via: Via, transfer: &str, shift: u8, ranges: Vec<(u32, u32)>) {
+        if let Some(current) = self.pulls.current.as_mut() {
+            current.wants += 1;
+            current.asked_blocks += ranges.iter().map(|r| u64::from(r.1)).sum::<u64>();
+        }
         let message = CopyMessage::WantBlocks { id: transfer.to_owned(), shift, ranges };
         let frame = match via {
             Via::Again => message.encode_again().map(|m| Frame::new(FrameType::Again).with(tag::AGAIN, m)),
@@ -335,6 +373,16 @@ impl State {
         pull.tick(now);
         let actions = pull.take_actions();
         let (transfer, shift) = (current.transfer_id.clone(), current.copy.shift());
+        if !actions.is_empty() {
+            let wants: u64 = actions
+                .iter()
+                .map(|a| match a {
+                    PullAction::Want { ranges, .. } => ranges.iter().map(|r| u64::from(r.1)).sum(),
+                    PullAction::Have { .. } => 0,
+                })
+                .sum();
+            crate::log!("pull {}: planner asks {wants} blocks in {} actions", &transfer[..transfer.len().min(8)], actions.len());
+        }
         for action in actions {
             match action {
                 PullAction::Want { source, ranges } => {

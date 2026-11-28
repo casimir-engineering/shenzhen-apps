@@ -53,7 +53,9 @@ function friendsArguments() {
   if (phone) {
     const tauri = ['--features', 'friends-online', '--config', 'src-tauri/friends/phones.conf.json'];
     // Absolute: cargo runs from the Android or Xcode project, and takes a path it cannot find for a key.
-    const cargo = ['--locked', '--config', config, '--config', resolve('src-tauri/friends/phones-profile.toml')];
+    // SHENZHEN_FAST_TEST_BUILD=1: a test APK without fat LTO (phones-profile-test.toml); releases never set it.
+    const profile = process.env.SHENZHEN_FAST_TEST_BUILD === '1' ? 'phones-profile-test.toml' : 'phones-profile.toml';
+    const cargo = ['--locked', '--config', config, '--config', resolve(`src-tauri/friends/${profile}`)];
     return { tauri, cargo: [...cargo, '--config', resolve(plugin, '../core-rs/phone.toml')] };
   }
   // A Mac embeds the Objective-C helper in Contents/Helpers; Windows and Linux carry the Rust helper beside the app.

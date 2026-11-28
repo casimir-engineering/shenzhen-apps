@@ -29,11 +29,16 @@ pub struct Serving {
     heard_at: Instant,
     /// Whether the You row showed it at the last look (`serving_tick`).
     shown: bool,
+    /// For helper.log: when the serve began, bytes of PARTs sent, the last progress line (time, bytes).
+    pub(crate) started: Instant,
+    pub(crate) sent_bytes: u64,
+    pub(crate) logged: (Instant, u64),
 }
 
 impl Serving {
     pub fn new(serve: BlockServe, path: PathBuf, sync: bool, root: [u8; 32]) -> Self {
-        Self { serve, path, sync, root, heard_at: Instant::now(), shown: sync }
+        let now = Instant::now();
+        Self { serve, path, sync, root, heard_at: now, shown: sync, started: now, sent_bytes: 0, logged: (now, 0) }
     }
 
     /// The other side asked for blocks or acknowledged some.

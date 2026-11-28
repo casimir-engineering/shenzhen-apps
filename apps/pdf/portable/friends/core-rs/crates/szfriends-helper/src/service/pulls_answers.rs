@@ -9,6 +9,7 @@ impl State {
     pub(crate) fn pull_message(&mut self, id: u64, transfer: &str, answer: PullAnswer) -> bool {
         let Some(current) = self.pulls.current.as_mut().filter(|c| c.transfer_id == transfer) else { return false };
         let Some(holder) = current.holders.get_mut(&id) else { return false };
+        current.heard_at = std::time::Instant::now();
         let now = monotonic_now();
         let follow = match answer {
             PullAnswer::Follow(root, shift) => Some((root, shift)),
@@ -65,8 +66,15 @@ impl State {
         let Some(transfer) = frame.get(tag::ID).map(hex) else { return false };
         let Some(current) = self.pulls.current.as_mut().filter(|c| c.transfer_id == transfer) else { return false };
         if !current.holders.get(&id).is_some_and(|h| h.up && !h.out) {
+            let state = current.holders.get(&id).map(|h| (h.up, h.out));
+            crate::log!(
+                "pull {}: {:?} from #{id} left aside (holder up/out {state:?})",
+                &transfer[..transfer.len().min(8)],
+                frame.frame_type
+            );
             return false;
         }
+        current.heard_at = std::time::Instant::now();
         let now = monotonic_now();
         if let Some(pull) = current.pull.as_mut() {
             pull.heard(id, now);
@@ -81,14 +89,25 @@ impl State {
                             pull.source_down(id, now);
                         }
                     }
-                    Some(true) if current.pull.is_none() => {
+                    // Done now, or known already: a resumed copy's map holds its leaves, so its HASHES add nothing
+                    // and answer "not done", and without this its pull never got a planner and asked one block at a
+                    // time, a probe each, for ever (the own-device copy stall, 2026-11-28).
+                    Some(done) if current.pull.is_none() && (done || current.copy.leaves_known()) => {
                         // The tree is known: the planner starts with what is missing and every holder that serves it.
                         let (_, shift) = current.root.expect("followed");
                         let Some(geometry) = Geometry::new(current.copy_size(), shift) else { return true };
-                        let mut pull = Pull::new(geometry, &current.copy.missing(), Config::default(), now);
+                        let missing = current.copy.missing();
+                        let mut pull = Pull::new(geometry, &missing, Config::default(), now);
+                        let mut serving = 0;
                         for (holder, state) in current.holders.iter().filter(|(_, h)| h.up && !h.out) {
                             pull.source_up(*holder, state.route, now);
+                            serving += 1;
                         }
+                        crate::log!(
+                            "pull {}: tree known, {} blocks missing, {serving} holders serving",
+                            &current.transfer_id[..current.transfer_id.len().min(8)],
+                            missing.iter().map(|r| u64::from(r.1)).sum::<u64>()
+                        );
                         current.pull = Some(pull);
                     }
                     Some(_) => {}
@@ -97,7 +116,23 @@ impl State {
             FrameType::Part => {
                 let (offset, data) =
                     (frame.integer(tag::OFFSET).unwrap_or(0), frame.get(tag::DATA).unwrap_or_default());
-                match current.copy.part(offset, data) {
+                let part = current.copy.part(offset, data);
+                let since = current.logged.0.elapsed().as_secs_f64();
+                if since >= 2.0 {
+                    let received = current.copy.received_bytes();
+                    crate::log!(
+                        "pull {} after {:.1} s: {:.1} MB of {:.1} MB here ({:.2} MB/s lately), {} WANTs for {} blocks",
+                        &current.transfer_id[..current.transfer_id.len().min(8)],
+                        current.started.elapsed().as_secs_f64(),
+                        received as f64 / 1e6,
+                        current.copy.size() as f64 / 1e6,
+                        received.saturating_sub(current.logged.1) as f64 / 1e6 / since,
+                        current.wants,
+                        current.asked_blocks
+                    );
+                    current.logged = (std::time::Instant::now(), received);
+                }
+                match part {
                     CopyPart::Written(block) => {
                         current.holders.get_mut(&id).expect("checked").delivered += 1;
                         if let Some(pull) = current.pull.as_mut() {

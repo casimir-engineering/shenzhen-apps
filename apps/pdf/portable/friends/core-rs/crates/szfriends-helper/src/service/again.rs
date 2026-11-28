@@ -219,11 +219,28 @@ impl State {
                 if !session.channel.is_established() || !super::blocks::bulk_has_room(&session.channel) {
                     return;
                 }
-                let Some(Serving { serve, path, sync, .. }) = self.again.serving.get_mut(&key) else { break };
+                let Some(serving) = self.again.serving.get_mut(&key) else { break };
+                if serving.logged.0.elapsed().as_secs_f64() >= 2.0 {
+                    let since = serving.logged.0.elapsed().as_secs_f64();
+                    crate::log!(
+                        "serve {} after {:.1} s: {:.1} MB sent ({:.2} MB/s lately), {} frames queued",
+                        &key.1[..key.1.len().min(8)],
+                        serving.started.elapsed().as_secs_f64(),
+                        serving.sent_bytes as f64 / 1e6,
+                        serving.sent_bytes.saturating_sub(serving.logged.1) as f64 / 1e6 / since,
+                        session.channel.queued_frames().1
+                    );
+                    serving.logged = (std::time::Instant::now(), serving.sent_bytes);
+                }
+                let Serving { serve, path, sync, .. } = serving;
                 let sync = *sync;
                 if let Some(part) = serve.next_part() {
                     super::meter::count(&self.meter, &part, session.meta.race_route(&session.channel));
+                    let bytes = part.get(tag::DATA).map_or(0, <[u8]>::len) as u64;
                     session.channel.send_frame(&part, szfriends_core::session::monotonic_now());
+                    if let Some(serving) = self.again.serving.get_mut(&key) {
+                        serving.sent_bytes += bytes;
+                    }
                     continue;
                 }
                 let Some(block) = serve.next_block() else { break };

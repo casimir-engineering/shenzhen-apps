@@ -162,6 +162,7 @@ fn run(path: Path, mib: usize, buffers: u32, high_water: usize, cc: u8) -> Strin
         receive_buffer: Some(buffers),
         send_buffer: Some(buffers),
         congestion_control: Some(cc),
+        max_burst: None,
     });
     let mut offerer = Peer::new("offerer", false);
     let mut answerer = Peer::new("answerer", false);

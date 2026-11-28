@@ -38,6 +38,10 @@ static const NSUInteger SZFriendsCopyTreesKept = 16;
 @property(nonatomic, copy) NSData *root;
 @property(nonatomic) uint64_t size;
 @property(nonatomic) double lastActivity; // monotonic seconds: last ask or HAVE
+// For helper.log: when the serve began, what it sent, how often it was asked, the last progress line.
+@property(nonatomic) double startedAt, loggedAt;
+@property(nonatomic) uint64_t bytesSent, loggedBytes;
+@property(nonatomic) NSUInteger asks;
 @end
 
 @implementation SZFriendsCopyServe
@@ -62,6 +66,22 @@ static double SZFriendsCopyNow(void) {
 }
 
 @implementation SZFriendsNearbyService (Copies)
+
+// One line for helper.log about a copy served by blocks: who, how long, what went and what came back.
+- (void)logServe:(SZFriendsCopyServe *)served transfer:(NSString *)transferID link:(SZFriendsPeerLink *)link
+            what:(NSString *)what {
+    double now = SZFriendsCopyNow(), seconds = MAX(now - served.startedAt, 0.001);
+    double since = MAX(now - served.loggedAt, 0.001);
+    SZFriendsHelperLog(@"copy %@ to %@ (%@) %@ after %.1f s: %.1f MB sent (%.2f MB/s, %.2f MB/s lately), %.1f MB "
+                       @"acknowledged of %.1f MB, %lu asks, %lu frames queued",
+                       [transferID substringToIndex:MIN((NSUInteger)8, transferID.length)],
+                       served.sync ? @"own device" : @"friend", SZFriendsTraceRouteName(link.raceRoute), what,
+                       seconds, served.bytesSent / 1e6, served.bytesSent / 1e6 / seconds,
+                       (served.bytesSent - served.loggedBytes) / 1e6 / since, served.serve.acknowledgedBytes / 1e6,
+                       served.size / 1e6, (unsigned long)served.asks, (unsigned long)link.channel.queuedBulkFrames);
+    served.loggedAt = now;
+    served.loggedBytes = served.bytesSent;
+}
 
 - (BOOL)serveCopyOnLink:(SZFriendsPeerLink *)link
                transfer:(NSString *)transferID
@@ -88,6 +108,7 @@ static double SZFriendsCopyNow(void) {
         close(fd);
         if (![existing.serve want:ranges]) return NO;
         existing.lastActivity = SZFriendsCopyNow();
+        existing.asks++;
         [self sendFollowOf:existing transfer:transferID onLink:link];
         [self pumpCopiesOnLink:link];
         return YES;
@@ -125,6 +146,9 @@ static double SZFriendsCopyNow(void) {
     served.root = tree[1];
     served.size = size;
     served.lastActivity = SZFriendsCopyNow();
+    served.startedAt = served.loggedAt = served.lastActivity;
+    served.asks = 1;
+    [self logServe:served transfer:transferID link:link what:@"starts"];
     if (link.servedCopies == nil) link.servedCopies = [NSMutableDictionary dictionary];
     link.servedCopies[transferID] = served;
     [self sendFollowOf:served transfer:transferID onLink:link];
@@ -200,14 +224,19 @@ static double SZFriendsCopyNow(void) {
         BOOL done = serve.idle && !serve.awaitingHave && now - served.lastActivity >= SZFriendsCopyIdleEnd;
         BOOL stuck = serve.awaitingHave && now - served.lastActivity >= SZFriendsCopyHaveWait;
         if (done || stuck) {
+            [self logServe:served transfer:transferID link:link
+                      what:done ? @"ends, nothing more asked" : @"ends, no HAVE came"];
             [self endServe:transferID onLink:link];
             [self changed];
             continue;
         }
+        if (now - served.loggedAt >= 2) [self logServe:served transfer:transferID link:link what:@"runs"];
         while (link.channel.queuedBulkFrames < SZFriendsCopyBulkDepth) {
+            NSUInteger partLength = serve.nextPartLength;
             SZFriendsFrame *part = [serve nextPart];
             if (part != nil) {
                 if (![link.channel sendFrame:part]) return;
+                served.bytesSent += partLength;
                 continue;
             }
             uint32_t block = 0;
@@ -276,7 +305,10 @@ static double SZFriendsCopyNow(void) {
                                   fraction:(double)served.serve.acknowledgedBytes / (double)served.size];
         [self progressChanged];
     }
-    if (served.serve.allAcknowledged) [self endServe:transferID onLink:link];
+    if (served.serve.allAcknowledged) {
+        [self logServe:served transfer:transferID link:link what:@"ends, every block asked acknowledged"];
+        [self endServe:transferID onLink:link];
+    }
     [self pumpCopiesOnLink:link];
     return YES;
 }

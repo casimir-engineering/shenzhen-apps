@@ -22,6 +22,9 @@ static const NSTimeInterval SZFriendsPullNotNow = 5;
 // The pull's timers (silent holders, the endgame), and how often a copy running by itself looks for a Get again.
 static const NSTimeInterval SZFriendsPullTick = 0.25;
 
+// A pull none of its holders sent anything for this long starts again (as pulls.rs's STALL_AFTER).
+static const double SZFriendsPullStallAfter = 10;
+
 static double SZFriendsPullNow(void) {
     return (double)clock_gettime_nsec_np(CLOCK_MONOTONIC) / 1e9;
 }
@@ -52,6 +55,9 @@ static double SZFriendsPullNow(void) {
 @property(nonatomic, strong) NSMutableArray<SZFriendsPullHolder *> *holders;
 @property(nonatomic) uint32_t probes; // blocks asked before the tree was known, one per holder
 @property(nonatomic) double startedAt; // monotonic seconds, for the log's rate
+@property(nonatomic) double heardAt;   // a holder last sent its tree, HASHES or a PART (the stall watchdog)
+@property(nonatomic) double loggedAt;  // the last progress line
+@property(nonatomic) uint64_t loggedBytes;
 @end
 @implementation SZFriendsPullCopy
 @end
@@ -111,6 +117,7 @@ static uint32_t SZFriendsNthBlock(NSData *ranges, uint32_t n) {
     if (self.shutDown) return;
     [self dropUnwantedPull];
     [self preemptForAsked];
+    [self unstickPull];
     if (self.currentPull == nil) [self startPull];
     [self attachHolders];
     [self drivePull];
@@ -179,6 +186,19 @@ static uint32_t SZFriendsNthBlock(NSData *ranges, uint32_t n) {
                                              containsObject:current.transferID];
     if (wanted) return;
     [self stopHoldersOf:current];
+    [current.blockCopy pause];
+    self.pullCurrent = nil;
+    [self changed];
+}
+
+// A pull whose holders went silent (a serve that ended there, a tree that never came) steps aside and starts again:
+// its holders are asked anew. Without it a pull with no tree yet has no planner and no timers, and waits for ever.
+- (void)unstickPull {
+    SZFriendsPullCopy *current = self.currentPull;
+    if (current == nil || SZFriendsPullNow() - MAX(current.heardAt, current.startedAt) < SZFriendsPullStallAfter) return;
+    SZFriendsHelperLog(@"pull %@: nothing from its holders for %.0f s, %.1f MB here; asked again",
+                       [current.transferID substringToIndex:MIN((NSUInteger)8, current.transferID.length)],
+                       SZFriendsPullStallAfter, current.blockCopy.receivedBytes / 1e6);
     [current.blockCopy pause];
     self.pullCurrent = nil;
     [self changed];
@@ -328,6 +348,7 @@ static uint32_t SZFriendsNthBlock(NSData *ranges, uint32_t n) {
     SZFriendsPullHolder *holder = [current.transferID isEqualToString:transferID] ? [self holderOfLink:link] : nil;
     if (holder == nil) return NO;
     double now = SZFriendsPullNow();
+    current.heardAt = now;
     if (root == nil) {
         holder.out = YES;
         if (!holder.sync && gone && current.again != nil) {
@@ -369,7 +390,18 @@ static uint32_t SZFriendsNthBlock(NSData *ranges, uint32_t n) {
     SZFriendsPullHolder *holder = [self holderOfLink:link];
     if (holder == nil || !holder.up || holder.out) return NO;
     double now = SZFriendsPullNow();
+    current.heardAt = now;
     [current.pull heard:holder.source now:now];
+    if (now - MAX(current.loggedAt, current.startedAt) >= 2) {
+        uint64_t received = current.blockCopy.receivedBytes;
+        double since = now - MAX(current.loggedAt, current.startedAt);
+        SZFriendsHelperLog(@"pull %@ after %.1f s: %.1f MB of %.1f MB here (%.2f MB/s lately), over %@",
+                           [transferID substringToIndex:MIN((NSUInteger)8, transferID.length)], now - current.startedAt,
+                           received / 1e6, current.size / 1e6, (received - MIN(received, current.loggedBytes)) / 1e6 / since,
+                           SZFriendsTraceRouteName(holder.route));
+        current.loggedAt = now;
+        current.loggedBytes = received;
+    }
     if (frame.type == SZFriendsFrameTypeHashes) {
         NSData *index = [frame dataForTag:SZFriendsFieldIndex], *hashes = [frame dataForTag:SZFriendsFieldHashes];
         const uint8_t *b = index.bytes;

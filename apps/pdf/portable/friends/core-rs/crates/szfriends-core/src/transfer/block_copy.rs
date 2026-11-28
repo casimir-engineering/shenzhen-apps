@@ -145,6 +145,12 @@ impl BlockCopy {
     }
 
     /// The shift to ask with: the announced tree's, else this build's for the size.
+    /// Whether the file's leaves are known and checked against its root (from HASHES, or from the map of a copy
+    /// resumed), so a planner can start.
+    pub fn leaves_known(&self) -> bool {
+        self.assembly.as_ref().is_some_and(|a| a.leaves().is_some())
+    }
+
     /// The file's size in bytes.
     pub fn size(&self) -> u64 {
         self.size

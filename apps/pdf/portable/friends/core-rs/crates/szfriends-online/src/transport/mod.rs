@@ -187,7 +187,24 @@ impl TransportConfig {
 /// Configures the stack once per process, before any peer connection exists.
 pub fn configure_stack() {
     static ONCE: std::sync::Once = std::sync::Once::new();
-    ONCE.call_once(|| szfriends_datachannel_sys::set_thread_pool_size(1));
+    ONCE.call_once(|| {
+        szfriends_datachannel_sys::set_thread_pool_size(1);
+        // Test: SZFRIENDS_TEST_SCTP="<cc>,<max burst>" when the core is compiled (test builds only).
+        if let Some(spec) = option_env!("SZFRIENDS_TEST_SCTP") {
+            let mut parts = spec.split(',').map(|p| p.trim().parse::<u8>().ok());
+            let congestion_control = parts.next().flatten();
+            let max_burst = parts.next().flatten();
+            let mut kib = spec.split(',').skip(2).map(|p| p.trim().parse::<u32>().ok());
+            let send_buffer = kib.next().flatten().map(|k| k * 1024);
+            let receive_buffer = kib.next().flatten().map(|k| k * 1024);
+            szfriends_datachannel_sys::set_sctp_settings(szfriends_datachannel_sys::SctpSettings {
+                congestion_control,
+                max_burst,
+                send_buffer,
+                receive_buffer,
+            });
+        }
+    });
 }
 
 /// Releases stack objects on the stack's release thread: deleting a connection blocks until its transports stop, which

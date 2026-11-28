@@ -187,6 +187,8 @@ pub struct SctpSettings {
     pub send_buffer: Option<u32>,
     /// 0 RFC 2581/4960, 1 HighSpeed TCP, 2 H-TCP, 3 RTCC.
     pub congestion_control: Option<u8>,
+    /// Packets sent at most per acknowledgement (usrsctp's max burst); `None` keeps the stack's 10.
+    pub max_burst: Option<u8>,
 }
 
 pub fn set_sctp_settings(settings: SctpSettings) {
@@ -195,6 +197,7 @@ pub fn set_sctp_settings(settings: SctpSettings) {
         recvBufferSize: size(settings.receive_buffer),
         sendBufferSize: size(settings.send_buffer),
         congestionControlModule: settings.congestion_control.map_or(0, c_int::from),
+        maxBurst: settings.max_burst.map_or(0, c_int::from),
         ..ffi::rtcSctpSettings::default()
     };
     // SAFETY: `raw` outlives the call, which copies the settings.

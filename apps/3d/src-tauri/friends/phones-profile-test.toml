@@ -1,0 +1,7 @@
+# Test builds only (SHENZHEN_FAST_TEST_BUILD=1 with scripts/platform-build.mjs): the phone profile without fat LTO and
+# one codegen unit, so a test APK rebuilds in a fraction of the time. Releases use phones-profile.toml.
+[profile.release]
+lto = false
+codegen-units = 16
+panic = "abort"
+debug-assertions = false
