@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use szfriends_crypto::noise::{Handshake, SealJob, Transport};
 use szfriends_wire::consts::{RESPONDER_HANDSHAKE_MAX, SESSION_MAJOR};
-use szfriends_wire::{Fields, NoiseCipher, Pattern, RouteMethod};
+use szfriends_wire::{Fields, FrameType, NoiseCipher, Pattern, RouteMethod};
 
 use super::{ChannelConfig, ChannelIdentity, Event, PublicProfile, ReplayCache, SessionError, SessionRandom};
 
@@ -103,6 +103,14 @@ impl LinkWrite {
 
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    /// The bytes of it that carry PARTs: what a receiver acknowledges piece by piece (ADR 0018 § 3).
+    pub fn part_bytes(&self) -> usize {
+        match self {
+            LinkWrite::Bytes(_) => 0,
+            LinkWrite::Seal(job) => job.framed_len_where(|p| p.first() == Some(&(FrameType::Part as u8))),
+        }
     }
 
     /// Its bytes appended to `out`, sealed here if they are a job.

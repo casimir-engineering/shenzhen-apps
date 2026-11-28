@@ -406,7 +406,11 @@ Each with its cost and benefit; the journal keeps the full list, including those
    Android phone's stack takes 170 to 236 KB/s into an L2CAP channel while its radio carries 43 to 98, so its messages
    waited seconds behind file data; its Bluetooth links are now paced to the radio by the receiver's piece HAVEs
    (`service/radio_pace.rs`), with 4 KiB parts and an 8 KiB write budget, and the Mac acknowledges pieces of copies and
-   pulls over Bluetooth as it does a transfer's. CoreBluetooth holds back on its own, so the Mac keeps 16 KiB.
+   pulls over Bluetooth as it does a transfer's. CoreBluetooth holds back on its own, so the Mac keeps 16 KiB. The pace
+   holds only writes that carry PARTs (only those are acknowledged); a radio that stalls keeps its last rate and the
+   stack takes no more than a quarter second of it and two pieces, and a delivery that falls while the stack still
+   holds data is a slower radio, not an empty stack (simulated: an 8 s stall leaves 48 KB queued instead of 1.1 MB, and
+   a step from 90 to 10 KB/s 49 KB instead of 634 KB).
 9. **Better loss recovery on Internet paths (adopted, WP3, measured first).** Data channels may hold 8 MiB buffered
    instead of 1 MiB, so one is no longer capped near 1 MiB per round trip (26 MB/s at 40 ms, 7 MB/s at 150 ms), with
    usrsctp's buffers raised to match and its H-TCP module chosen instead of the RFC 4960 default where the NAT

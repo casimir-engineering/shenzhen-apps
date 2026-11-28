@@ -109,8 +109,8 @@ pub fn is_request_answer(entry: &OutboxEntry) -> bool {
 }
 
 /// A quarter of a Bluetooth link's in-flight budget: 8 KiB handed to the link and not yet written, so a message
-/// queued now waits behind at most two 4 KiB parts there (`lanes.rs`) and what the link's pace lets the stack hold
-/// (`radio_pace.rs`), a tenth of a second or so at 90 KB/s.
+/// queued now waits behind at most one 4 KiB part there (`lanes.rs`; a second, with its framing, does not fit) and
+/// what the link's pace lets the stack hold (`radio_pace.rs`), a tenth of a second or so at 90 KB/s.
 const BLUETOOTH_WRITE_SIZE: usize = 2 * 1024;
 /// One write on a LAN or direct Wi-Fi link; four of them are its in-flight budget.
 const FAST_WRITE_SIZE: usize = 256 * 1024;

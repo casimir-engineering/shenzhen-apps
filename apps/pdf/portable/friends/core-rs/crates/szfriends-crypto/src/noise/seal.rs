@@ -45,6 +45,11 @@ impl SealJob {
         self.plaintexts.len()
     }
 
+    /// What [`SealJob::framed_len`] counts, of the messages whose plaintext `keep` picks.
+    pub fn framed_len_where(&self, keep: impl Fn(&[u8]) -> bool) -> usize {
+        self.plaintexts.iter().filter(|p| keep(p)).map(|p| p.len() + NOISE_TAG_LEN + 2).sum()
+    }
+
     fn cipher_for(&self, nonce: u64) -> &dyn Cipher {
         match &self.from_second {
             Some(aes) if nonce >= 1 => aes.as_ref(),

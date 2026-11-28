@@ -10,13 +10,22 @@
 //!
 //! A token bucket at `gain × rate`, no deeper than twice what the radio carries in 50 ms (never less than one write),
 //! sits in front of the platform. The rate is the highest delivery rate measured over the last few seconds. The gain
-//! is 2 until the rate stops growing, then ½ until the stack is empty, then it cycles 1.25, 0.75, 1, so the pace keeps
-//! looking for a faster radio and gives back what each look queued. What the stack holds is the bytes handed and not
-//! acknowledged, less what that was when the stack was last seen empty (a drain whose delivery fell to its pace): past
-//! a quarter of a second of the radio, or every few seconds, the gain is ½ again until the stack is empty, which also
-//! keeps framing and messages (never acknowledged) from piling up in that count. Before the first acknowledgement the
-//! link is not paced (it may carry nothing that is acknowledged), and while none come back for a few seconds although
-//! writes wait, the pace grows by a quarter a second, so a peer that never acknowledges is held back only briefly.
+//! is 1.5 until the rate stops growing, then ½ until the stack is empty, then it cycles 1.25, 0.75, 1, so the pace
+//! keeps looking for a faster radio and gives back what each look queued. What the stack holds is the bytes handed
+//! and not acknowledged, less what that was when the stack was last seen empty (a drain whose delivery fell to what
+//! it handed): past a quarter of a second of the radio, or every few seconds, the gain is ½ again until the stack is
+//! empty, which also keeps framing and messages (never acknowledged) from piling up in that count. A sample whose
+//! delivery is low while the stack grows or still drains measured a slower radio, not an empty stack: it is the rate
+//! from then on.
+//!
+//! Only PARTs are acknowledged, so only writes carrying them are held for acknowledgements: before the first one
+//! [`FIRST_WINDOW`] of parts goes, and a link that gets none within [`FIRST_WAIT`] is not paced (what it carries is
+//! not acknowledged). Once paced, parts stop while more than [`State::stall_cap`] of them went since the last
+//! acknowledgement (the radio stalled: the pace holds its rate, the stack does not fill), and while the stack holds
+//! more than its limit and a bucket (a slower radio's backlog drains first). A link held [`HOLD_MAX`] without one
+//! carries parts that are not acknowledged: it is not paced until one comes, then paced again at its last rate. On a
+//! slow radio the probing steps last as long as its samples, and two probing samples in a row well above the rate
+//! start the gain at 1.5 again, so a radio that recovers is found in seconds.
 
 use std::collections::VecDeque;
 use std::sync::Mutex;
@@ -26,6 +35,9 @@ use szfriends_core::transfer::frames;
 use szfriends_core::wire::consts::PIECE_SHIFT;
 use szfriends_core::wire::{tag, Frame, FrameType};
 
+/// What the acknowledgements teach: delivery samples, the rate, and the phases they move.
+mod samples;
+
 /// The bucket is no deeper than what the radio carries in twice this long.
 const STACK_TIME: Duration = Duration::from_millis(50);
 /// Nor shallower than this: a part and its framing pass in one go.
@@ -33,48 +45,75 @@ const STACK_FLOOR: f64 = 8.0 * 1024.0;
 /// A delivery-rate sample spans at least this long and this many acknowledgements.
 const SAMPLE_MIN: Duration = Duration::from_millis(500);
 const SAMPLE_ACKS: u32 = 2;
-/// The rate is the highest sample this recent.
+/// The rate is the highest sample this recent (or of about the last two probing cycles, when longer).
 const RATE_WINDOW: Duration = Duration::from_secs(4);
-/// Without an acknowledgement this long while writes wait, the pace grows by a quarter every second.
-const STALE: Duration = Duration::from_secs(3);
 /// Never slower than this, whatever was measured.
 const RATE_FLOOR: f64 = 4_000.0;
-/// Nor faster when it grows blind.
-const RATE_CEILING: f64 = 50e6;
-/// The probing cycle: a quarter faster, a quarter slower, then even, for these long.
+/// The probing cycle: a quarter faster, a quarter slower, then even, for these long; on a slow radio the looks faster
+/// and slower last as long as one of its samples (two acknowledgements).
 const PROBE_UP: Duration = Duration::from_millis(400);
 const PROBE_DOWN: Duration = Duration::from_millis(400);
 const PROBE_CYCLE: Duration = Duration::from_millis(2400);
+/// A probing sample this much above the rate looked faster (see [`State::faster`]).
+const PROBE_FOUND: f64 = 1.2;
 /// The stack may hold this much of the radio's time (beside [`STACK_FLOOR`]) before it is drained.
 const QUEUE_LIMIT: Duration = Duration::from_millis(250);
 /// And it is drained dry at least this often, which finds the count's zero again.
 const EMPTY_EVERY: Duration = Duration::from_secs(30);
 /// A drain ends when two samples in a row deliver under this share of the rate (the stack ran dry; one could be an
-/// acknowledgement late), or after this long.
+/// acknowledgement late), or after this long ([`State::drain_max`]: longer on a slow radio).
 const EMPTY_SHARE: f64 = 0.7;
 const DRAIN_MAX: Duration = Duration::from_secs(4);
+/// A sample's delivery this far from what was handed meanwhile (and a piece) says the stack grew or drained: it was not
+/// dry, so the delivery was the radio's.
+const RADIO_LIMITED: f64 = 0.15;
 /// The longest the writer sleeps before looking again.
 const NAP: Duration = Duration::from_millis(20);
-/// Before the first acknowledgement this much goes at once; then the writer waits for one, at most `FIRST_WAIT`, and
-/// a link that gets none by then is not paced until one comes (what it carries is not acknowledged).
+/// Before the first acknowledgement this many bytes of parts go at once; then the writer waits for one, at most
+/// `FIRST_WAIT`, and a link that gets none by then is not paced until one comes (what it carries is not
+/// acknowledged). Writes without parts never wait for one.
 const FIRST_WINDOW: u64 = 32 * 1024;
 const FIRST_WAIT: Duration = Duration::from_secs(1);
-/// Writes after this long without one start a new burst, which the first acknowledgement times.
+/// Parts after this long without one start a new burst, which the first acknowledgement times.
 const BURST_GAP: Duration = Duration::from_secs(1);
+/// One piece: what a HAVE's Pieces name.
+const PIECE: f64 = (1u64 << PIECE_SHIFT) as f64;
+/// Parts held this long with no acknowledgement are not acknowledged (Bluetooth's silence closes a session at 12 s).
+const HOLD_MAX: Duration = Duration::from_secs(10);
+/// While the backlog holds parts, acknowledgements that stop for this many of their recent spacings (and at least
+/// [`ACK_TIMEOUT_MIN`], longer than a piece takes at 8 KB/s, so a radio that just slowed is not taken for a dry
+/// stack) say the stack is dry after all: what the count still holds was never going to be acknowledged.
+const ACK_TIMEOUT_SPACINGS: f64 = 3.0;
+const ACK_TIMEOUT_MIN: Duration = Duration::from_secs(2);
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Phase {
     /// No acknowledgement yet: [`FIRST_WINDOW`] goes, then the writer waits for one (since when).
     First { waiting: Option<Instant> },
-    /// None came in time: not paced until one does.
+    /// None came in time, or parts were held [`HOLD_MAX`]: not paced until one comes.
     Unpaced,
-    /// Gain 2 until two samples in a row grow the rate by less than a quarter.
+    /// Gain 1.5 until two samples in a row grow the rate by less than a quarter.
     Startup { flat: u8, best: f64 },
     /// Gain ½ until the stack runs dry (`dry`: until a sample's delivery falls, which marks the count's zero), or
     /// until it holds no more than the bucket.
     Drain { since: Instant, dry: bool, low: u8 },
     /// Gains 1.25, 0.75, 1 in turn.
     Probe { since: Instant },
+}
+
+/// A delivery-rate sample in progress.
+#[derive(Clone, Copy, Debug)]
+struct Sample {
+    started: Instant,
+    /// Bytes acknowledged, and handed, when it started.
+    acked: u64,
+    handed: u64,
+    /// Acknowledgements since.
+    acks: u32,
+    /// A write waited for the bucket or the holds meanwhile (a sample with none measured the sender, not the radio).
+    waited: bool,
+    /// Parts were held for a stall meanwhile: what it measured is the stall, not the radio.
+    stalled: bool,
 }
 
 #[derive(Debug)]
@@ -86,22 +125,27 @@ struct State {
     /// Bytes handed to the platform, and the friend's acknowledgements (never more than were handed).
     handed: u64,
     acked: u64,
+    /// Bytes of parts handed, and how many that was at the last acknowledgement.
+    parts: u64,
+    parts_at_ack: u64,
     /// When the stack was last seen empty: bytes handed and not acknowledged then, bytes handed then, and when.
     empty: (u64, u64, Instant),
     /// The share of what is handed that is never acknowledged (framing, messages, a block's last piece, which only
     /// its Ranges complete), learned between two empty stacks.
     unacknowledged_share: f64,
-    /// The current sample: when it started, the bytes acknowledged then, acknowledgements since, and whether a write
-    /// waited for the bucket meanwhile (a sample with no write waiting measured the sender, not the radio).
-    sample: Option<(Instant, u64, u32, bool)>,
+    sample: Option<Sample>,
     /// What the bucket holds, as of `level_at`.
     level: f64,
     level_at: Instant,
-    /// Since when writes have waited for the bucket with no acknowledgement in between.
-    quiet_since: Option<Instant>,
-    last_growth: Instant,
-    /// The first write of the current burst, which the first acknowledgement times, and the last write.
+    /// The first part of the current burst, which the first acknowledgement times, and the last.
     burst: Option<(Instant, Instant)>,
+    /// The last acknowledgement, and the longest time between two lately (seconds, decaying).
+    last_ack: Option<Instant>,
+    ack_spacing: f64,
+    /// Since when parts have been held for a stall.
+    held: Option<Instant>,
+    /// The last probing sample delivered well above the rate.
+    faster: bool,
 }
 
 /// One Bluetooth link's pace, shared by the link's writer (which waits on it) and the service's thread (which hears
@@ -133,14 +177,18 @@ impl RadioPace {
             samples: VecDeque::new(),
             handed: 0,
             acked: 0,
+            parts: 0,
+            parts_at_ack: 0,
             empty: (0, 0, now),
             unacknowledged_share: 0.02,
             sample: None,
             level: 0.0,
             level_at: now,
-            quiet_since: None,
-            last_growth: now,
             burst: None,
+            last_ack: None,
+            ack_spacing: 0.0,
+            held: None,
+            faster: false,
         }))
     }
 
@@ -148,10 +196,11 @@ impl RadioPace {
         self.0.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    /// Before handing `length` bytes to the platform: waits until the bucket has room for them, then counts them.
-    pub fn wait_for_room(&self, length: usize) {
+    /// Before handing `length` bytes to the platform, `parts` of them PARTs ([`szfriends_core::session::LinkWrite::
+    /// part_bytes`]): waits until the bucket has room for them, then counts them.
+    pub fn wait_for_room(&self, length: usize, parts: usize) {
         loop {
-            let wait = self.state().take(length, Instant::now());
+            let wait = self.state().take(length, parts, Instant::now());
             match wait {
                 None => return,
                 Some(wait) => std::thread::sleep(wait.min(NAP)),
@@ -178,7 +227,8 @@ impl RadioPace {
             Phase::Drain { .. } => "drain",
             Phase::Probe { .. } => "probe",
         };
-        format!("{phase} at {:.1} KB/s × {:.2}, {:.1} KB in the stack", state.rate / 1e3, state.gain(now), {
+        let held = if state.held.is_some() { ", parts held for a stall" } else { "" };
+        format!("{phase} at {:.1} KB/s × {:.2}, {:.1} KB in the stack{held}", state.rate / 1e3, state.gain(now), {
             state.queued() / 1e3
         })
     }
@@ -191,11 +241,12 @@ impl State {
             Phase::Startup { .. } => 1.5,
             Phase::Drain { .. } => 0.5,
             Phase::Probe { since } => {
-                let into = now.saturating_duration_since(since).as_secs_f64() % PROBE_CYCLE.as_secs_f64();
-                let into = Duration::from_secs_f64(into);
-                if into < PROBE_UP {
+                let (up, down) = self.probe_steps();
+                let cycle = up + down + (PROBE_CYCLE - PROBE_UP - PROBE_DOWN).as_secs_f64();
+                let into = now.saturating_duration_since(since).as_secs_f64() % cycle;
+                if into < up {
                     1.25
-                } else if into < PROBE_UP + PROBE_DOWN {
+                } else if into < up + down {
                     0.75
                 } else {
                     1.0
@@ -244,14 +295,17 @@ impl State {
         self.level_at = now;
     }
 
-    /// Counts `length` bytes as handed when the bucket has room, else says how long until it may.
-    fn take(&mut self, length: usize, now: Instant) -> Option<Duration> {
-        self.burst = match self.burst {
-            Some((first, last)) if now.saturating_duration_since(last) < BURST_GAP => Some((first, now)),
-            _ => Some((now, now)),
-        };
+    /// Counts `length` bytes (`parts` of them PARTs) as handed when the bucket has room and parts are not held, else
+    /// says how long until it may.
+    fn take(&mut self, length: usize, parts: usize, now: Instant) -> Option<Duration> {
+        if parts > 0 {
+            self.burst = match self.burst {
+                Some((first, last)) if now.saturating_duration_since(last) < BURST_GAP => Some((first, now)),
+                _ => Some((now, now)),
+            };
+        }
         if let Phase::First { waiting } = self.phase {
-            if self.handed > 0 && self.handed + length as u64 > FIRST_WINDOW {
+            if parts > 0 && self.parts > 0 && self.parts + parts as u64 > FIRST_WINDOW {
                 let since = waiting.unwrap_or(now);
                 if now.saturating_duration_since(since) < FIRST_WAIT {
                     self.phase = Phase::First { waiting: Some(since) };
@@ -261,127 +315,77 @@ impl State {
             }
         }
         self.drain_level(now);
-        let length = length as f64;
-        let room = (self.depth() - length).max(0.0);
+        let room = (self.depth() - length as f64).max(0.0);
         if self.paced() && self.level > room {
-            if let Some(sample) = self.sample.as_mut() {
-                sample.3 = true;
-            }
-            self.quiet_since.get_or_insert(now);
-            self.grow_blind(now);
+            self.waited(false);
             return Some(Duration::from_secs_f64((self.level - room) / self.pace(now)));
         }
-        if self.level == 0.0 {
-            // The bucket was empty: the sender, not the pace, held this link back.
-            self.quiet_since = None;
+        if parts > 0 && self.paced() {
+            if let Some(stalled) = self.holds(now) {
+                self.waited(stalled);
+                return Some(NAP);
+            }
+            self.held = None;
         }
-        self.level += length;
+        self.level += length as f64;
         self.handed += length as u64;
+        self.parts += parts as u64;
         None
     }
 
-    /// Writes have waited a while with no acknowledgement: what is sent now is not acknowledged (or the route is
-    /// silent), so the pace grows by a quarter a second instead of holding the link to an old rate.
-    fn grow_blind(&mut self, now: Instant) {
-        let Some(quiet) = self.quiet_since else { return };
-        if now.saturating_duration_since(quiet) < STALE || now.saturating_duration_since(self.last_growth).as_secs() < 1
-        {
-            return;
+    /// A write waited (for a stall, `stalled`): the sample in progress measures the radio, or nothing.
+    fn waited(&mut self, stalled: bool) {
+        if let Some(sample) = self.sample.as_mut() {
+            sample.waited = true;
+            sample.stalled |= stalled;
         }
-        self.last_growth = now;
-        self.rate = (self.rate * 1.25).min(RATE_CEILING);
-        self.samples.clear();
-        self.phase = Phase::Probe { since: now };
-        self.empty = (self.handed.saturating_sub(self.acked), self.handed, now);
     }
 
-    fn acknowledged(&mut self, bytes: u64, now: Instant) {
-        self.drain_level(now);
-        self.acked += bytes.min(self.handed.saturating_sub(self.acked));
-        self.quiet_since = None;
-        let Some((started, from, acks, waited)) = self.sample else {
-            self.first_acknowledgement(now);
-            self.sample = Some((now, self.acked, 0, false));
-            return;
-        };
-        let acks = acks + 1;
-        let span = now.saturating_duration_since(started);
-        if span < SAMPLE_MIN || acks < SAMPLE_ACKS {
-            self.sample = Some((started, from, acks, waited));
-            return;
-        }
-        self.sample = Some((now, self.acked, 0, false));
-        // In bytes handed: what is never acknowledged crossed the radio too.
-        let rate = (self.acked - from) as f64 / span.as_secs_f64() / (1.0 - self.unacknowledged_share);
-        self.sampled(rate, !waited, now);
+    /// Parts handed since the last acknowledgement beyond which the radio is taken to have stalled: two pieces (a
+    /// block's last is acknowledged only by its Ranges) and what the stack may hold.
+    fn stall_cap(&self) -> f64 {
+        2.0 * PIECE + self.limit()
     }
 
-    /// The first acknowledgement: the link is paced from now on, at what crossed since the first write (a round trip
-    /// too long, so a little slow). What went unpaced meanwhile may fill the stack: it drains first.
-    fn first_acknowledgement(&mut self, now: Instant) {
-        let first = self.burst.map_or(now, |(first, _)| first);
-        let since = now.saturating_duration_since(first).as_secs_f64().max(0.01);
-        self.rate = (self.acked as f64 / since).max(RATE_FLOOR);
-        self.empty = (0, 0, now);
-        self.phase = if self.queued() > self.limit() {
-            Phase::Drain { since: now, dry: true, low: 0 }
-        } else {
-            Phase::Startup { flat: 0, best: self.rate }
-        };
-        self.level = 0.0;
-        self.level_at = now;
+    /// Whether parts wait now, and if so whether for a stall (`Some(true)`) or for the backlog (`Some(false)`).
+    fn holds(&mut self, now: Instant) -> Option<bool> {
+        // The radio stalled: parts went and nothing came back. The rate stays what it was; the stack does not fill.
+        let unanswered = self.parts.saturating_sub(self.parts_at_ack) as f64;
+        if unanswered > self.stall_cap() {
+            let since = *self.held.get_or_insert(now);
+            if now.saturating_duration_since(since) < HOLD_MAX {
+                return Some(true);
+            }
+            // So long without one: what this link carries now is not acknowledged.
+            self.phase = Phase::Unpaced;
+            self.sample = None;
+            self.held = None;
+            return None;
+        }
+        // A slower radio's backlog drains before more parts join it, unless acknowledgements stopped with nothing
+        // unanswered: then the stack is dry and the count held what is never acknowledged.
+        if self.queued() > self.backlog() {
+            let timeout = (ACK_TIMEOUT_SPACINGS * self.ack_spacing).max(ACK_TIMEOUT_MIN.as_secs_f64());
+            let quiet = self.last_ack.map_or(0.0, |at| now.saturating_duration_since(at).as_secs_f64());
+            if quiet < timeout {
+                return Some(false);
+            }
+            if unanswered > 2.0 * PIECE {
+                // Nothing came back for parts that went: a stall, as above.
+                return Some(true);
+            }
+            self.mark_empty(now);
+        }
+        None
+    }
+
+    /// Beyond what the stack may hold and a bucket more, parts wait for it to drain ([`State::holds`]).
+    fn backlog(&self) -> f64 {
+        self.limit() + self.depth()
     }
 
     /// What the stack may hold before it is drained.
     fn limit(&self) -> f64 {
         self.rate * QUEUE_LIMIT.as_secs_f64() + STACK_FLOOR
-    }
-
-    fn sampled(&mut self, rate: f64, limited_by_sender: bool, now: Instant) {
-        if !limited_by_sender || rate > self.rate {
-            self.samples.push_back((now, rate));
-        }
-        while self.samples.front().is_some_and(|(at, _)| now.saturating_duration_since(*at) > RATE_WINDOW) {
-            self.samples.pop_front();
-        }
-        let measured = self.samples.iter().map(|(_, r)| *r).reduce(f64::max);
-        // The stack ran dry: a drain's delivery fell towards its pace, or the sender left it near empty.
-        let dry = rate < EMPTY_SHARE * self.rate || (limited_by_sender && self.queued() <= self.depth());
-        match self.phase {
-            Phase::First { .. } | Phase::Unpaced => {}
-            Phase::Startup { flat, best } => {
-                self.rate = measured.unwrap_or(self.rate).max(RATE_FLOOR);
-                self.phase = if self.rate >= best * 1.25 {
-                    Phase::Startup { flat: 0, best: self.rate }
-                } else if flat >= 1 {
-                    Phase::Drain { since: now, dry: true, low: 0 }
-                } else {
-                    Phase::Startup { flat: flat + 1, best }
-                };
-            }
-            Phase::Drain { since, dry: until_dry, low } => {
-                // While draining the delivery falls only once the stack is dry, so the rate stays what it was.
-                let low = if dry { low + 1 } else { 0 };
-                self.phase = Phase::Drain { since, dry: until_dry, low };
-                if low >= 2 || (dry && limited_by_sender) {
-                    self.mark_empty(now);
-                    self.phase = Phase::Probe { since: now };
-                } else if (!until_dry && self.queued() <= self.depth())
-                    || now.saturating_duration_since(since) > DRAIN_MAX
-                {
-                    self.phase = Phase::Probe { since: now };
-                }
-            }
-            Phase::Probe { .. } => {
-                self.rate = measured.unwrap_or(self.rate).max(RATE_FLOOR);
-                if limited_by_sender && self.queued() <= self.depth() {
-                    self.mark_empty(now);
-                } else if now.saturating_duration_since(self.empty.2) > EMPTY_EVERY {
-                    self.phase = Phase::Drain { since: now, dry: true, low: 0 };
-                } else if self.queued() > self.limit() {
-                    self.phase = Phase::Drain { since: now, dry: false, low: 0 };
-                }
-            }
-        }
     }
 }

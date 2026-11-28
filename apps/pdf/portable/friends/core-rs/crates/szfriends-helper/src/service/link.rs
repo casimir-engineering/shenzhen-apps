@@ -204,10 +204,12 @@ impl Link {
             while let Ok(message) = inbox.recv() {
                 match message {
                     WriterMessage::Write(write) => {
+                        // Only PARTs are acknowledged: the pace holds only writes that carry them.
+                        let parts = write.part_bytes();
                         let bytes = write.into_bytes();
                         let length = bytes.len();
                         if let Some(radio) = &radio {
-                            radio.wait_for_room(length);
+                            radio.wait_for_room(length, parts);
                         }
                         Pace::silenced(&pace);
                         match &line {
